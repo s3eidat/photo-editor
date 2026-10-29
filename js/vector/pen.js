@@ -7,7 +7,7 @@
 (function () {
   "use strict";
   var PE = window.PE, ED = PE.ed, VX = PE.VX, VG = PE.VG, UI = VX.ui, h = S3.h;
-  var PO = ED.o.pen = Object.assign({ mode: "shape", op: "new", auto: true, rubber: true, fit: 2 }, ((S3.store("pe-opts") || {}).pen) || {});
+  var PO = ED.o.pen = Object.assign({ mode: "shape", op: "new", auto: true, rubber: true, fit: 2, magnetic: false, mwidth: 10, mcontrast: 10 }, ((S3.store("pe-opts") || {}).pen) || {});
   var OPS = [["new", "New layer", "New shape layer", "v-new"], ["add", "Combine", "Combine shapes (unite)", "v-unite"], ["sub", "Subtract", "Subtract front shape", "v-sub"], ["int", "Intersect", "Intersect shape areas", "v-int"], ["xor", "Exclude", "Exclude overlapping areas", "v-xor"]];
   VX.OPS = OPS;
 
@@ -280,7 +280,14 @@
       if (Math.hypot(hp3.x - q5[0], hp3.y - q5[1]) * ED.zoom < 2 && !dr.moved) return;
       dr.moved = true; setOut(q5, hp3.x, hp3.y, true); dr.tg.put(cs); refresh(); return;
     }
-    if (dr.vec === "marquee" || dr.vec === "ff") { if (dr.vec === "ff") { var lp = dr.pts[dr.pts.length - 1]; if (Math.hypot(p.x - lp.x, p.y - lp.y) * ED.zoom >= 1.5) dr.pts.push(p); } else dr.b = p; ED.renderOvl(); }
+    if (dr.vec === "marquee" || dr.vec === "ff") {
+      if (dr.vec === "ff") {
+        var lp = dr.pts[dr.pts.length - 1];
+        if (dr.edges) { var step = Math.max(2, PO.mwidth / 3); if (Math.hypot(p.x - dr.raw.x, p.y - dr.raw.y) >= step / 1) { dr.raw = p; var sp = snapEdge(dr.edges, p); if (Math.hypot(sp.x - lp.x, sp.y - lp.y) > 0.5) dr.pts.push(sp); } }
+        else if (Math.hypot(p.x - lp.x, p.y - lp.y) * ED.zoom >= 1.5) dr.pts.push(p);
+      } else dr.b = p;
+      ED.renderOvl();
+    }
   }
   function vecUp(p, e) {
     var dr = ED.drag; ED.drag = null; if (!dr || dr.kind !== "vec") return;
@@ -332,9 +339,31 @@
   }
 
   // ---------- freeform pen ----------
+  // magnetic: an edge-strength map of the visible image (reduced for big documents), searched around the pointer
+  function edgeMap() {
+    var d = ED.doc, k = Math.min(1, 1600 / Math.max(d.w, d.h)), W = Math.max(1, Math.round(d.w * k)), H = Math.max(1, Math.round(d.h * k));
+    var px = PE.getData(PE.flatten(d, { scale: k })).data, L = new Float32Array(W * H), G = new Float32Array(W * H), i, x, y;
+    for (i = 0; i < W * H; i++) L[i] = (px[i * 4] * 0.299 + px[i * 4 + 1] * 0.587 + px[i * 4 + 2] * 0.114) * px[i * 4 + 3] / 255;
+    for (y = 1; y < H - 1; y++) for (x = 1; x < W - 1; x++) {
+      i = y * W + x;
+      var gx = L[i - W + 1] + 2 * L[i + 1] + L[i + W + 1] - L[i - W - 1] - 2 * L[i - 1] - L[i + W - 1], gy = L[i + W - 1] + 2 * L[i + W] + L[i + W + 1] - L[i - W - 1] - 2 * L[i - W] - L[i - W + 1];
+      G[i] = Math.hypot(gx, gy);
+    }
+    return { G: G, W: W, H: H, k: k };
+  }
+  function snapEdge(E, p) {
+    var r = Math.max(1, PO.mwidth * E.k), cx = p.x * E.k, cy = p.y * E.k, best = null, bs = -1, thr = PO.mcontrast * 4;
+    for (var y = Math.max(1, Math.floor(cy - r)); y <= Math.min(E.H - 2, Math.ceil(cy + r)); y++) for (var x = Math.max(1, Math.floor(cx - r)); x <= Math.min(E.W - 2, Math.ceil(cx + r)); x++) {
+      var dd = Math.hypot(x + 0.5 - cx, y + 0.5 - cy); if (dd > r) continue;
+      var g = E.G[y * E.W + x], sc = g * (1 - 0.5 * dd / r);
+      if (g > thr && sc > bs) { bs = sc; best = { x: (x + 0.5) / E.k, y: (y + 0.5) / E.k }; }
+    }
+    return best || p;
+  }
   function ffDown(p, e) {
     if (e.ctrlKey || e.metaKey) { dsDown(p, e, true); return; }
-    ED.drag = { kind: "vec", vec: "ff", pts: [p] };
+    var edges = PO.magnetic ? edgeMap() : null;
+    ED.drag = { kind: "vec", vec: "ff", pts: [edges ? snapEdge(edges, p) : p], edges: edges, raw: p };
   }
   function ffUp(dr) {
     if (dr.pts.length < 3) { refresh(); return; }
@@ -558,7 +587,11 @@
       if (PO.mode === "shape") out.push(h("span", { "class": "pe-of" }, [h("span", { text: "Fill" }), UI.color("", ED.o.shape.fill, function (v) { ED.o.shape.fill = v; ED.o.shape.noFill = false; ED.saveOpts(); }, "Fill colour"),
         h("span", { text: "Stroke" }), UI.color("", ED.o.shape.stroke, function (v) { ED.o.shape.stroke = v; ED.saveOpts(); }, "Stroke colour"), w.numInput(ED.o.shape.sw, 0, 500, function (v) { ED.o.shape.sw = v; ED.saveOpts(); })]));
       if (ED.tool === "pen") { out.push(w.check("Auto add/delete", PO.auto, function (v) { PO.auto = v; ED.saveOpts(); })); out.push(w.check("Rubber band", PO.rubber, function (v) { PO.rubber = v; ED.saveOpts(); })); }
-      if (ED.tool === "ffpen") out.push(w.field("Curve fit (px)", w.numInput(PO.fit, 0.5, 10, function (v) { PO.fit = v; ED.saveOpts(); }, 0.5), "pe-num"));
+      if (ED.tool === "ffpen") {
+        out.push(w.field("Curve fit (px)", w.numInput(PO.fit, 0.5, 10, function (v) { PO.fit = v; ED.saveOpts(); }, 0.5), "pe-num"));
+        out.push(w.check("Magnetic", PO.magnetic, function (v) { PO.magnetic = v; ED.saveOpts(); ED.ui.buildOpts(); }));
+        if (PO.magnetic) { out.push(w.field("Width (px)", w.numInput(PO.mwidth, 1, 256, function (v) { PO.mwidth = v; ED.saveOpts(); }), "pe-num")); out.push(w.field("Contrast %", w.numInput(PO.mcontrast, 1, 100, function (v) { PO.mcontrast = v; ED.saveOpts(); }), "pe-num")); }
+      }
     }
     if (VX.pathToSelection && (PO.mode === "path" || (ED.doc && ED.doc.apath))) out = out.concat(pathMakeButtons());
     var hint = { pen: VX.pen ? "Click to add corners, drag for curves (Alt breaks the handle). Click the first anchor to close; Enter or Esc ends an open path." : "Click to place anchors, drag to pull out curve handles. Ctrl = direct selection, Alt on an anchor = convert.",
