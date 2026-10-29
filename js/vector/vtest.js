@@ -331,3 +331,18 @@
     L.shape.grad.angle = 90; c = PE.cx2(PE.flatten(d)); ok(c.getImageData(50, 38, 1, 1).data[0] > 200 && c.getImageData(50, 1, 1, 1).data[2] > 200, "90° runs bottom to top");
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, VX = PE.VX, VG = PE.VG, ED = PE.ed;
+  VX.test("path transform", function (ok) {
+    var d = PE.newDoc(400, 300, "t"), L = PE.newLayer("shape", { shape: { type: "rect", x: 0, y: 0, w: 10, h: 10, fill: "#000000", sw: 0 } }); d.layers = [L]; d.active = L.id;
+    ED.doc = d; ED.hist = new PE.History(50e6, 20); ED.testing = true;
+    VX.setDocComps(L, [VG.comp([VG.P(10, 10), VG.P(50, 10), VG.P(50, 50), VG.P(10, 50)]), VG.comp([VG.P(100, 10), VG.P(140, 10), VG.P(140, 50), VG.P(100, 50)])]);
+    VX.startQuad("free", { tg: VX.layerTg(L), idx: [1] });
+    ED.ui.buildOpts(); var inp = Array.prototype.find.call(document.querySelectorAll("#opts input"), function (i) { return i.closest(".pe-of") && /Angle/.test(i.closest(".pe-of").textContent); });
+    inp.value = "90"; inp.dispatchEvent(new Event("change"));
+    VX.applyQuad();
+    var cs = VX.docComps(L), a = VG.bounds([cs[0]]), b = VG.bounds([cs[1]]);
+    ok(VX.near(a.x, 10, 1e-3) && VX.near(a.w, 40, 1e-3) && VX.near(b.x + b.w / 2, 120, 1e-3) && VX.near(b.w, 40, 1e-3), "only the chosen component moves (rotated about its centre)");
+  });
+})();

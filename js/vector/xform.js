@@ -27,8 +27,9 @@
   }
   VX.qxMapper = mapper;
 
-  VX.startQuad = function (mode) {
+  VX.startQuad = function (mode, sel) {
     if (!ED.doc || ED.busyCheck()) return;
+    if (sel) return startComps(mode, sel);
     var L = ED.layer(); if (!ED.editable(L)) return;
     if (ED.xf) ED.applyTransform();
     ED.cancelModes();
@@ -37,7 +38,7 @@
       ED.rasterize(L);
     }
     var r = srcRect(L); if (!r) { S3.toast("This layer is empty", "error"); return; }
-    Q = { L: L, mode: mode, r: r, quad: corners(r), P: WF.gridPatch(r), style: "none", bend: 0.5, hd: 0, vd: 0, prev: null };
+    Q = { L: L, mode: mode, r: r, quad: corners(r), P: WF.gridPatch(r), style: "none", bend: 0.5, hd: 0, vd: 0, prev: null, fr: { sx: 1, sy: 1, rot: 0, tx: 0, ty: 0 } };
     if (L.kind === "raster") {
       var k = Math.min(1, 900 / Math.max(r.w, r.h)), pc = PE.mk(Math.max(1, Math.ceil(r.w * k)), Math.max(1, Math.ceil(r.h * k))), x = PE.cx2(pc);
       x.imageSmoothingQuality = "high"; x.drawImage(L.canvas, r.x - L.x, r.y - L.y, r.w, r.h, 0, 0, pc.width, pc.height);
@@ -45,12 +46,33 @@
     } else { Q.comps0 = VX.docComps(L); Q.shape0 = PE.clone(L.shape); }
     ED.setTool("vxf"); preview(); ED.emit("tool");
   };
+  // transform only some components of a path target (path selection tool + Ctrl+T)
+  function startComps(mode, sel) {
+    var tg = sel.tg, cs = tg.get(), idx = sel.idx.filter(function (i) { return cs[i]; });
+    if (!idx.length) return;
+    if (tg.kind === "layer" && !ED.editable(tg.L)) return;
+    var r = VG.bounds(idx.map(function (i) { return cs[i]; })); if (!r || (r.w < 1e-6 && r.h < 1e-6)) return;
+    r = { x: r.x, y: r.y, w: Math.max(r.w, 1e-3), h: Math.max(r.h, 1e-3) };
+    Q = { L: tg.kind === "layer" ? tg.L : { id: "__path" }, tg: tg, idx: idx, mode: mode, r: r, quad: corners(r), P: WF.gridPatch(r), style: "none", bend: 0.5, hd: 0, vd: 0, comps0: cs,
+      shape0: tg.kind === "layer" ? PE.clone(tg.L.shape) : null, pb: tg.kind === "path" ? VX.pathBegin() : null, fr: { sx: 1, sy: 1, rot: 0, tx: 0, ty: 0 } };
+    ED.setTool("vxf"); preview(); ED.emit("tool");
+  }
+  function compsMapped(q, f) { var cs = VG.clone(q.comps0); q.idx.forEach(function (i) { cs[i] = mapComps([cs[i]], q.r, f)[0]; }); return cs; }
   function clearPreview() { if (Q) delete ED.live.over[Q.L.id]; }
-  VX.cancelQuad = function () { if (!Q) return; clearPreview(); var L = Q.L; if (Q.shape0) L.shape = PE.clone(Q.shape0); Q = null; ED.render(); ED.renderOvl(); if (ED.tool === "vxf") ED.setTool("move"); };
+  VX.cancelQuad = function () {
+    if (!Q) return; clearPreview(); var L = Q.L;
+    if (Q.pb) Q.pb.cancel(); else if (Q.shape0) L.shape = PE.clone(Q.shape0);
+    Q = null; ED.render(); ED.renderOvl(); if (ED.tool === "vxf") ED.setTool(UI.lastOf ? UI.lastOf("psel") : "move");
+  };
   VX.applyQuad = function () {
     if (!Q) return;
     var q = Q, L = q.L, f = mapper(q); Q = null; clearPreview();
-    if (ED.tool === "vxf") ED.setTool("move");
+    if (ED.tool === "vxf") ED.setTool(q.tg ? "psel" : "move");
+    if (q.tg) {
+      if (q.pb) { q.tg.put(compsMapped(q, f)); q.pb.commit("Transform path"); }
+      else { L.shape = PE.clone(q.shape0); ED.meta("Transform path", function () { q.tg.put(compsMapped(q, f)); }); }
+      ED.renderOvl(); return;
+    }
     if (L.kind === "shape") {
       L.shape = PE.clone(q.shape0);      // undo goes back to before the preview
       ED.meta(label(q), function () { VX.setDocComps(L, mapComps(q.comps0, q.r, f)); });
@@ -77,7 +99,7 @@
   };
   function toCanvas(res) { var c = PE.mk(res.width, res.height); PE.cx2(c).putImageData(new ImageData(new Uint8ClampedArray(res.data.buffer || res.data), res.width, res.height), 0, 0); return PE.touch(c); }
   VX.toCanvas = toCanvas;
-  function label(q) { return { skew: "Skew", distort: "Distort", perspective: "Perspective", warp: "Warp" }[q.mode]; }
+  function label(q) { return { skew: "Skew", distort: "Distort", perspective: "Perspective", warp: "Warp", free: "Free transform" }[q.mode]; }
   // anchors and handles through the mapping (doc -> unit square of r -> f)
   function mapComps(cs, r, f) { return VG.map(cs, function (x, y) { return f((x - r.x) / r.w, (y - r.y) / r.h); }); }
   VX.mapCompsUnit = mapComps;
@@ -87,6 +109,7 @@
   function preview() {
     if (!Q) return;
     var q = Q, L = q.L, f = mapper(q);
+    if (q.tg) { q.tg.put(compsMapped(q, f)); ED.render(); ED.renderOvl(); return; }
     if (L.kind === "shape") { VX.setDocComps(L, mapComps(q.comps0, q.r, f)); ED.render(); ED.renderOvl(); return; }
     VX.meshPreview(L, q.prev, f, q.mode === "warp" ? 20 : 12);
   }
@@ -139,14 +162,16 @@
     var hs = quadHandles(q);
     for (var i = 0; i < 8; i++) if (Math.hypot(hs[i].x - p.x, hs[i].y - p.y) <= t) return { kind: "h", i: i };
     var inv = WF.homog(q.quad).inv(p.x, p.y);
-    return inv.u >= 0 && inv.u <= 1 && inv.v >= 0 && inv.v <= 1 ? { kind: "move" } : null;
+    if (inv.u >= 0 && inv.u <= 1 && inv.v >= 0 && inv.v <= 1) return { kind: "move" };
+    if (q.mode === "free") for (i = 0; i < 4; i++) if (Math.hypot(q.quad[i].x - p.x, q.quad[i].y - p.y) <= 30 / ED.zoom) return { kind: "rot" };
+    return null;
   }
   var CORNER = { 0: 0, 2: 1, 4: 2, 6: 3 }, SIDE = { 1: [0, 1], 3: [1, 2], 5: [2, 3], 7: [3, 0] };
   function down(p, e) {
     if (!Q) return;
     var ht = hit(p);
     if (!ht) { if (Q.mode !== "warp") ht = { kind: "move" }; else return; }
-    ED.drag = { kind: "vxf", h: ht, p0: p, quad: Q.quad.map(function (c) { return { x: c.x, y: c.y }; }), P: Q.P.map(function (c) { return { x: c.x, y: c.y }; }), cancel: function () {} };
+    ED.drag = { kind: "vxf", h: ht, p0: p, fr: Object.assign({}, Q.fr), quad: Q.quad.map(function (c) { return { x: c.x, y: c.y }; }), P: Q.P.map(function (c) { return { x: c.x, y: c.y }; }), cancel: function () {} };
   }
   function move(p, e) {
     var dr = ED.drag; if (!dr || dr.kind !== "vxf" || !Q) return;
@@ -164,6 +189,7 @@
       } else if (ht.kind === "mesh") q.P = WF.dragPatch(dr.P, ht.u, ht.v, dx, dy);
       pvSoon(); return;
     }
+    if (q.mode === "free") { freeMove(q, dr, p, e); pvSoon(); return; }
     var nq = Q0.map(function (c) { return { x: c.x, y: c.y }; });
     if (ht.kind === "move") nq.forEach(function (c, k) { c.x = Q0[k].x + dx; c.y = Q0[k].y + dy; });
     else if (CORNER[ht.i] != null) {
@@ -187,6 +213,33 @@
       }
     }
     q.quad = nq; pvSoon();
+  }
+  // free transform (paths): scale from the opposite side (corners keep proportions, Shift frees them), rotate outside a corner
+  function freeQuad(q) {
+    var r = q.r, f = q.fr, cx = r.x + r.w / 2 + f.tx, cy = r.y + r.h / 2 + f.ty, hw = r.w * f.sx / 2, hh = r.h * f.sy / 2, a = f.rot * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+    return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(function (z) { return { x: cx + z[0] * c - z[1] * s, y: cy + z[0] * s + z[1] * c }; });
+  }
+  function freeMove(q, dr, p, e) {
+    var f0 = dr.fr, r = q.r, f = q.fr, ht = dr.h, a = f0.rot * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+    var c0 = { x: r.x + r.w / 2 + f0.tx, y: r.y + r.h / 2 + f0.ty };
+    if (ht.kind === "move") { f.tx = f0.tx + p.x - dr.p0.x; f.ty = f0.ty + p.y - dr.p0.y; }
+    else if (ht.kind === "rot") {
+      var d = Math.atan2(p.y - c0.y, p.x - c0.x) - Math.atan2(dr.p0.y - c0.y, dr.p0.x - c0.x), rot = f0.rot + d * 180 / Math.PI;
+      f.rot = e && e.shiftKey ? Math.round(rot / 15) * 15 : rot;
+    } else {
+      var H = [[-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]][ht.i], hx = H[0], hy = H[1], hw = r.w * f0.sx / 2, hh = r.h * f0.sy / 2;
+      var ax = -hx * hw, ay = -hy * hh, A = { x: c0.x + ax * c - ay * s, y: c0.y + ax * s + ay * c };      // fixed opposite point
+      var lx = (p.x - A.x) * c + (p.y - A.y) * s, ly = -(p.x - A.x) * s + (p.y - A.y) * c;
+      var sx = hx ? lx / (hx * r.w) : f0.sx, sy = hy ? ly / (hy * r.h) : f0.sy;
+      if (hx && hy && !(e && e.shiftKey)) { var k = Math.max(Math.abs(sx / f0.sx), Math.abs(sy / f0.sy)); sx = Math.sign(sx || 1) * Math.abs(f0.sx) * k; sy = Math.sign(sy || 1) * Math.abs(f0.sy) * k; }
+      if (Math.abs(sx * r.w) < 0.5) sx = Math.sign(sx || 1) * 0.5 / r.w; if (Math.abs(sy * r.h) < 0.5) sy = Math.sign(sy || 1) * 0.5 / r.h;
+      var mx = hx ? hx * r.w * sx / 2 : 0, my = hy ? hy * r.h * sy / 2 : 0, lc = { x: hx ? ax + mx : 0, y: hy ? ay + my : 0 };
+      if (!hx) lc.x = 0; if (!hy) lc.y = 0;
+      var nc = { x: c0.x + (hx ? (ax + hx * r.w * sx / 2) : 0) * c - (hy ? (ay + hy * r.h * sy / 2) : 0) * s, y: c0.y + (hx ? (ax + hx * r.w * sx / 2) : 0) * s + (hy ? (ay + hy * r.h * sy / 2) : 0) * c };
+      f.sx = sx; f.sy = sy; f.tx = nc.x - (r.x + r.w / 2); f.ty = nc.y - (r.y + r.h / 2);
+      void lc;
+    }
+    q.quad = freeQuad(q);
   }
   function up() { var dr = ED.drag; ED.drag = null; if (dr && dr.kind === "vxf") { preview(); ED.emit("tool"); } }
 
@@ -221,7 +274,10 @@
   UI.opts("vxf", function () {
     var w = ED.ui.w, out = [UI.nameItem("vxf")];
     if (!Q) { out.push(h("span", { "class": "pe-hint", text: "Choose Edit › Transform › Skew, Distort, Perspective or Warp." })); return out; }
-    out.push(w.seg("", MODES, Q.mode, function (v) { switchMode(v); }));
+    out.push(w.seg("", (Q.tg ? [["free", "Scale / rotate"]] : []).concat(MODES), Q.mode, function (v) { switchMode(v); }));
+    if (Q.mode === "free") out.push(w.field("W %", w.numInput(Math.round(Q.fr.sx * 1000) / 10, -10000, 10000, function (v) { Q.fr.sx = v / 100 || 0.01; Q.quad = freeQuad(Q); preview(); }, 0.1), "pe-num"),
+      w.field("H %", w.numInput(Math.round(Q.fr.sy * 1000) / 10, -10000, 10000, function (v) { Q.fr.sy = v / 100 || 0.01; Q.quad = freeQuad(Q); preview(); }, 0.1), "pe-num"),
+      w.field("Angle", w.numInput(Math.round(Q.fr.rot * 10) / 10, -360, 360, function (v) { Q.fr.rot = v; Q.quad = freeQuad(Q); preview(); }, 0.1), "pe-num"));
     if (Q.mode === "warp") {
       out.push(w.select("Style", WF.STYLES.map(function (s) { return [s[0], s[0] === "none" ? "Custom" : s[1]]; }), Q.style, function (v) { Q.style = v; if (v === "none") Q.P = WF.gridPatch(Q.r); preview(); ED.ui.buildOpts(); }));
       if (Q.style !== "none") {
@@ -231,13 +287,14 @@
         out.push(w.btn("Edit points", function () { var f = mapper(Q); Q.P = WF.fitPatch(f, 9); Q.style = "none"; preview(); ED.ui.buildOpts(); }, "ghost", null, "Turn the style into a mesh you can drag"));
       } else out.push(w.btn("Reset", function () { Q.P = WF.gridPatch(Q.r); preview(); }, "ghost"));
     } else out.push(w.btn("Reset", function () { Q.quad = corners(Q.r); preview(); }, "ghost"));
-    var hint = { skew: "Drag a side handle to slant it; corners slide along an edge.", distort: "Drag corners anywhere; side handles move a whole edge.", perspective: "Drag a corner: its partner moves the mirror way.", warp: Q.style === "none" ? "Drag the mesh, its corner points or the tangent points." : "Pick a style and bend it, or Edit points to fine-tune." }[Q.mode];
+    var hint = { free: "Drag handles to scale (Shift = free proportions), outside a corner to rotate, inside to move.", skew: "Drag a side handle to slant it; corners slide along an edge.", distort: "Drag corners anywhere; side handles move a whole edge.", perspective: "Drag a corner: its partner moves the mirror way.", warp: Q.style === "none" ? "Drag the mesh, its corner points or the tangent points." : "Pick a style and bend it, or Edit points to fine-tune." }[Q.mode];
     out.push(h("span", { "class": "pe-hint", text: hint + " Enter applies, Esc cancels." }));
     out.push(w.btn("Cancel", VX.cancelQuad, "ghost"), w.btn("Apply", VX.applyQuad, "primary", "i-check"));
     return out;
   });
   function switchMode(m) {
     if (!Q) return;
+    if (m === "free") { Q.mode = "free"; Q.quad = freeQuad(Q); preview(); ED.ui.buildOpts(); return; }
     if (m === "warp" && Q.mode !== "warp") { var f = WF.homog(Q.quad); Q.P = WF.fitPatch(f, 7); Q.style = "none"; }
     if (m !== "warp" && Q.mode === "warp") { var g = mapper(Q); Q.quad = [g(0, 0), g(1, 0), g(1, 1), g(0, 1)]; }
     Q.mode = m; preview(); ED.ui.buildOpts();

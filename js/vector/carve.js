@@ -10,11 +10,18 @@
     var d = ED.doc; if (!useSel || !d.sel) return null;
     return PE.selFor(d, { x: L.x, y: L.y, w: L.canvas.width, h: L.canvas.height });
   }
+  // amount < 100%: seams do that share of the change, ordinary resampling the rest
+  function mid(from, to, amount) { return Math.max(1, Math.round(from + (to - from) * amount / 100)); }
+  function scaleTo(res, tw, th) {
+    if (res.width === tw && res.height === th) return res;
+    var a = VX.toCanvas(res), c = PE.mk(tw, th), x = PE.cx2(c); x.imageSmoothingQuality = "high"; x.drawImage(a, 0, 0, tw, th);
+    var d = x.getImageData(0, 0, tw, th); return { data: d.data, width: tw, height: th };
+  }
   VX.smartResizeDialog = function () {
     if (!ED.doc || ED.busyCheck()) return;
     var L = ED.layer(); if (!ED.editable(L, "pixels")) return;
     if (ED.maskEdit) { S3.toast("Smart resize changes layer pixels: click the layer thumbnail first", "error"); return; }
-    var d = ED.doc, W = L.canvas.width, H = L.canvas.height, w = ED.ui.w, st = { w: W, h: H, sel: !!d.sel, skin: false, canvas: L.x <= 0 && L.y <= 0 && L.x + W >= d.w && L.y + H >= d.h && d.layers.length === 1 };
+    var d = ED.doc, W = L.canvas.width, H = L.canvas.height, w = ED.ui.w, st = { w: W, h: H, amount: 100, sel: !!d.sel, skin: false, canvas: L.x <= 0 && L.y <= 0 && L.x + W >= d.w && L.y + H >= d.h && d.layers.length === 1 };
     var wi = h("input", { type: "number", "class": "input", min: "1", max: String(PE.LIM.side), value: String(W) }), hi = h("input", { type: "number", "class": "input", min: "1", max: String(PE.LIM.side), value: String(H) });
     var wp = h("input", { type: "number", "class": "input", min: "10", max: "200", value: "100" }), hp = h("input", { type: "number", "class": "input", min: "10", max: "200", value: "100" });
     function sync(from) {
@@ -35,7 +42,8 @@
       if (busy) { again = true; return; }
       busy = true; again = false;
       var tw = Math.max(2, Math.round(st.w * pk)), th = Math.max(2, Math.round(st.h * pk));
-      VX.work("carve", [{ data: new Uint8ClampedArray(sImg.data), width: pw, height: ph }, st.sel ? sProtSmall : null, tw, th, st.skin, 400]).then(function (r) {
+      VX.work("carve", [{ data: new Uint8ClampedArray(sImg.data), width: pw, height: ph }, st.sel ? sProtSmall : null, mid(pw, tw, st.amount), mid(ph, th, st.amount), st.skin, 400]).then(function (r) {
+        r = scaleTo(r, tw, th);
         var c = PE.cx2(pv); pv.width = Math.max(pw, tw); pv.height = Math.max(ph, th);
         c.clearRect(0, 0, pv.width, pv.height); c.putImageData(new ImageData(new Uint8ClampedArray(r.data.buffer || r.data), r.width, r.height), 0, 0);
         info.textContent = W + " × " + H + " → " + st.w + " × " + st.h + " px";
@@ -47,13 +55,15 @@
     var body = h("div", { "class": "stack" }, [
       h("p", { "class": "faint pe-p", text: "Removes or doubles the least noticeable lines of pixels, so subjects keep their shape. Now " + W + " × " + H + " px." }),
       h("div", { "class": "pe-custom" }, [w.field("Width (px)", wi), w.field("%", wp), w.field("Height (px)", hi), w.field("%", hp)]),
+      w.range("Amount", 100, 0, 100, 1, function (v) { st.amount = v; schedule(); }, function (v) { return v + "%"; }),
       selChk, w.check("Protect skin tones", false, function (v) { st.skin = v; schedule(); }),
       w.check("Resize the canvas to match", st.canvas, function (v) { st.canvas = v; }), pv, info]);
     var go = w.btn("Resize", function () {
       dlg.close();
       if (st.w === W && st.h === H) return;
       var img = PE.getData(L.canvas), canvasToo = st.canvas;
-      ED.working(VX.work("carve", [{ data: img.data, width: W, height: H }, st.sel ? protectFor(L, true) : null, st.w, st.h, st.skin, 1200]), "Smart resize…").then(function (r) {
+      ED.working(VX.work("carve", [{ data: img.data, width: W, height: H }, st.sel ? protectFor(L, true) : null, mid(W, st.w, st.amount), mid(H, st.h, st.amount), st.skin, 1200]), "Smart resize…").then(function (r) {
+        r = scaleTo(r, st.w, st.h);
         var cv = VX.toCanvas(r);
         try { if (canvasToo) PE.checkSize(r.width, r.height, "The canvas"); } catch (e) { S3.toast(e.message, "error"); return; }
         ED.meta("Smart resize", function () {

@@ -527,6 +527,15 @@
   UI.addTool("psel", "Path selection (A · Shift+A cycles)", "A", "text");
 
   // keys: Enter / Esc finish a path, Delete removes anchors or components, arrows nudge
+  UI.keys.push(function (e) {      // Ctrl+T with selected path components (or anchors): transform just those
+    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "t" || (ED.tool !== "psel" && ED.tool !== "dsel")) return false;
+    var tg = curTarget(); if (!tg) return false;
+    var cs = tg.get(), idx = Object.keys(compsFor(tg.key)).map(Number);
+    if (!idx.length) selectedAnchors(cs).forEach(function (z) { if (idx.indexOf(z[0]) < 0) idx.push(z[0]); });
+    if (!idx.length) idx = cs.map(function (c, i) { return i; });
+    VX.startQuad("free", { tg: tg, idx: idx });
+    return true;
+  });
   UI.keys.push(function (e) {
     if (!UI.groupOf(ED.tool) || e.ctrlKey || e.metaKey) return false;
     var k = e.key;
