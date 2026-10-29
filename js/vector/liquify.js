@@ -265,15 +265,27 @@
     if (!ok) return;
     var moved = false; for (var i = 0; i < s.D.length; i++) if (s.D[i] !== 0) { moved = true; break; }
     if (!moved) return;
-    var img = PE.getData(s.L.canvas);
-    ED.working(VX.work("liquifyApply", [{ data: img.data, width: img.width, height: img.height }, s.D, s.ww, s.wh, s.k]), "Liquify…").then(function (res) {
+    last = { D: new Float32Array(s.D), ww: s.ww, wh: s.wh };
+    applyField(s.L, s.D, s.ww, s.wh, s.ww / s.W);
+  }
+  var last = null;      // the last liquify, to repeat on another layer (or again)
+  function applyField(L, D, ww, wh, k) {
+    var img = PE.getData(L.canvas);
+    ED.working(VX.work("liquifyApply", [{ data: img.data, width: img.width, height: img.height }, new Float32Array(D), ww, wh, k]), "Liquify…").then(function (res) {
       var cv = VX.toCanvas(res);
-      ED.meta("Liquify", function () { s.L.canvas = cv; });
+      ED.meta("Liquify", function () { L.canvas = cv; });
     }).catch(function (e) { S3.toast(e.message, "error"); });
   }
+  VX.repeatLiquify = function () {
+    if (!last) { S3.toast("Use Liquify first", "error"); return; }
+    if (!ED.doc || ED.busyCheck()) return;
+    var L = ED.layer(); if (!ED.editable(L, "pixels")) return;
+    applyField(L, last.D, last.ww, last.wh, last.ww / L.canvas.width);      // the field stretches to this layer's size
+  };
   VX.closeLiquify = close;
   VX.liquifySession = function () { return S; };
 
-  UI.menu("Filter", ["-", ["Liquify…", "Ctrl+Shift+X", function () { if (ED.ui.w.need()) VX.openLiquify(); }, function () { return !!ED.doc; }]]);
+  UI.menu("Filter", ["-", ["Liquify…", "Ctrl+Shift+X", function () { if (ED.ui.w.need()) VX.openLiquify(); }, function () { return !!ED.doc; }],
+    ["Repeat last liquify", "", function () { if (ED.ui.w.need()) VX.repeatLiquify(); }, function () { return !!(ED.doc && last); }]]);
   UI.keys.push(function (e) { if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "x") { if (ED.ui.w.need()) VX.openLiquify(); return true; } return false; });
 })();

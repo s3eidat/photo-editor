@@ -422,7 +422,10 @@
     ["puzzle", "Puzzle piece", "M10 22 H36 C34 16 34 6 46 6 C58 6 58 16 56 22 H82 V46 C88 44 96 44 96 56 C96 68 88 68 82 66 V90 H58 C60 84 60 76 48 76 C36 76 36 84 38 90 H10 V66 C16 68 24 68 24 56 C24 44 16 44 10 46 Z"],
     ["frame", "Frame", "M0 0 H100 V100 H0 Z M12 12 V88 H88 V12 Z"]
   ];
+  VG.USER = [];      // shapes the user defined: [id, name, unit comps]
   VG.libComps = function (id) {
+    var u = VG.USER.filter(function (x) { return x[0] === id; })[0];
+    if (u) return cloneComps(u[2]);
     var e = VG.LIB.filter(function (x) { return x[0] === id; })[0];
     if (!e) return null;
     var cs = VG.parseD(e[2]), b = VG.bounds(cs);

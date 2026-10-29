@@ -31,7 +31,7 @@
     if (S.type !== "line") S.fill = o.noFill ? "" : PE.hex(o.fill, ED.doc.fg); else S.stroke = PE.hex(o.stroke, ED.doc.fg);
     if (type === "polygon") { S.type = "polygon"; S.sides = o.sides; dr.L.name = "Polygon"; }
     if (type === "star") { S.sides = o.starSides; S.indent = o.indent; }
-    if (type === "custom") { S.type = "path"; S.comps = VG.libComps(o.lib) || VG.libComps("heart"); S.lib = o.lib; dr.L.name = (VG.LIB.filter(function (x) { return x[0] === o.lib; })[0] || [0, "Shape"])[1]; }
+    if (type === "custom") { S.type = "path"; S.comps = VG.libComps(o.lib) || VG.libComps("heart"); S.lib = o.lib; dr.L.name = (allShapes().filter(function (x) { return x[0] === o.lib; })[0] || [0, "Shape"])[1]; }
     if (type === "line") { if (o.arrowS) S.arrowS = true; if (o.arrowE) S.arrowE = true; }
     if (type !== "rect" && type !== "polygon") delete S.radius;
     styleNew(S);
@@ -65,6 +65,42 @@
     out.push(h("span", { "class": "pe-hint", text: "Drag to draw (Shift = square / 15° steps, Alt = from centre). Edit anchors with the direct-selection tool (A)." }));
     return out;
   });
+  // the user's own shapes (Edit › Define custom shape), kept in this browser
+  function saveUser() { S3.store("pe-vshapes", VG.USER.map(function (u) { return { id: u[0], name: u[1], comps: u[2] }; })); }
+  (S3.store("pe-vshapes") || []).forEach(function (u) {
+    if (!u || typeof u.id !== "string" || !/^u[a-z0-9]{1,20}$/.test(u.id)) return;
+    var cs = VX.cleanComps(u.comps, 2); if (cs && cs.length) VG.USER.push([u.id, String(u.name || "Shape").slice(0, 60), cs]);
+  });
+  function allShapes() { return VG.LIB.concat(VG.USER); }
+  VX.defineShape = function () {
+    var tg = VX.target(), cs = tg ? tg.get() : null;
+    if (!cs || !cs.length) { S3.toast("Select a shape layer or a path first", "error"); return; }
+    var w = ED.ui.w, nm = h("input", { "class": "input", value: "Shape " + (VG.USER.length + 1), maxlength: "60", dir: "auto" });
+    var go = w.btn("OK", function () {
+      dlg.close();
+      var b = VG.bounds(cs); if (!b || b.w <= 0 || b.h <= 0) return;
+      var unit = VG.map(cs, function (x, y) { return [Math.round((x - b.x) / b.w * 1e5) / 1e5, Math.round((y - b.y) / b.h * 1e5) / 1e5]; });
+      var id = "u" + Date.now().toString(36).slice(-6) + Math.floor(Math.random() * 1296).toString(36);
+      VG.USER.push([id, nm.value.trim().slice(0, 60) || "Shape", unit]); if (VG.USER.length > 60) VG.USER.shift(); saveUser();
+      o.type = "custom"; o.lib = id; ED.saveOpts(); if (ED.tool === "shape") ED.ui.buildOpts();
+      S3.toast("Saved to the custom shapes (shape tool, Custom)");
+    }, "primary");
+    var dlg = w.modal("Define custom shape", h("div", { "class": "stack" }, [w.field("Name", nm), h("p", { "class": "faint pe-p", text: "Kept in this browser; pick it from the shape tool's custom shapes." })]), [h("span", { "class": "grow" }), go]);
+  };
+  // merge the selected shape layer into the shape layer below, staying vector
+  VX.mergeShapesDown = function () {
+    var d = ED.doc, a = ED.layer(), i = d.layers.indexOf(a), b = d.layers[i - 1];
+    if (!a || a.kind !== "shape" || !b || b.kind !== "shape") { S3.toast("Select a shape layer that has a shape layer below it", "error"); return; }
+    if (a.locked || b.locked) { S3.toast("Unlock both layers first", "error"); return; }
+    var cs = VX.docComps(b).concat(VX.docComps(a));
+    ED.meta("Merge shapes", function () { VX.setDocComps(b, cs); d.layers.splice(i, 1); d.active = b.id; });
+    ED.emit("layers");
+  };
+  function hasPath() { var t = ED.doc && VX.target(); return !!(t && t.get().length); }
+  function shapePair() { var d = ED.doc, a = d && ED.layer(), i = d ? d.layers.indexOf(a) : -1; return !!(a && a.kind === "shape" && i > 0 && d.layers[i - 1].kind === "shape"); }
+  UI.menu("Edit", [["Define custom shape…", "", function () { if (ED.ui.w.need()) VX.defineShape(); }, hasPath]], "Flip layer vertical");
+  UI.menu("Layer", [["Merge shapes down", "", function () { if (ED.ui.w.need()) VX.mergeShapesDown(); }, shapePair]], "Merge down");
+
   // grid of custom shapes, each drawn from its own path
   function libThumb(id, size) {
     var c = h("canvas", { width: String(size * 2), height: String(size * 2), "class": "pe-vlibc" }), x = c.getContext("2d"), cs = VG.libComps(id);
@@ -76,11 +112,15 @@
   VX.libThumb = libThumb;
   function libPicker(cur, onPick) {
     var wrap = h("div", { "class": "pe-vlibw" }), pop = h("div", { "class": "pe-vlib", role: "listbox", "aria-label": "Custom shapes", hidden: true });
-    var name = (VG.LIB.filter(function (x) { return x[0] === cur; })[0] || VG.LIB[0])[1];
+    var name = (allShapes().filter(function (x) { return x[0] === cur; })[0] || VG.LIB[0])[1];
     var b = h("button", { type: "button", "class": "btn small ghost pe-vlibb", "aria-haspopup": "listbox", title: "Choose a custom shape" }, [libThumb(cur, 12), name]);
-    VG.LIB.forEach(function (e) {
-      var it = h("button", { type: "button", "class": "pe-vlibi", role: "option", "aria-selected": String(e[0] === cur), title: e[1], "aria-label": e[1] }, [libThumb(e[0], 18)]);
-      it.addEventListener("click", function () { pop.hidden = true; onPick(e[0]); });
+    allShapes().forEach(function (e) {
+      var user = /^u/.test(e[0]) && VG.USER.indexOf(e) >= 0;
+      var it = h("button", { type: "button", "class": "pe-vlibi" + (user ? " user" : ""), role: "option", "aria-selected": String(e[0] === cur), title: e[1] + (user ? " (yours — Alt+click deletes it)" : ""), "aria-label": e[1] }, [libThumb(e[0], 18)]);
+      it.addEventListener("click", function (ev) {
+        if (user && ev.altKey) { VG.USER.splice(VG.USER.indexOf(e), 1); saveUser(); it.remove(); return; }
+        pop.hidden = true; onPick(e[0]);
+      });
       pop.appendChild(it);
     });
     b.addEventListener("click", function (ev) { ev.stopPropagation(); pop.hidden = !pop.hidden; });

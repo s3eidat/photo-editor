@@ -158,7 +158,7 @@
     if (raw.arrowE === true) s.arrowE = true;
     ["aw", "al"].forEach(function (k) { if (raw[k] != null) s[k] = num(raw[k], 1, 50, 5); });
     if (raw.ac != null) s.ac = num(raw.ac, -50, 50, 0);
-    if (typeof raw.lib === "string" && /^[a-z]{1,20}$/.test(raw.lib)) s.lib = raw.lib;
+    if (typeof raw.lib === "string" && /^[a-z0-9]{1,24}$/.test(raw.lib)) s.lib = raw.lib;
     if (raw.grad && typeof raw.grad === "object" && Array.isArray(raw.grad.stops)) {
       var st = raw.grad.stops.slice(0, 16).map(function (q) { return Array.isArray(q) ? [num(q[0], 0, 1, 0), PE.hex(q[1], "#000000"), num(q[2], 0, 1, 1)] : null; }).filter(Boolean);
       if (st.length >= 2) s.grad = { type: raw.grad.type === "radial" ? "radial" : "linear", angle: num(raw.grad.angle, -360, 360, 0), scale: num(raw.grad.scale, 0.1, 10, 1), stops: st };
