@@ -69,9 +69,11 @@ maths files, `openAdjust` calls `spec.ui`, `ED.adjKit` exposes the UI widgets, `
 
 ## Skipped (and why)
 - Camera lens profiles (automatic lens correction): needs a profile database; the manual controls are there.
-- Adaptive wide angle, vanishing point: need interactive constraint/plane editing on the canvas (not started).
+- Constraint lines for wide-angle correction, vanishing-point planes: need interactive line/plane editing and solving (not started).
 | On-canvas handles | done | Tilt-shift (centre, angle, sharp band, fade), iris blur (centre, width, height, rotation, sharp area), field blur (drag pins, click to add, double-click to remove), radial blur / lens flare centre, spin blur and lighting centre + size ring — dragging updates the sliders and the preview |
 | Apply image | done | Image › Apply image…: source = merged or any layer, channel (RGB / R / G / B / grey / transparency), invert, 20 blend modes, opacity, scale / offset for add / subtract, preserve transparency, inside the selection |
 | Calculations | done | Image › Calculations…: two sources × channel × invert, blend mode, opacity → new selection or a new grey layer; live grey preview over the document |
 | Picture frame, tree | done | Filter › Render; 8 frame styles (frame and mat, wood, plain, film strip, instant photo, vine, scalloped, rounded) with colours and width; procedural tree (base point with handle, size, branch angle, branching depth, bend, leaves, colours, randomise) |
 | Path blur, flame | done | Filter › Blur › Path blur… (speed, taper, centred; pixels follow the nearest drawn path, curved) and Filter › Render › Flame… (length, width, turbulence, density, 4 colour sets, randomise); paths drawn on the canvas: click to add points, drag to move, double-click to remove, several paths |
+| Wide-angle correction | partial | Filter › Wide-angle correction… (Ctrl+Alt+Shift+A): fisheye → flat (lens and view field of view, scale), wide shot → Pannini-style view (keeps verticals, squeezes edges), 360° equirectangular panorama → flat view (yaw, pitch, roll, field of view). Not done: drawing constraint lines to straighten chosen lines |
+| Elapsed time while rendering | done | Full-size renders show "… 12 s" in the busy chip |

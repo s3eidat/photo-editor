@@ -78,6 +78,11 @@
     sl("angle", "Angle", -180, 180, 0.1, 0, deg), sl("scale", "Scale", 25, 400, 1, 100, pc)],
     sel: [["edge", "Edge", [["transparent", "Transparency"], ["extend", "Edge extension"], ["color", "Background colour"]], "transparent"]], ui: function (el, st) { st.p.fillColor = ED.doc.bg; } });
   AUI.addMenu("Filter", [["Lens correction…", "Ctrl+Shift+R", function () { AUI.open("lensCorrection"); }, has]], "Gaussian blur");
+  AUI.adj("wideAngle", { t: "Wide-angle correction", c: [sl("fovIn", "Lens field of view (fisheye)", 60, 360, 1, 180, deg), sl("fovOut", "View field of view", 20, 170, 1, 100, deg), sl("scale", "Scale", 25, 400, 1, 100, pc),
+    sl("pannini", "Edge squeeze (Pannini)", 0, 200, 1, 100, pc), sl("yaw", "Look left / right (360°)", -180, 180, 1, 0, deg), sl("pitch", "Look up / down (360°)", -90, 90, 1, 0, deg), sl("roll", "Roll (360°)", -180, 180, 1, 0, deg)],
+    sel: [["type", "Correction", [["fisheye", "Fisheye to flat"], ["pannini", "Wide shot: keep verticals, squeeze edges"], ["spherical", "360° panorama to a flat view"]], "fisheye"], ["edge", "Edges", [["clamp", "Repeat edge pixels"], ["transparent", "Transparent"]], "clamp"]] });
+  AUI.addMenu("Filter", [["Wide-angle correction…", "Ctrl+Alt+Shift+A", function () { AUI.open("wideAngle"); }, has]], "Gaussian blur");
+  AUI.key("Ctrl+Alt+Shift+A", function () { AUI.open("wideAngle"); });
   AUI.key("Ctrl+Shift+R", function () { AUI.open("lensCorrection"); });
 
   // depth of field

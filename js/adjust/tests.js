@@ -286,6 +286,9 @@
     ok(get(pbA, 10 * 21 + 12)[0] > 0 && get(pbA, 12 * 21 + 10)[0] === 0, "path blur smears along a horizontal path only");
     var fl = run(gray(30, 30, function () { return 0; }), "flame", { paths: [[10, 90, 90, 90]], length: 40 }, null, 30, 30), lit = 0; for (i = 0; i < 900; i++) if (get(fl, i)[0] > 60) lit++;
     ok(lit > 20 && get(fl, 0)[0] < 40, "flame burns along the path (" + lit + " px)");
+
+    var g9 = gray(9, 9, function (x, y) { return x * 25 + y; }), wa = run(g9, "wideAngle", { type: "fisheye", fovIn: 90, fovOut: 90 }, null, 9, 9); ok(get(wa, 40)[0] === g9[40][0], "wide-angle: the centre stays put");
+    var eq = run(gray(16, 8, function (x) { return x * 16; }), "wideAngle", { type: "spherical", fovOut: 60, yaw: 0 }, null, 16, 8); ok(near(get(eq, 4 * 16 + 8)[0], 128, 20), "360° view looks at the panorama's centre");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };

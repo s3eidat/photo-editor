@@ -142,4 +142,37 @@
     }
     return img;
   }));
+
+  // ---------- wide-angle correction ----------
+  // fisheye (equidistant) -> rectilinear; 360° equirectangular panorama -> a rectilinear view (yaw, pitch, roll, field
+  // of view); rectilinear wide shot -> Pannini-style view that keeps verticals straight and squeezes stretched edges.
+  A.reg("wideAngle", A.filter(function (img, p) {
+    var w = img.width, h = img.height, cx = w / 2, cy = h / 2, D = Math.sqrt(cx * cx + cy * cy), type = p.type || "fisheye", DEG = Math.PI / 180;
+    var fovIn = clamp(num(p.fovIn, 180), 60, 360) * DEG, fovOut = clamp(num(p.fovOut, 100), 20, 170) * DEG, scl = clamp(num(p.scale, 100), 25, 400) / 100;
+    if (type === "spherical") {
+      var yaw = num(p.yaw, 0) * DEG, pitch = num(p.pitch, 0) * DEG, roll = num(p.roll, 0) * DEG, fo = Math.tan(fovOut / 2), cyw = Math.cos(yaw), syw = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch), cr = Math.cos(roll), sr = Math.sin(roll);
+      return A.warp(img, function (x, y, s) {
+        var u = (x - cx) / cx * fo / scl, v = (y - cy) / cx * fo / scl, ru = u * cr - v * sr, rv = u * sr + v * cr;
+        var X = ru, Y = rv, Z = 1, y2 = Y * cp - Z * sp, z2 = Y * sp + Z * cp, x3 = X * cyw + z2 * syw, z3 = -X * syw + z2 * cyw;
+        var lon = Math.atan2(x3, z3), lat = Math.atan2(y2, Math.sqrt(x3 * x3 + z3 * z3));
+        s[0] = ((lon / (2 * Math.PI) + 0.5) % 1 + 1) % 1 * w; s[1] = (lat / Math.PI + 0.5) * h;
+      }, "clamp");
+    }
+    if (type === "pannini") {
+      var dP = clamp(num(p.pannini, 100), 0, 200) / 100, half = fovOut / 2, sMax = (dP + 1) * Math.sin(half) / (dP + Math.cos(half)), fl = cx / Math.tan(half);
+      return A.warp(img, function (x, y, s) {
+        var X = (x - cx) / cx * sMax / scl, Y = (y - cy) / cx * sMax / scl;      // Pannini plane -> angle, then rectilinear
+        var k = X * X / ((dP + 1) * (dP + 1)), dsc = k * k * dP * dP - (k + 1) * (k * dP * dP - 1), ct = (-k * dP + Math.sqrt(Math.max(0, dsc))) / (k + 1), S = (dP + 1) / (dP + ct);
+        var phi = Math.atan2(X / S, ct), tl = Y / S;
+        if (Math.abs(phi) >= Math.PI / 2 - 0.01) return false;
+        s[0] = cx + fl * Math.tan(phi); s[1] = cy + fl * tl / Math.cos(phi);
+      }, p.edge === "transparent" ? "transparent" : "clamp");
+    }
+    // fisheye: equidistant r_in = f_in * theta (f_in from the lens field of view over the image diagonal)
+    var fIn = D / (fovIn / 2), fOut = D / Math.tan(Math.min(fovOut, 179 * DEG) / 2);
+    return A.warp(img, function (x, y, s) {
+      var dx = (x - cx) / scl, dy = (y - cy) / scl, r = Math.sqrt(dx * dx + dy * dy); if (r < 1e-6) return;
+      var th = Math.atan(r / fOut), rin = fIn * th; s[0] = cx + dx / r * rin; s[1] = cy + dy / r * rin;
+    }, p.edge === "transparent" ? "transparent" : "clamp");
+  }));
 })(typeof self !== "undefined" ? self : this);

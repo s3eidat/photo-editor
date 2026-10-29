@@ -17,7 +17,7 @@
   AUI.quick = function (op, label, p) {
     var K = kit(), t = K.adjTarget(); if (!t) return Promise.resolve();
     QUICK_LABELS[label] = 1;
-    return ED.working(PE.work("adjust", [t.img, op, p || {}, t.sel]), label + "…").then(function (res) { K.commitAdjusted(t, res, label); })
+    return AUI.timed(PE.work("adjust", [t.img, op, p || {}, t.sel]), label).then(function (res) { K.commitAdjusted(t, res, label); })
       .catch(function (e) { S3.toast(e.message, "error"); });
   };
   AUI.isFilterLabel = function (label) {
@@ -194,6 +194,12 @@
     return o;
   };
 
+  // Busy chip with elapsed seconds for full-size renders that take a while.
+  AUI.timed = function (promise, label) {
+    var t0 = Date.now(), busy = $("#busy"), iv = setInterval(function () { var sec = Math.round((Date.now() - t0) / 1000); if (sec >= 2 && busy && !busy.hidden) busy.textContent = label + "… " + sec + " s"; }, 500);
+    return ED.working(promise, label + "…").then(function (v) { clearInterval(iv); return v; }, function (e) { clearInterval(iv); throw e; });
+  };
+
   // ---------- live-preview panel for this lane's ops ----------
   // Same spec format as the editor's own panel (t, c sliders, chk checkboxes [key, label, default], sel choices
   // [key, label, [[value, text]...], default], ui(el, st)), but the preview is worked
@@ -266,7 +272,7 @@
       (spec.previewOnly || []).forEach(function (k) { if (params[k] != null && params[k] !== false) { viewOnly = true; params[k] = k === "localShow" ? null : false; } });     // e.g. mask views are not applied
       if (s === 1 && !viewOnly && st.shown === JSON.stringify(params) && !st.busy) { var c = small; ED.meta(spec.t, function () { L.canvas = PE.touch(c); }); return; }
       params._scale = 1;
-      ED.working(PE.work("adjust", [t.img, op, params, t.sel]), spec.t + "…").then(function (res) { K.commitAdjusted(t, res, spec.t); }).catch(function (e) { S3.toast(e.message, "error"); });
+      AUI.timed(PE.work("adjust", [t.img, op, params, t.sel]), spec.t).then(function (res) { K.commitAdjusted(t, res, spec.t); }).catch(function (e) { S3.toast(e.message, "error"); });
     }, function () { st.closed = true; delete ED.live.over[L.id]; }, {
       preview: function (v) { st.previewOn = v; show(); },
       reset: function () { AUI.closePanel(false); AUI.openLive(op); }
