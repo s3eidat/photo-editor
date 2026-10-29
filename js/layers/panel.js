@@ -198,7 +198,7 @@
 
   // ---------- Properties for kinds this lane adds ----------
   SX.props = SX.props || {};
-  ED.ui.propsExt = function (P, L) {
+  ED.ui.propsKind = function (P, L) {
     var f = SX.props[L.kind]; if (!f) return false;
     f(P, L); return true;
   };

@@ -23,6 +23,31 @@
     var orig = ED[fn];
     ED[fn] = function () { var L = ED.layer(); if (L && L.lockM && (fn !== "applyTransform" || (ED.xf && ED.xf.L === L))) { S3.toast("“" + L.name + "” has its position locked", "error"); if (fn === "applyTransform") ED.cancelTransform(); return; } return orig.apply(this, arguments); };
   });
+  // Locked transparency for any tool that edits pixels through PE.editPixels or PE.tileEntry (other lanes' brushes too):
+  // the alpha of every touched pixel is put back as it was, before the history entry is made.
+  function keepAlpha(c, R, before) {
+    var after = c.getImageData(R.x, R.y, R.w, R.h), a = after.data, b = before.data, changed = false;
+    for (var i = 3; i < a.length; i += 4) if (a[i] !== b[i]) { a[i] = b[i]; changed = true; }
+    if (changed) c.putImageData(after, R.x, R.y);
+  }
+  var ep = PE.editPixels;
+  PE.editPixels = function (doc, label, holder, key, r, draw) {
+    if (!(holder && holder.lockA && key === "canvas" && holder.kind === "raster") || ED.maskEdit) return ep.apply(this, arguments);
+    return ep.call(this, doc, label, holder, key, r, function (c, cv) {
+      var full = { x: 0, y: 0, w: cv.width, h: cv.height }, R = r ? PE.inter(PE.rectI(r), full) : full;
+      if (!R) { draw(c, cv); return; }
+      var before = c.getImageData(R.x, R.y, R.w, R.h); draw(c, cv); keepAlpha(c, R, before);
+    });
+  };
+  var te = PE.tileEntry;
+  PE.tileEntry = function (label, canvas, r, beforeData) {
+    var L = ED.doc && ED.layer();
+    if (L && L.lockA && L.kind === "raster" && L.canvas === canvas && !ED.maskEdit && beforeData && beforeData.data) {
+      var c = PE.cx2(canvas), R = PE.inter(PE.rectI(r), { x: 0, y: 0, w: canvas.width, h: canvas.height });
+      if (R && R.w === beforeData.width && R.h === beforeData.height) keepAlpha(c, R, beforeData);
+    }
+    return te.apply(this, arguments);
+  };
   ["lockA", "lockP", "lockM"].forEach(function (k) { SX.fields[k] = { save: function (L) { return L[k] ? true : undefined; }, parse: function (v) { return v === true ? true : undefined; } }; });
   function toggle(k, label) { var L = ED.layer(); if (!L || !SX.need()) return; ED.meta((L[k] ? "Unlock " : "Lock ") + label, function () { if (L[k]) delete L[k]; else L[k] = true; }); }
   SX.toggleLock = toggle;
@@ -77,6 +102,8 @@
     var ev = { altKey: false, shiftKey: false, ctrlKey: false, metaKey: false };
     ED.TOOLS.brush.down({ x: 5, y: 5 }, ev); ED.TOOLS.brush.up({ x: 5, y: 5 }, ev);
     ok(SX.px(L.canvas, 2, 2).join() === "0,0,255,255" && SX.px(L.canvas, 8, 2)[3] === 0, "locked transparency: paint only on existing pixels");
+    var e2 = PE.editPixels(d, "t", L, "canvas", { x: 0, y: 0, w: 10, h: 10 }, function (cx) { cx.fillStyle = "#00ff00"; cx.fillRect(0, 0, 10, 10); }); ED.push(e2);
+    ok(SX.px(L.canvas, 2, 2).join() === "0,255,0,255" && SX.px(L.canvas, 8, 2)[3] === 0, "locked transparency holds for any pixel edit");
     L.lockA = false; L.lockP = true; var n = ED.hist.pos; ED.TOOLS.brush.down({ x: 8, y: 8 }, ev); ED.TOOLS.brush.up({ x: 8, y: 8 }, ev); ok(ED.hist.pos === n && SX.px(L.canvas, 8, 8)[3] === 0, "locked pixels block painting");
     L.lockP = false; L.lockM = true; ED.nudge(2, 0); ok(L.x === 0, "locked position blocks moving"); L.lockM = false;
     Object.assign(o, keep); ED.tool = tool;

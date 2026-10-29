@@ -138,7 +138,7 @@
   SX.deleteVmask = function (L) { L = L || ED.layer(); if (!L || !L.vmask) return; ED.meta("Delete vector mask", function () { delete L.vmask; }); };
 
   // ---------- Properties block (appended for every kind that has one) + panel thumbnail ----------
-  var props0 = ED.ui.propsExt;
+  var props0 = ED.ui.propsKind;
   function vmBlock(P, L) {
     var w = ED.ui.w, V = L.vmask;
     P.appendChild(h("h3", { text: "Vector mask" }));
@@ -148,7 +148,7 @@
     P.appendChild(w.range("Feather", V.feather || 0, 0, 250, 0.5, function (v) { SX.liveEdit({ adj: { op: "fill" } }, function () { L.vmask = Object.assign({}, L.vmask, { feather: v }); }); }, function (v) { return v + " px"; }));
     P.appendChild(h("div", { "class": "pe-prow" }, [w.btn("To pixel mask", function () { SX.vmaskToPixels(L); }, "ghost"), w.btn("Delete", function () { SX.deleteVmask(L); }, "ghost")]));
   }
-  ED.ui.propsExt = function (P, L) { var r = props0 ? props0(P, L) : false; if (r && L.vmask) vmBlock(P, L); return r; };
+  ED.ui.propsKind = function (P, L) { var r = props0 ? props0(P, L) : false; if (r && L.vmask) vmBlock(P, L); return r; };
   var tail0 = ED.ui.propsTail;
   ED.ui.propsTail = function (P, L) { if (tail0) tail0(P, L); if (L.vmask) vmBlock(P, L); };
   var meta0 = SX.metaMore;

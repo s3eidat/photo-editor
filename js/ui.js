@@ -204,7 +204,7 @@
     var P = $("#props"); if (!P) return; P.textContent = "";
     var d = ED.doc, L = ED.layer();
     if (!d || !L) { P.appendChild(h("p", { "class": "faint pe-p", text: "Open a photo to see its layers here." })); return; }
-    if (ED.ui.propsExt && ED.ui.propsExt(P, L)) return;   // lane:selection (group, adjustment, fill, smart layers)
+    if (ED.ui.propsKind && ED.ui.propsKind(P, L)) return;   // lane:selection (group, adjustment, fill, smart layers)
     var head = h("div", { "class": "pe-phead" }, [svg(L.kind === "text" ? "t-text" : L.kind === "shape" ? "t-shape" : "i-image"), h("b", { text: L.name }), h("span", { "class": "faint", text: L.kind === "raster" ? "Pixel layer" : L.kind === "text" ? "Text layer" : "Shape layer" })]);
     P.appendChild(head);
     if (L.kind === "text") {

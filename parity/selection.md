@@ -41,7 +41,7 @@ All marked `// lane:selection` (or `<!-- lane:selection -->`).
 - `js/editor.js`: lock-transparency lines in `applyStroke`, `fillWith` and `applyGradient` (`L.lockA` → `source-atop`).
 - `js/editor.js`: `PE.xfAny(L, m, xf)` runs for every layer in transformLayer (vector masks).
 - `js/ui.js`: `ED.ui.propsTail(P, L)` at the end of Properties for built-in layer kinds.
-- `js/ui.js`: `ED.ui.layersExt` (Layers panel as a tree), `ED.ui.propsExt` (Properties for new kinds), `PE.dupExt`, `PE.removeExt`, `PE.mergeExt`, `PE.moveExt` (layer operations that understand groups).
+- `js/ui.js`: `ED.ui.layersExt` (Layers panel as a tree), `ED.ui.propsKind` (Properties for new kinds), `PE.dupExt`, `PE.removeExt`, `PE.mergeExt`, `PE.moveExt` (layer operations that understand groups).
 - `js/ui.js`: `ED.ui.optsTail` — array of `f(tool, items)` that append controls to the tool options bar.
 - `index.html`: CSP `script-src 'self' 'wasm-unsafe-eval'`; vendored `lib/ort.*` (ONNX Runtime Web, MIT) and `models/u2netp/` (Apache-2.0), see `models/LICENSES.md`.
 - `js/editor.js`: `PE.offsetExt(L, dx, dy)` in crop/canvas size and `PE.scaleExt(L, kx, ky)` in image size, for layer kinds with their own geometry.
