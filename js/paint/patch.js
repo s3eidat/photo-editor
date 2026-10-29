@@ -1,6 +1,8 @@
-/* Photo Editor paint lane: patch tool. Drag a freehand outline around an area (or use any selection), then drag
+/* Photo Editor paint lane: patch tool and move with fill. Drag a freehand outline around an area (or use any selection), then drag
    the selection: "source" replaces the selected area with the texture where you drop it, "destination" copies the
-   selected texture to where you drop it. Either way the result is healed to the surrounding tone. */
+   selected texture to where you drop it. Either way the result is healed to the surrounding tone.
+   Move with fill: drag a selected object somewhere else; the hole it leaves is filled from the surroundings and
+   the object is blended in at its new place ("extend" keeps the original and adds a blended copy). */
 (function () {
   "use strict";
   var PE = window.PE, ED = PE.ed, PP = PE.paint, K = ED.ui.kit, h = S3.h;
@@ -76,5 +78,59 @@
     ED.undo(); ok(PP.px(s.L.canvas, 19, 19)[0] === 255, "undo patch");
     ok(await PP.patch({ x: 40, y: 0 }, "destination"), "destination mode");
     q = PP.px(s.L.canvas, 59, 19); ok(q[0] > 150 && q[2] < 140, "destination copies the selected texture (" + q + ")");
+  });
+  // ---------- move with fill ----------
+  PP.icons({ "t-cmove": ["M4 4h7v7H4z", "M13 13h7v7h-7z", "M11 7.5h3.5a2 2 0 0 1 2 2V13", "M14.5 11l2 2 2-2"] });
+  var mo = PP.opts("cmove", { mode: "move" });
+  PP.contentMove = function (off, mode) {
+    var d = ED.doc, sel = d.sel; if (!sel) return Promise.resolve(false);
+    var t = PP.target("pixels"); if (!t) return Promise.resolve(false);
+    var L = t.L, cv = L.canvas, W = cv.width, H = cv.height, move = (mode || mo.mode) === "move", before = null;
+    var to = shifted(sel.m, d.w, d.h, off), pad = 6;
+    function local(mdoc) { var m = new Uint8Array(W * H); for (var y = 0; y < H; y++) { var dy = y + L.y; if (dy < 0 || dy >= d.h) continue; for (var x = 0; x < W; x++) { var dx = x + L.x; if (dx >= 0 && dx < d.w) m[y * W + x] = mdoc[dy * d.w + dx]; } } return m; }
+    var work = PE.cloneCanvas(cv), wx = PE.cx2(work), rects = [];
+    var step1 = move ? PP.fillHole(cv, local(sel.m), { avoid: local(to), expand: 2, adapt: true }).then(function (res) { wx.putImageData(res.img, res.rect.x, res.rect.y); rects.push(res.rect); }) : Promise.resolve();
+    var job = step1.then(function () {
+      var b = sel.b, R = PE.inter(PE.rectI({ x: b.x + off.x - L.x - pad, y: b.y + off.y - L.y - pad, w: b.w + 2 * pad, h: b.h + 2 * pad }), { x: 0, y: 0, w: W, h: H });
+      if (!R) return;
+      // the object, from the original pixels, healed into its new surroundings
+      var dst = wx.getImageData(R.x, R.y, R.w, R.h), sc = PE.mk(R.w, R.h); PE.cx2(sc).drawImage(cv, -(R.x - off.x), -(R.y - off.y));
+      var src = PE.getData(sc), m = new Uint8Array(R.w * R.h);
+      for (var y = 0; y < R.h; y++) for (var x = 0; x < R.w; x++) { var dx = x + R.x + L.x, dy = y + R.y + L.y; if (dx >= 0 && dy >= 0 && dx < d.w && dy < d.h) m[y * R.w + x] = to[dy * d.w + dx]; }
+      return PE.work("heal", [{ data: dst.data, width: R.w, height: R.h }, { data: src.data, width: R.w, height: R.h }, m]).then(function (res) {
+        // keep the object's own pixels in its core, heal only towards the edge
+        var o = new Uint8ClampedArray(res.data), g = PIX.grow(m, R.w, R.h, -3);
+        for (var i = 0; i < m.length; i++) if (g[i]) { var k = g[i] / 255; for (var c = 0; c < 4; c++) o[i * 4 + c] = o[i * 4 + c] + (src.data[i * 4 + c] - o[i * 4 + c]) * k * 0.6; }
+        wx.putImageData(new ImageData(o, R.w, R.h), R.x, R.y); rects.push(R);
+      });
+    });
+    return ED.working(job, move ? "Moving and filling…" : "Extending…").then(function () {
+      var U = rects.reduce(function (a, r) { return PE.union(a, r); }, null);
+      if (!U) { ED.push(t.grow); return false; }
+      U = PE.inter(PE.rectI(U), { x: 0, y: 0, w: W, h: H });
+      var e = PE.editPixels(d, move ? "Move with fill" : "Extend with fill", L, "canvas", U, function (c) { c.putImageData(wx.getImageData(U.x, U.y, U.w, U.h), U.x, U.y); });
+      before = PE.snap(d); d.sel = PE.makeSel(d, to);
+      ED.push(PE.compound(move ? "Move with fill" : "Extend with fill", [t.grow, e, PE.metaEntry("Move selection", d, before)]));
+      return true;
+    }).catch(function (err) { ED.push(t.grow); S3.toast(err.message, "error"); return false; });
+  };
+  PP.addTool("cmove", "Move with fill", "J", "patch", PP.selDragTool("cmove", function (off) { PP.contentMove(off); }));
+  PP.cursors.cmove = function (p) { return ED.doc && ED.doc.sel && inSel(p) ? "move" : "crosshair"; };
+  PP.groups.forEach(function (g) { if (g.key === "J") g.ids.splice(g.ids.indexOf("patch") + 1, 0, "cmove"); });
+  PP.optsFor.cmove = function (items) {
+    return [items[0], K.seg("Mode", [["move", "Move"], ["extend", "Extend"]], mo.mode, function (v) { mo.mode = v; ED.saveOpts(); }),
+      h("span", { "class": "pe-hint", text: "Draw around an object (a little loose), then drag it. The space it leaves is filled from around it." })];
+  };
+  PP.test("move with fill", async function (ok) {
+    var W = 96, H = 48, s = PP.scratch(W, H, "#ffffff"), c = PE.cx2(s.L.canvas);
+    for (var x = 0; x < W; x += 6) { c.fillStyle = (x / 6) % 2 ? "#3a6ea5" : "#5b8fc7"; c.fillRect(x, 0, 6, H); }
+    c.fillStyle = "#ffcc00"; c.fillRect(14, 18, 10, 10); PE.touch(s.L.canvas);
+    s.d.sel = PE.makeSel(s.d, PIX.rectMask(W, H, 12, 16, 14, 14));
+    ok(await PP.contentMove({ x: 50, y: 0 }, "move"), "moves");
+    var old = PP.px(s.L.canvas, 19, 23), moved = PP.px(s.L.canvas, 69, 23);
+    ok(old[2] > 120 && old[0] < 140, "the hole is filled from the stripes (" + old + ")");
+    ok(moved[0] > 200 && moved[1] > 160 && moved[2] < 90, "the object is at its new place (" + moved + ")");
+    ok(s.d.sel && s.d.sel.b.x === 62, "the selection follows the object");
+    ED.undo(); ok(PP.px(s.L.canvas, 19, 23)[0] === 255 && s.d.sel.b.x === 12, "one undo puts it all back");
   });
 })();
