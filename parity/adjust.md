@@ -49,3 +49,24 @@ maths files, `openAdjust` calls `spec.ui`, `ED.adjKit` exposes the UI widgets, `
 | Brightness / contrast (modern + classic) | done | Image › Brightness / Contrast… now opens a panel with the modern curve (keeps black and white), the classic linear maths as an option, and Auto |
 | De-interlace, broadcast-safe colours | done | Filter › Video; odd/even lines by duplication or interpolation; YIQ chroma limit |
 | Extrude | done | Filter › Stylize; blocks (with sides, image or solid faces) or pyramids, depth by brightness or random |
+
+## Hooks in shared files (all marked `lane:adjust`)
+- `js/pix.js` `PIX.adjust`: ops in `PIX.EXT` (registered by `js/adjust/*.js`) run first.
+- `js/worker.js`: `importScripts` of the lane's maths files.
+- `js/ui.js`: `ED.adjKit` (menus, shortcut list, widgets, `adjTarget`, `commitAdjusted`, `histCanvas`); `openAdjust` calls `spec.ui(el, st)`.
+- `app.js`: `S3_SELFTEST` runs `PE.adjustTests(ok, near)`.
+- `index.html`: `js/adjust/adjust.css` after `kit.css`; the lane's scripts after `app.js`.
+- `ED.meta` is wrapped (in `js/adjust/ui.js`) to remember the last adjustment/filter for Fade.
+
+## Integration notes
+- 29 Oct: merged all five lane branches in a scratch worktree (conflicts only between neighbouring hook lines of other lanes; kept both sides).
+  Self-test passes except the files lane's "custom key…" check (files × paint, not this lane); this lane's panels, Fade and menus work.
+- This lane's own panels (`PE.adjUI.openLive`) preview big layers at reduced size and render full size on OK; specs keep the editor's
+  `ED.ADJ` format (`t`, `c`, `chk`, `sel`, `ui`), so the selection lane's adjustment layers can host the colour ops (`proxy` / filters are skipped).
+- Image › Levels / Curves / Hue-Saturation / Black & white / Brightness-Contrast and Ctrl+L / M / U / Alt+Shift+B open this lane's fuller panels;
+  the editor's original specs (`levels`, `curves`, `hueSat`, `bw`, `brightness`) are untouched.
+
+## Skipped (and why)
+- Camera lens profiles (automatic lens correction): needs a profile database; the manual controls are there.
+- Adaptive wide angle, vanishing point: need interactive constraint/plane editing on the canvas (not started).
+- Path blur, flame / tree / picture frame render filters: need drawn paths (vector lane) — not started.
