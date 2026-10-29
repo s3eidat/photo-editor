@@ -36,6 +36,14 @@
     var t2 = SX.tree(ED.doc);
     dr._links.forEach(function (k) { SX.moveBy(k.o, dx - k.done.x, dy - k.done.y, t2); k.done = { x: dx, y: dy }; });
   };
+  // free transform / flip of a linked layer transforms the others the same way (when applied)
+  var busy = false, xa0 = PE.xfAny;
+  PE.xfAny = function (L, m, xf) {
+    if (xa0) xa0(L, m, xf);
+    if (!SX.xfAll || busy || !L.link) return;
+    busy = true;
+    try { linked(L).forEach(function (o) { if (!o.locked) ED.transformLayer(o, m, null); }); } finally { busy = false; }
+  };
   SX.fields.link = { save: function (L) { return L.link || undefined; }, parse: function (v) { return SX.idOk(v); } };
 
   // ---------- stamps ----------
@@ -70,6 +78,7 @@
     SX.linkLayers(); ok(a.link && a.link === b.link && !c.link, "link picked layers");
     SX.picked = {}; ED.setActive(a.id); ED.nudge(3, 2); ok(a.x === 3 && b.x === 3 && b.y === 2 && c.x === 0, "linked layers move together");
     ED.undo(); ok(a.x === 0 && b.x === 0, "undo linked move");
+    ED.setActive(a.id); ED.flipLayer("h"); ok(SX.px(PE.flatten(d, { only: [b.id] }), 4, 0)[1] === 255 || SX.px(PE.flatten(d, { only: [b.id] }), 0, 0)[1] === 255, "flip carries linked layers"); ED.undo();
     SX.picked = {}; d.active = a.id; SX.unlinkLayers(); ok(!a.link && !b.link, "unlink (a link of one is dropped)");
     a.link = b.link = "kxy1";
     var od = await PE.openProject(new Uint8Array(await (await PE.saveProject(d)).arrayBuffer()));
@@ -77,4 +86,13 @@
     var n = d.layers.length; SX.stampVisible(); ok(d.layers.length === n + 1 && SX.px(PE.findLayer(d, d.active).canvas, 1, 1)[2] === 255, "stamp visible keeps the layers");
     SX.picked = {};
   });
+})();
+
+/* Selection lane: the lane's keyboard shortcuts in the shortcuts dialog. */
+(function () {
+  "use strict";
+  var ED = window.PE.ed, S = ED.ui.SHORTCUTS; if (!S) return;
+  S.push(["Quick selection / magic wand", "W (press again to switch)"], ["Quick mask", "Q"], ["Refine selection", "Ctrl+Alt+R"],
+    ["Group / ungroup layers", "Ctrl+G · Ctrl+Shift+G"], ["Clipping mask", "Ctrl+Alt+G (or Alt+click a layer)"], ["Pick several layers", "Ctrl+click · Shift+click in Layers"],
+    ["Layer blend mode", "Shift+Alt+letter (M multiply, S screen, O overlay…) · Shift++ / Shift+-"], ["Merge copy / stamp visible", "Ctrl+Alt+E · Ctrl+Shift+Alt+E"]);
 })();

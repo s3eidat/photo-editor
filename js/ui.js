@@ -994,6 +994,6 @@
     ED.ready = restoreLast().then(function (ok) { if (!ok) renderEmpty(); return ok; });
   }
   ED.ui = { openAdjust: openAdjust, closeFloat: closeFloat, quick: quick, exportDialog: exportDialog, newDialog: newDialog, renderLayers: renderLayers, buildOpts: buildOpts, buildProps: buildProps, colors: colors, saveFile: saveFile, openFiles: openFiles, floatState: function () { return floatState; } };
-  ED.ui.MENUS = MENUS; ED.ui.TOOLS = TOOLS; ED.ui.w = { field: field, range: range, check: check, seg: seg, select: select, btn: btn, numInput: numInput, modal: modal, svg: svg, numberDialog: numberDialog, need: need, K: K, pct: pct, px: px };   // lane:selection
+  ED.ui.MENUS = MENUS; ED.ui.TOOLS = TOOLS; ED.ui.SHORTCUTS = SHORTCUTS; ED.ui.w = { field: field, range: range, check: check, seg: seg, select: select, btn: btn, numInput: numInput, modal: modal, svg: svg, numberDialog: numberDialog, need: need, K: K, pct: pct, px: px };   // lane:selection
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
