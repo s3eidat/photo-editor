@@ -121,7 +121,35 @@
   // ---------- layer styles ----------
   function gradOut(from, to, rev) { return { name: "Custom", type: "solid", smoothness: 1, colorStops: [{ color: rgb(from), location: 0, midpoint: 0.5 }, { color: rgb(to), location: 1, midpoint: 0.5 }], opacityStops: [{ opacity: 1, location: 0, midpoint: 0.5 }, { opacity: 1, location: 1, midpoint: 0.5 }] }; }
   var BEV = { inner: "inner bevel", outer: "outer bevel", emboss: "emboss", pillow: "pillow emboss", stroke: "stroke emboss" };
-  X.fxOut = function (fx) {
+  // contours, noise and global light (the selection lane's newer style settings); PSD stores contours as curves
+  var CONT = { linear: "Linear", soft: "Gaussian", round: "Half Round", cone: "Cone", coneInv: "Cone - Inverted", ring: "Ring", ring2: "Ring - Double", saw: "Sawtooth 1" };
+  var LIT = { dropShadow: "dropShadow", innerShadow: "innerShadow", bevel: "bevel" }, NOISY = { dropShadow: 1, innerShadow: 1, outerGlow: 1, innerGlow: 1 };
+  function contOut(name) {
+    var n = 17, t = new Float32Array(n), i; for (i = 0; i < n; i++) t[i] = i / (n - 1);
+    if (name !== "linear" && PE.sx && PE.sx.fxContour) PE.sx.fxContour(t, { contour: name }, n);
+    var pts = []; for (i = 0; i < n; i++) pts.push({ x: Math.round(i / (n - 1) * 255), y: Math.round(clamp(t[i], 0, 1) * 255) });
+    return { name: CONT[name] || "Linear", curve: name === "linear" ? [{ x: 0, y: 0 }, { x: 255, y: 255 }] : pts };
+  }
+  function contIn(c) { var k = c && Object.keys(CONT).filter(function (q) { return CONT[q] === c.name; })[0]; return k && k !== "linear" ? k : null; }
+  function extraOut(fx, o, gl) {
+    var key = { dropShadow: "dropShadow", innerShadow: "innerShadow", outerGlow: "outerGlow", innerGlow: "innerGlow", bevel: "bevel", satin: "satin" };
+    Object.keys(key).forEach(function (k) {
+      var e = fx[k], t = o[key[k]]; if (!e || !t) return; t = Array.isArray(t) ? t[0] : t;
+      if (LIT[k]) t.useGlobalLight = e.global !== false && gl !== false && (!gl || (gl.angle === (e.angle || 0) && (k !== "bevel" || gl.altitude === (e.altitude || 30))));
+      var cn = k === "bevel" ? e.gloss : e.contour; if (cn && CONT[cn]) t.contour = contOut(cn);
+      if (NOISY[k] && e.noise > 0) t.noise = clamp(e.noise, 0, 100) / 100;
+    });
+  }
+  function extraIn(ef, o, gl) {
+    function first(v) { return Array.isArray(v) ? v.filter(function (x) { return x && x.enabled !== false; })[0] : v; }
+    Object.keys(o).forEach(function (k) {
+      var e = o[k], t = first(ef[k === "colorOverlay" ? "solidFill" : k]); if (!e || !t || typeof e !== "object") return;
+      if (LIT[k]) { if (t.useGlobalLight === false) e.global = false; else if (gl) { if (gl.angle != null) e.angle = gl.angle; if (k === "bevel" && gl.altitude != null) e.altitude = gl.altitude; } }
+      var cn = contIn(t.contour); if (cn && (LIT[k] || NOISY[k] || k === "satin")) e[k === "bevel" ? "gloss" : "contour"] = cn;
+      if (NOISY[k] && t.noise > 0) e.noise = Math.round(clamp(t.noise * 100, 0, 100));
+    });
+  }
+  X.fxOut = function (fx, gl) {
     if (!fx) return null; var o = {}, any = false;
     function on(k) { return fx[k] && fx[k].on; }
     var e;
@@ -136,11 +164,12 @@
     if (on("gradOverlay")) { e = fx.gradOverlay; o.gradientOverlay = [{ enabled: true, present: true, blendMode: bo(e.blend), opacity: clamp(e.op, 0, 1), gradient: gradOut(e.from, e.to), type: ["linear", "radial", "angle", "reflected", "diamond"].indexOf(e.style) >= 0 ? e.style : "linear", angle: e.angle == null ? 90 : e.angle, scale: (e.scale || 100) / 100, reverse: !!e.reverse, align: true, dither: false, offset: { x: 0, y: 0 } }]; any = true; }
     if (on("stroke")) { e = fx.stroke; o.stroke = [{ enabled: true, present: true, size: U(e.size), position: ["inside", "center", "outside"].indexOf(e.pos) >= 0 ? e.pos : "outside", fillType: "color", blendMode: bo(e.blend), opacity: clamp(e.op, 0, 1), color: rgb(e.color) }]; any = true; }
     if (!any) return null;
+    extraOut(fx, o, gl);
     if (fx.on === false) o.disabled = true;
     o.scale = 1;
     return o;
   };
-  X.fxIn = function (ef) {
+  X.fxIn = function (ef, gl) {
     if (!ef) return null; var o = {}, any = false, notes = 0;
     function first(v) { return Array.isArray(v) ? v.filter(function (x) { return x && x.enabled !== false; })[0] : v && v.enabled !== false ? v : null; }
     function stops(g) { var cs = g && g.colorStops; return g && g.type === "solid" && cs && cs.length >= 2 ? [hex(cs[0].color, "#000000"), hex(cs[cs.length - 1].color, "#ffffff")] : null; }
@@ -158,6 +187,7 @@
     if ((e = first(ef.stroke))) { if (!e.fillType || e.fillType === "color") { o.stroke = { on: true, size: V(e.size), pos: ["inside", "center", "outside"].indexOf(e.position) >= 0 ? e.position : "outside", blend: bi(e.blendMode), color: hex(e.color, "#000000"), op: clamp(e.opacity == null ? 1 : e.opacity, 0, 1) }; any = true; } else notes++; }
     if (first(ef.patternOverlay)) notes++;
     if (!any) return notes ? { fx: null, partial: true } : null;
+    extraIn(ef, o, gl);
     o.on = !ef.disabled;
     return { fx: o, partial: notes > 0 };
   };
@@ -248,6 +278,11 @@
       gradOverlay: { on: true, blend: "screen", op: 0.8, from: "#000000", to: "#ffffff", style: "radial", angle: 45, scale: 150, reverse: true }, bevel: { on: true, style: "emboss", depth: 200, dir: "down", size: 6, soften: 1, angle: 120, altitude: 30, hiBlend: "screen", hiColor: "#ffffff", hiOp: 0.75, shBlend: "multiply", shColor: "#000000", shOp: 0.75 } };
     var back = X.fxIn(X.fxOut(fx)).fx;
     ok(back && X.same(back.dropShadow, fx.dropShadow) && X.same(back.stroke, fx.stroke) && X.same(back.gradOverlay, fx.gradOverlay) && X.same(back.bevel, fx.bevel), "psd layer style mapping round trip");
+    var fx2 = { on: true, dropShadow: { on: true, blend: "multiply", color: "#000000", op: 0.5, angle: 45, global: false, dist: 4, spread: 0, size: 6, contour: "cone", noise: 20 }, outerGlow: { on: true, blend: "screen", color: "#ffffbe", op: 0.75, spread: 0, size: 10, contour: "ring", noise: 10 },
+      bevel: { on: true, style: "inner", depth: 100, dir: "up", size: 6, soften: 0, angle: 120, altitude: 30, hiBlend: "screen", hiColor: "#ffffff", hiOp: 0.75, shBlend: "multiply", shColor: "#000000", shOp: 0.75, gloss: "round" }, satin: { on: true, blend: "multiply", color: "#000000", op: 0.5, angle: 19, dist: 11, size: 14, invert: true, contour: "ring2" } };
+    var o2 = X.fxOut(fx2, { angle: 120, altitude: 30 }), b2 = X.fxIn(o2).fx, b3 = X.fxIn(o2, { angle: 75, altitude: 40 }).fx;
+    ok(o2.dropShadow[0].contour.name === "Cone" && o2.dropShadow[0].useGlobalLight === false && o2.bevel.useGlobalLight === true && o2.outerGlow.noise === 0.1 && o2.satin.contour.curve.length > 2 &&
+      X.same(b2.dropShadow, fx2.dropShadow) && X.same(b2.outerGlow, fx2.outerGlow) && X.same(b2.bevel, fx2.bevel) && X.same(b2.satin, fx2.satin) && b3.bevel.angle === 75 && b3.bevel.altitude === 40 && b3.dropShadow.angle === 45, "psd style contours, noise and global light");
     var vm = { paths: [{ closed: true, pts: [[10, 10, 8, 10, 12, 10], [30, 10, 30, 10, 30, 10], [20, 30, 20, 30, 20, 30]] }], on: true, invert: false, feather: 0 };
     ok(X.same(X.vmaskIn(X.vmaskOut(vm)), vm), "psd vector mask mapping round trip");
     ok(X.same(X.fillIn(X.fillOut({ type: "solid", color: "#336699" })), { type: "solid", color: "#336699" }) && X.fillIn(X.fillOut({ type: "gradient", from: "#000000", to: "#ff0000", style: "radial", angle: 30, scale: 120, reverse: false, fade: false })).style === "radial", "psd fill layer mapping");

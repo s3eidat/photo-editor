@@ -370,7 +370,7 @@
     // styles, vector mask, pixel mask and the other exact settings, for any layer or group
     function decorate(c, L, saved, same, r) {
       if (c.effects) {
-        var f = X ? X.fxIn(c.effects) : null;
+        var f = X ? X.fxIn(c.effects, res.globalAngle != null ? { angle: res.globalAngle, altitude: res.globalAltitude } : null) : null;
         if (stylesOn) { if (same && saved.ext.fx) f = { fx: saved.ext.fx }; if (f && f.fx) L.fx = f.fx; if (f && f.partial) note("styles"); }
         else if (f && f.fx && f.fx.on !== false) note("styles");
       }
@@ -462,13 +462,14 @@
     return { left: M.x, top: M.y, right: M.x + c.width, bottom: M.y + c.height, defaultColor: 0, imageData: o };
   }
   P.fromDoc = function (doc) {
-    var map = {}, nextId = 1, S = sx(), T = groupsOn() ? S.tree(doc) : null, kids = {}, roots = [], X = P.ext, notes = {};
+    var S = sx(), gl = S && S.globalLight ? S.globalLight(doc) : false;      // false: no global light here, so no effect claims it
+    var map = {}, nextId = 1, T = groupsOn() ? S.tree(doc) : null, kids = {}, roots = [], X = P.ext, notes = {};
     if (T) { doc.layers.forEach(function (L) { var p = T.parentOf(L); if (p) (kids[p.id] = kids[p.id] || []).push(L); else roots.push(L); }); }
     else roots = doc.layers.slice();
     function note(k) { notes[k] = (notes[k] || 0) + 1; }
     function extOf(L) { var l = {}; if (PE.saveExt) { try { PE.saveExt(L, l, 0, [], []); } catch (e) { /* ignore */ } } var o = {}; EXT_KEYS().forEach(function (k) { if (l[k] !== undefined) o[k] = l[k]; }); return o; }
     function decorate(L, c) {      // styles, vector mask, pixel mask
-      if (L.fx && X) { var ef = X.fxOut(L.fx); if (ef) c.effects = ef; if (L.fx.patternOverlay && L.fx.patternOverlay.on) note("pattern"); }
+      if (L.fx && X) { var ef = X.fxOut(L.fx, gl); if (ef) c.effects = ef; if (L.fx.patternOverlay && L.fx.patternOverlay.on) note("pattern"); }
       if (L.vmask && X && L.kind !== "shape") { var vm = X.vmaskOut(L.vmask); if (vm) c.vectorMask = vm; }
       if (L.mask) { c.mask = maskOut(L.mask); c.mask.disabled = !L.maskOn; }
       if (L.blendIf && X) { var br = X.blendIfOut(L.blendIf); if (br) c.blendingRanges = br; }
@@ -509,6 +510,7 @@
       return { type: "text", open: false, iconLocation: { left: Math.round(n.x), top: Math.round(n.y), right: Math.round(n.x) + 24, bottom: Math.round(n.y) + 24 },
         popupLocation: { left: Math.round(n.x) + 30, top: Math.round(n.y), right: Math.round(n.x) + 330, bottom: Math.round(n.y) + 200 }, color: rgb(PE.hex(n.color, "#f5c518")), author: n.author || "", name: "", date: n.date || "", data: String(n.text || "").replace(/\n/g, "\r") };
     });
+    if (gl) { res.globalAngle = Math.round(gl.angle); res.globalAltitude = Math.round(gl.altitude); }
     if (doc.guides && doc.guides.length) res.gridAndGuidesInformation = { grid: { horizontal: 18 * 32, vertical: 18 * 32 }, guides: doc.guides.map(function (g) { return { location: g.pos, direction: g.dir === "h" ? "horizontal" : "vertical" }; }) };
     var out = { width: doc.w, height: doc.h, children: children, imageData: FX.imageData(PE.flatten(doc)), imageResources: res };
     if (anns.length) out.annotations = anns;
