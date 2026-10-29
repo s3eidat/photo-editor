@@ -132,7 +132,7 @@
   SX.menu("Select", [["Subject", "", function () { SX.selectSubject(); }, SX.has]], "Inverse");
   SX.menu("Layer", [["Remove background", "", SX.removeBackground, SX.has]], "Add mask from selection");
   (ED.ui.optsTail = ED.ui.optsTail || []).push(function (t, items) {
-    if (["marquee", "ellipse", "lasso", "polygon", "wand", "qsel"].indexOf(t) < 0) return;
+    if (["marquee", "ellipse", "lasso", "polygon", "wand", "qsel", "objsel"].indexOf(t) < 0) return;
     items.push(ED.ui.w.btn("Select subject", function () { SX.selectSubject(ED.o.sel.mode); }, "ghost", null, "Select the main subject with on-device AI"));
   });
 

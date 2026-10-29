@@ -185,7 +185,7 @@
     return false;
   });
   (ED.ui.optsTail = ED.ui.optsTail || []).push(function (t, items) {
-    if (["marquee", "ellipse", "lasso", "polygon", "wand", "qsel"].indexOf(t) >= 0) items.push(ED.ui.w.btn("Refine…", function () { SX.openRefine(); }, "ghost", null, "Refine the selection's edge (Ctrl+Alt+R)"));
+    if (["marquee", "ellipse", "lasso", "polygon", "wand", "qsel", "objsel"].indexOf(t) >= 0) items.push(ED.ui.w.btn("Refine…", function () { SX.openRefine(); }, "ghost", null, "Refine the selection's edge (Ctrl+Alt+R)"));
     if (t === "refine") items.push(h("span", { "class": "pe-hint", text: "Refine edge brush: paint over hair or soft edges. Add / remove brush: paint to add, Alt to remove. Space pans." }));
   });
   SX.menu("Select", [["Refine selection…", "Ctrl+Alt+R", function () { SX.openRefine(); }, SX.hasSel]], "Smooth…");
