@@ -282,6 +282,54 @@
     return out;
   };
 
+  // ---------- colour range ----------
+  function srgbLin(v) { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
+  var LIN = new Float32Array(256); for (var li = 0; li < 256; li++) LIN[li] = srgbLin(li);
+  function fLab(t) { return t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116; }
+  PIXS.lab = function (r, g, b) {
+    var R = LIN[r], G = LIN[g], B = LIN[b];
+    var X = (R * 0.4124 + G * 0.3576 + B * 0.1805) / 0.95047, Y = R * 0.2126 + G * 0.7152 + B * 0.0722, Z = (R * 0.0193 + G * 0.1192 + B * 0.9505) / 1.08883;
+    var fx = fLab(X), fy = fLab(Y), fz = fLab(Z);
+    return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+  };
+  function smooth01(a, b, x) { var t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
+  // opt: {mode: "sampled"|"reds"|…|"highlights"|"midtones"|"shadows"|"skin", samples: [[r,g,b,x,y]], minus: [[r,g,b,x,y]], fuzz 0..200, range (px, 0 = off), invert}
+  PIXS.colorRange = function (img, opt) {
+    var w = img.width, h = img.height, n = w * h, d = img.data, out = new Uint8Array(n), mode = opt.mode || "sampled", F = Math.max(1, opt.fuzz == null ? 40 : opt.fuzz), p, i;
+    var HUES = { reds: 0, yellows: 60, greens: 120, cyans: 180, blues: 240, magentas: 300 };
+    var S = (opt.samples || []).map(function (s) { return { lab: PIXS.lab(s[0], s[1], s[2]), x: s[3], y: s[4] }; }), M = (opt.minus || []).map(function (s) { return { lab: PIXS.lab(s[0], s[1], s[2]), x: s[3], y: s[4] }; });
+    var range = opt.range > 0 ? opt.range : 0;
+    function near(list, L, x, y) {
+      var best = 0;
+      for (var k = 0; k < list.length; k++) {
+        var q = list[k], dl = (L[0] - q.lab[0]) * 0.7, da = L[1] - q.lab[1], db = L[2] - q.lab[2], dist = Math.sqrt(dl * dl + da * da + db * db);
+        var v = clamp(1.5 - 1.5 * dist / F, 0, 1);
+        if (range && v > 0) { var sd = Math.hypot(x - q.x, y - q.y); v *= clamp(1.25 - 1.25 * sd / range, 0, 1); }
+        if (v > best) best = v;
+      }
+      return best;
+    }
+    for (p = 0, i = 0; p < n; p++, i += 4) {
+      var r = d[i], g = d[i + 1], b = d[i + 2], v = 0;
+      if (d[i + 3] === 0) { out[p] = opt.invert ? 255 : 0; continue; }
+      if (mode === "sampled") { var L = PIXS.lab(r, g, b), x = p % w, y = (p - x) / w; v = S.length ? near(S, L, x, y) : 0; if (M.length) v = Math.min(v, 1 - near(M, L, x, y)); }
+      else if (HUES[mode] != null) {
+        var mx = Math.max(r, g, b), mn = Math.min(r, g, b), sat = mx ? (mx - mn) / mx : 0, hue = 0, dd = mx - mn;
+        if (dd > 0) { if (mx === r) hue = ((g - b) / dd + 6) % 6; else if (mx === g) hue = (b - r) / dd + 2; else hue = (r - g) / dd + 4; hue *= 60; }
+        var dh = Math.abs(((hue - HUES[mode]) % 360 + 540) % 360 - 180);
+        v = (1 - smooth01(22, 48, dh)) * smooth01(0.08, 0.3, sat) * smooth01(10, 40, mx);
+      } else if (mode === "highlights" || mode === "midtones" || mode === "shadows") {
+        var lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        v = mode === "highlights" ? smooth01(0.55, 0.8, lum) : mode === "shadows" ? 1 - smooth01(0.2, 0.45, lum) : smooth01(0.15, 0.4, lum) * (1 - smooth01(0.6, 0.85, lum));
+      } else if (mode === "skin") {
+        var cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b, cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b, f = F / 40;
+        v = (1 - smooth01(12 * f, 24 * f, Math.abs(cb - 108))) * (1 - smooth01(10 * f, 22 * f, Math.abs(cr - 152))) * smooth01(30, 70, r) * (r > b ? 1 : 0);
+      }
+      out[p] = Math.round((opt.invert ? 1 - v : v) * 255);
+    }
+    return out;
+  };
+
   // ---------- dispatcher for js/select/worker.js ----------
   PIXS.call = function (fn, args) {
     if (["edt", "call"].indexOf(fn) >= 0 || typeof PIXS[fn] !== "function") throw new Error("Not allowed: " + fn);

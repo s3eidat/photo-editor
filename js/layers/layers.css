@@ -43,3 +43,4 @@
 .pe-rmpanel .pe-rng input[type="range"] { width: 100%; }
 .pe-rmpanel .pe-of:not(.pe-rng) { flex-wrap: wrap; }
 .pe-tool[hidden] { display: none; }
+.pe-crthumb { display: block; max-width: 100%; margin: 4px auto 0; border-radius: 6px; border: 1px solid var(--line); background: #000; }
