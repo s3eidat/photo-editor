@@ -29,3 +29,4 @@ Known-answer checks: `js/paint/tests.js` (run by `S3_SELFTEST` after the core ch
 | Custom brush from selection | done | Edit › Define brush from selection… (visible pixels, dark paints, up to 1000 px) |
 | Import .abr sampled brushes | done | versions 1, 2 (with names, raw + PackBits) and 6–10 (`samp` section, 8/16-bit), checked lengths, 2500 px / 500 brushes limits; parsed in the worker. Computed (round) .abr entries are skipped |
 | Red eye | done | J group; click the pupil or drag a box; pupil size + darken; the red region grows from the reddest pixel near the click, soft edge, highlight included; respects the selection |
+| Magic eraser | done | E group; tolerance, contiguous, anti-alias, sample all layers, opacity; respects the selection |
