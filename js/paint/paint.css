@@ -16,3 +16,20 @@
 .pp-grid .pe-of { justify-content: space-between; white-space: normal; }
 .pp-grid .pe-rng input[type="range"] { flex: 1; min-width: 80px; }
 @media (max-width: 520px) { .pp-grid { grid-template-columns: 1fr; } }
+/* colour picker */
+.pp-picker { display: flex; flex-direction: column; gap: 14px; }
+.pp-cwrap { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.pp-cfield { width: 256px; height: 256px; max-width: 62vw; max-height: 62vw; border-radius: 6px; cursor: crosshair; touch-action: none; border: 1px solid var(--line); }
+.pp-cfield:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pp-cslider { width: 26px; height: 256px; max-height: 62vw; cursor: ns-resize; touch-action: none; }
+.pp-cside { display: flex; flex-direction: column; gap: 10px; min-width: 120px; }
+.pp-cswatch { display: flex; flex-direction: column; width: 72px; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; }
+.pp-cnew, .pp-ccur { display: block; height: 34px; border: 0; }
+.pp-ccur { cursor: pointer; }
+.pp-chex { display: inline-flex; align-items: center; gap: 4px; }
+.pp-chex .input { width: 92px; height: 30px; }
+.pp-cnums { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 14px; }
+.pp-ccol { display: flex; flex-direction: column; gap: 4px; }
+.pp-cnum { display: grid; grid-template-columns: 16px 16px 1fr 18px; align-items: center; gap: 4px; font-size: 12.5px; }
+.pp-cnum:not(:has(input[type="radio"])) { grid-template-columns: 16px 1fr 18px; padding-left: 20px; }
+.pp-cnum .input { height: 28px; padding: 2px 6px; font-size: 12.5px; }

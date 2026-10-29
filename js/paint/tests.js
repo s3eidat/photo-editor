@@ -56,3 +56,20 @@
     o.smooth = 0;
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, ED = PE.ed, PP = PE.paint;
+  PP.test("colour picker", function (ok) {
+    var s = PP.scratch(10, 10); s.d.fg = "#336699";
+    var pk = PP.pickColor("fg");
+    pk.set("h", 0); pk.set("s", 100); pk.set("v", 100);
+    ok(pk.state.hex() === "#ff0000", "HSB fields set the colour (got " + pk.state.hex() + ")");
+    pk.set("s", 0); pk.set("s", 100);
+    ok(pk.state.hex() === "#ff0000", "hue survives a trip through grey");
+    pk.set("L", 50); ok(Math.round(pk.state.lab[0]) === 50, "Lab lightness field");
+    pk.state.set("rgb", [20, 130, 240]); pk.setWeb(true);
+    ok(pk.state.hex() === "#0099ff", "only web colours snaps (got " + pk.state.hex() + ")");
+    pk.setWeb(false); pk.ok();
+    ok(s.d.fg === "#0099ff" && !document.querySelector(".s3-modal"), "OK sets the foreground and closes");
+  });
+})();
