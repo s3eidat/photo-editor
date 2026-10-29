@@ -65,3 +65,15 @@
 .ws-isw { width: 34px; height: 34px; flex: none; border-radius: 7px; box-shadow: inset 0 0 0 1px var(--line-strong);
   background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%); }
 .ws-ivals { min-width: 0; }
+
+/* preferences + shortcuts */
+.ws-nohints .pe-hint { display: none; }
+.ws-prefs h3 { margin: 4px 0 -4px !important; }
+.ws-keys { display: flex; flex-direction: column; gap: 2px; max-height: min(52vh, 460px); overflow-y: auto; padding-right: 4px; }
+.ws-krow { display: flex; align-items: center; gap: 8px; padding: 2px 4px; border-radius: 7px; font-size: 12.5px; }
+.ws-krow:hover { background: var(--surface-2); }
+.ws-klab { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-kbtn { min-width: 120px; height: 26px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface-2); color: var(--text); font-size: 11.5px; cursor: pointer; }
+.ws-kbtn.mine { border-color: var(--accent); }
+.ws-kbtn.rec { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.ws-kbtn.clash { color: var(--warn); border-color: var(--warn); }
