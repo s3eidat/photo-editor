@@ -448,6 +448,16 @@
     return o;
   };
 
+  // Shift a soft mask's edge by `shift` px (signed distance) and fade it (Gaussian, sigma px). Returns Uint8.
+  PIXS.maskEdge = function (m, w, h, shift, fade) {
+    var o = Math.abs(shift) >= 0.25 ? PIXS.offset(m, w, h, shift) : m, p;
+    if (!(fade > 0.3)) return o === m ? new Uint8Array(m) : o;
+    var f = new Float32Array(o.length); for (p = 0; p < f.length; p++) f[p] = o[p] / 255;
+    PIX.blurPlane(f, w, h, fade);
+    var out = new Uint8Array(f.length); for (p = 0; p < f.length; p++) out[p] = Math.round(clamp(f[p], 0, 1) * 255);
+    return out;
+  };
+
   // ---------- dispatcher for js/select/worker.js ----------
   PIXS.call = function (fn, args) {
     if (["edt", "call"].indexOf(fn) >= 0 || typeof PIXS[fn] !== "function") throw new Error("Not allowed: " + fn);

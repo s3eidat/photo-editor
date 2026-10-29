@@ -5,12 +5,17 @@
   var PE = window.PE, ED = PE.ed, SX = PE.sx;
   var SMALL = 512, WORK_MAX = 1200;
   function img(c) { var g = PE.getData(c); return { data: g.data, width: c.width, height: c.height }; }
-  // Sky mask (Uint8, doc size) of a flattened doc-size canvas.
-  SX.skyMask = function (src, shift) {
+  // Sky mask of a flattened doc-size canvas at the working size (up to 1200 px): {m, W, H}.
+  SX.skyWork = function (src, shift) {
     var d = ED.doc, ks = Math.min(1, SMALL / Math.max(d.w, d.h)), kw = Math.min(1, WORK_MAX / Math.max(d.w, d.h));
     function at(k) { var W = Math.max(1, Math.round(d.w * k)), H = Math.max(1, Math.round(d.h * k)), c = PE.mk(W, H), x = PE.cx2(c); x.fillStyle = "#fff"; x.fillRect(0, 0, W, H); x.imageSmoothingQuality = "high"; x.drawImage(src, 0, 0, W, H); return c; }
     var small = at(ks), guide = kw === ks ? null : at(kw), W = guide ? guide.width : small.width, H = guide ? guide.height : small.height;
-    return SX.work("sky", [img(small), guide && img(guide), { shift: shift || 0 }]).then(function (m) { return W === d.w && H === d.h ? m : SX.scaleMask(m, W, H, d.w, d.h); });
+    return SX.work("sky", [img(small), guide && img(guide), { shift: shift || 0 }]).then(function (m) { return { m: m, W: W, H: H }; });
+  };
+  // Sky mask (Uint8, doc size).
+  SX.skyMask = function (src, shift) {
+    var d = ED.doc;
+    return SX.skyWork(src, shift).then(function (r) { return r.W === d.w && r.H === d.h ? r.m : SX.scaleMask(r.m, r.W, r.H, d.w, d.h); });
   };
   SX.selectSky = function (mode) {
     if (!SX.need()) return;
