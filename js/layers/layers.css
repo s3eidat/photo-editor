@@ -44,3 +44,5 @@
 .pe-rmpanel .pe-of:not(.pe-rng) { flex-wrap: wrap; }
 .pe-tool[hidden] { display: none; }
 .pe-crthumb { display: block; max-width: 100%; margin: 4px auto 0; border-radius: 6px; border: 1px solid var(--line); background: #000; }
+.pe-qmbtn { width: 100%; margin-top: 2px; }
+.pe-qmbtn.on { color: #fff; background: #e5484d; box-shadow: none; }
