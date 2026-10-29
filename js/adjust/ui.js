@@ -148,7 +148,8 @@
   };
 
   // ---------- live-preview panel for this lane's ops ----------
-  // Same spec format as the editor's own panel (t, c sliders, chk checkboxes, ui(el, st)), but the preview is worked
+  // Same spec format as the editor's own panel (t, c sliders, chk checkboxes [key, label, default], sel choices
+  // [key, label, [[value, text]...], default], ui(el, st)), but the preview is worked
   // out on a reduced copy for big layers and drawn scaled by the GPU; OK renders the exact full-size result in the
   // worker. Ops see p._scale (preview scale) so pixel radii look the same in the preview.
   AUI.openLive = function (op) {
@@ -162,6 +163,7 @@
     var p = {}, key = PE.uid("k"), small = PE.mk(w, hh), sctx = small.getContext("2d"), full = s < 1 ? PE.mk(W, H) : null, selC = null;
     (spec.c || []).forEach(function (c) { p[c.k] = c.def; });
     (spec.chk || []).forEach(function (c) { p[c[0]] = !!c[2]; });
+    (spec.sel || []).forEach(function (c) { p[c[0]] = c[3]; });
     if (s < 1 && t.sel) {          // selection as an alpha mask, to keep the outside crisp
       selC = PE.mk(W, H); var sx = selC.getContext("2d"), sd = sx.createImageData(W, H);
       for (var i = 0, q = 0; q < t.sel.length; q++, i += 4) sd.data[i + 3] = t.sel[q];
@@ -197,6 +199,7 @@
     st.schedule = S3.debounce(run, w * hh > 2e6 ? 120 : 40); st.run = run;
     st.pn = AUI.panel(spec.t, function (el) {
       (spec.c || []).forEach(function (c) { el.appendChild(K.range(c.label, c.def, c.min, c.max, c.step, function (v) { p[c.k] = v; st.schedule(); }, c.fmt)); });
+      (spec.sel || []).forEach(function (c) { var f = function (v) { p[c[0]] = v; st.schedule(); }; el.appendChild(c[2].length <= 3 ? K.seg(c[1], c[2], c[3], f) : K.select(c[1], c[2], c[3], f)); });
       (spec.chk || []).forEach(function (c) { el.appendChild(K.check(c[1], !!c[2], function (v) { p[c[0]] = v; st.schedule(); })); });
       if (spec.ui) spec.ui(el, st);
       if (t.sel) el.appendChild(h("p", { "class": "faint pe-p", text: "Applies inside the selection only." }));

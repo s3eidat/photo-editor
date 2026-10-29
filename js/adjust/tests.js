@@ -85,6 +85,30 @@
     var dmix = get(run([[40, 88, 232]], "develop", Object.assign(PIX.A.devDefaults(), { hslS: [0, 0, 0, 0, 0, -100, 0, 0] })), 0), dmix2 = get(run([[220, 40, 40]], "develop", Object.assign(PIX.A.devDefaults(), { hslS: [0, 0, 0, 0, 0, -100, 0, 0] })), 0);
     ok(Math.max.apply(null, dmix) - Math.min.apply(null, dmix) < 8 && dmix2[0] > 200, "develop colour mixer: blue band only");
     ok(PIX.A.bandWeights(15, new Float32Array(8))[0] === 0.5 && PIX.A.bandWeights(225, new Float32Array(8))[5] === 1, "colour mixer hue bands");
+
+    // blur / noise / other filters
+    function gray(w, hh, f) { var a = []; for (var y = 0; y < hh; y++) for (var x = 0; x < w; x++) { var v = f(x, y); a.push([v, v, v]); } return a; }
+    var mb = run(gray(21, 1, function (x) { return x === 10 ? 210 : 0; }), "motionBlur", { angle: 0, distance: 7 }, null, 21, 1), mbs = 0;
+    for (i = 0; i < 21; i++) mbs += get(mb, i)[0];
+    ok(near(get(mb, 10)[0], 30, 6) && get(mb, 8)[0] > 15 && get(mb, 12)[0] > 15 && get(mb, 4)[0] === 0 && get(mb, 16)[0] === 0 && near(mbs, 210, 8), "motion blur spreads evenly along the line");
+    var mbv = run(gray(1, 21, function (x, y) { return y === 10 ? 210 : 0; }), "motionBlur", { angle: 0, distance: 7 }, null, 1, 21);
+    ok(get(mbv, 10)[0] === 210, "motion blur at 0° leaves a vertical line alone");
+    var md = run(gray(5, 5, function (x, y) { return x === 2 && y === 2 ? 255 : 20; }), "median", { radius: 1 }, null, 5, 5);
+    ok(get(md, 12)[0] === 20, "median removes a hot pixel");
+    var md2 = run(gray(9, 1, function (x) { return [5, 1, 9, 3, 7, 2, 8, 4, 6][x]; }), "median", { radius: 1 }, null, 9, 1);
+    ok(get(md2, 4)[0] === 3, "median of a 3x3 window (" + get(md2, 4)[0] + ")");
+    var ds = run(gray(5, 5, function (x, y) { return x === 2 && y === 2 ? 200 : 100; }), "dustScratches", { radius: 1, threshold: 150 }, null, 5, 5);
+    ok(get(ds, 12)[0] === 200, "dust & scratches keeps differences under the threshold");
+    var hp = run(gray(8, 8, function () { return 90; }), "highPass", { radius: 3 }, null, 8, 8);
+    ok(get(hp, 20)[0] === 128, "high pass of a flat image is mid grey");
+    var mx = run(gray(7, 1, function (x) { return x === 3 ? 200 : 10; }), "maximum", { radius: 1 }, null, 7, 1), mn = run(gray(7, 1, function (x) { return x === 3 ? 10 : 200; }), "minimum", { radius: 2 }, null, 7, 1);
+    ok(get(mx, 2)[0] === 200 && get(mx, 4)[0] === 200 && get(mx, 5)[0] === 10 && get(mn, 1)[0] === 10 && get(mn, 0)[0] === 200, "maximum / minimum grow and shrink");
+    var sb = run(gray(16, 1, function (x) { return x < 8 ? 40 : 220; }), "surfaceBlur", { radius: 3, threshold: 15 }, null, 16, 1);
+    ok(near(get(sb, 6)[0], 40, 6) && near(get(sb, 9)[0], 220, 6), "surface blur keeps a strong edge");
+    var rb = run(gray(9, 9, function () { return 77; }), "radialBlur", { amount: 40, mode: "spin" }, null, 9, 9);
+    ok(get(rb, 40)[0] === 77 && get(rb, 0)[0] === 77, "radial blur of a flat image is unchanged");
+    var rn = run(gray(6, 6, function () { return 120; }), "reduceNoise", {}, null, 6, 6);
+    ok(near(get(rn, 14)[0], 120, 1), "reduce noise keeps flat areas");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };
