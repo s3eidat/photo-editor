@@ -41,6 +41,10 @@
     ok(pf[0] > pf[1] && pf[1] > pf[2] && near(0.299 * pf[0] + 0.587 * pf[1] + 0.114 * pf[2], 128, 1.5), "photo filter warms, keeps luminance (" + pf + ")");
     var pf2 = get(run([[200, 200, 200]], "photoFilter", { color: "#ff0000", density: 100, keepLum: false }), 0);
     ok(pf2.join() === "200,0,0", "photo filter without luminosity = multiply");
+
+    // desaturate methods
+    function ds(m, k) { return get(run([[200, 100, 40]], "desatMethod", { method: m, amount: k == null ? 100 : k }), 0); }
+    ok(ds("average")[0] === 113 && ds("lightness")[1] === 120 && ds("max")[2] === 200 && ds("min")[0] === 40 && ds("green")[0] === 100 && near(ds("lum709")[0], 117) && ds("average", 50).join() === "157,107,77", "desaturate methods");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };
