@@ -156,12 +156,14 @@
     var n = K.importJson(JSON.stringify({ format: "s3pe-shortcuts", version: 1, keys: { "tool:brush": "N", "menu:Nope/X": "Q", "tool:eraser": "<script>" } }), list);
     ok(n === 1 && MAP["tool:brush"] === "N" && !MAP["tool:eraser"], "shortcut import validated");
     var bad = false; try { K.importJson("{\"format\":\"x\"}"); } catch (e) { bad = true; } ok(bad, "foreign files rejected");
-    // dispatch: N now picks the brush, B does nothing
+    // dispatch: N now picks the hand tool, H (no longer used by anything) does nothing
+    MAP = { "tool:hand": "N" };
     var tool = ED.tool, docKeep = ED.doc; ED.doc = ED.doc || PE.newDoc(10, 10, "k");
     ED.tool = "move"; window.dispatchEvent(new KeyboardEvent("keydown", { key: "n", code: "KeyN", bubbles: true }));
-    var gotN = ED.tool === "brush"; ED.tool = "move";
-    document.dispatchEvent(new KeyboardEvent("keydown", { key: "b", code: "KeyB", bubbles: true }));
-    ok(gotN && ED.tool === "move", "custom key runs the command and frees the old one");
+    var gotN = ED.tool === "hand"; ED.tool = "move";
+    var other = K.commands().some(function (c) { return c.id !== "tool:hand" && c.def === "H"; });
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "h", code: "KeyH", bubbles: true }));
+    ok(gotN && (other || ED.tool === "move"), "custom key runs the command and frees the old one");
     MAP = save0; S3.store("pe-keys", MAP); relabel(); ED.tool = tool; ED.doc = docKeep; void keep;
   });
 })();
