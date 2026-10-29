@@ -594,5 +594,5 @@
   var AUTO = [["autoTone", "Auto tone", "Ctrl+Shift+L"], ["autoContrast", "Auto contrast", "Ctrl+Alt+Shift+L"], ["autoColor", "Auto colour", "Ctrl+Shift+B"]];
   AUI.addMenu("Image", AUTO.map(function (a) { return [a[1], a[2], function () { AUI.quick(a[0], a[1]); }, has]; }).concat(["-"]), "Vibrance");
   AUTO.forEach(function (a) { AUI.key(a[2], function () { AUI.quick(a[0], a[1]); }); });
-  if (kit().SHORTCUTS) kit().SHORTCUTS.splice(kit().SHORTCUTS.length - 2, 0, ["Auto tone / contrast / colour", "Ctrl+Shift+L · Ctrl+Alt+Shift+L · Ctrl+Shift+B"], ["Fade last filter / develop", "Ctrl+Shift+F · Ctrl+Shift+A"]);
+  if (kit().SHORTCUTS) kit().SHORTCUTS.splice(kit().SHORTCUTS.length - 2, 0, ["Auto tone / contrast / colour", "Ctrl+Shift+L · Ctrl+Alt+Shift+L · Ctrl+Shift+B"], ["Fade last filter / develop", "Ctrl+Shift+F · Ctrl+Shift+A"], ["Lens / wide-angle correction", "Ctrl+Shift+R · Ctrl+Alt+Shift+A"], ["Before / after (in a filter panel)", "\\"]);
 })();
