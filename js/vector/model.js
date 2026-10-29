@@ -120,7 +120,7 @@
       var o = [];
       for (var i = 0; i < 6; i++) o.push(num(p[i < p.length ? i : i % 2], -lim, lim, 0));
       if (p.length < 6) { o[2] = o[4] = o[0]; o[3] = o[5] = o[1]; }
-      o.push(p[6] ? 1 : 0);
+      o.push(p[6] === 2 ? 2 : p[6] ? 1 : 0);
       return o;
     }).filter(Boolean);
   }
@@ -183,6 +183,19 @@
     ED.push({ label: label, bytes: bytes, undo: function () { setPaths(doc, before); ED.emit("paths"); }, redo: function () { setPaths(doc, after); ED.emit("paths"); } });
     ED.emit("paths");
     return r;
+  };
+  // Start a change to the paths that is committed (one history step) later: dragging anchors of a saved path.
+  VX.pathBegin = function () {
+    var doc = ED.doc, before = pathsState(doc);
+    return {
+      commit: function (label) {
+        var after = pathsState(doc);
+        if (JSON.stringify(before) === JSON.stringify(after)) return;
+        ED.push({ label: label, bytes: 400 + JSON.stringify(after).length * 2, undo: function () { setPaths(doc, before); ED.emit("paths"); }, redo: function () { setPaths(doc, after); ED.emit("paths"); } });
+        ED.emit("paths");
+      },
+      cancel: function () { setPaths(doc, before); ED.emit("paths"); }
+    };
   };
   VX.findPath = function (doc, id) {
     if (!doc) return null;

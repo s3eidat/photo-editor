@@ -10,7 +10,7 @@
 
   // ---------- anchors and components ----------
   function P(x, y) { return [x, y, x, y, x, y, 0]; }
-  function Pc(x, y, ix, iy, ox, oy, s) { return [x, y, ix, iy, ox, oy, s ? 1 : 0]; }
+  function Pc(x, y, ix, iy, ox, oy, s) { return [x, y, ix, iy, ox, oy, s === 2 ? 2 : s ? 1 : 0]; }
   VG.P = P; VG.Pc = Pc;
   function comp(pts, closed, op) { return { op: op || "add", closed: closed !== false, pts: pts }; }
   VG.comp = comp;
