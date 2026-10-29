@@ -128,6 +128,112 @@
     return { data: out, width: W, height: H };
   };
 
+  // ---------- seam carving ----------
+  // Removal order of the n lowest-energy vertical seams: order[y * w + x] = seam number, -1 = kept.
+  // protect (optional, 0..255) and skin tones make pixels expensive to remove.
+  VPIX.carveOrder = function (img, protect, n, skin) {
+    var w = img.width, h = img.height, d = img.data, N = w * h, i, x, y;
+    n = Math.max(0, Math.min(n, w - 1));
+    var Lm = new Float32Array(N), P = new Float32Array(N), O = new Int32Array(N), E = new Float32Array(N), M = new Float32Array(N), order = new Int32Array(N).fill(-1);
+    for (i = 0; i < N; i++) {
+      var r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2], a = d[i * 4 + 3];
+      Lm[i] = (0.299 * r + 0.587 * g + 0.114 * b) * a / 255 + (255 - a) * 0.5;
+      P[i] = protect ? protect[i] * 40 : 0;
+      if (skin && r > 95 && g > 40 && b > 20 && r > g && r > b && r - Math.min(g, b) > 15 && Math.abs(r - g) > 15 && a > 128) P[i] += 6000;
+      O[i] = i % w;
+    }
+    var cw = w;
+    function en(x, y) {
+      var row = y * w, l = Lm[row + (x > 0 ? x - 1 : x)], rr = Lm[row + (x < cw - 1 ? x + 1 : x)], u = Lm[(y > 0 ? y - 1 : y) * w + x], dn = Lm[(y < h - 1 ? y + 1 : y) * w + x];
+      return Math.abs(rr - l) + Math.abs(dn - u) + P[row + x];
+    }
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++) E[y * w + x] = en(x, y);
+    var seam = new Int32Array(h);
+    for (var it = 0; it < n; it++) {
+      for (x = 0; x < cw; x++) M[x] = E[x];
+      for (y = 1; y < h; y++) {
+        var row = y * w, prev = row - w;
+        for (x = 0; x < cw; x++) {
+          var m = M[prev + x];
+          if (x > 0 && M[prev + x - 1] < m) m = M[prev + x - 1];
+          if (x < cw - 1 && M[prev + x + 1] < m) m = M[prev + x + 1];
+          M[row + x] = E[row + x] + m;
+        }
+      }
+      var last = (h - 1) * w, bx = 0;
+      for (x = 1; x < cw; x++) if (M[last + x] < M[last + bx]) bx = x;
+      seam[h - 1] = bx;
+      for (y = h - 2; y >= 0; y--) {
+        var px = seam[y + 1], best = px, base = y * w;
+        if (px > 0 && M[base + px - 1] < M[base + best]) best = px - 1;
+        if (px < cw - 1 && M[base + px + 1] < M[base + best]) best = px + 1;
+        seam[y] = best;
+      }
+      for (y = 0; y < h; y++) {
+        var rw = y * w, sx = seam[y];
+        order[rw + O[rw + sx]] = it;
+        Lm.copyWithin(rw + sx, rw + sx + 1, rw + cw); P.copyWithin(rw + sx, rw + sx + 1, rw + cw); O.copyWithin(rw + sx, rw + sx + 1, rw + cw); E.copyWithin(rw + sx, rw + sx + 1, rw + cw);
+      }
+      cw--;
+      for (y = 0; y < h; y++) for (x = Math.max(0, seam[y] - 2); x <= Math.min(cw - 1, seam[y] + 1); x++) E[y * w + x] = en(x, y);
+    }
+    return order;
+  };
+  function transpose(img) {
+    var w = img.width, h = img.height, s = img.data, o = new Uint8ClampedArray(s.length);
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) { var a = (y * w + x) * 4, b = (x * h + y) * 4; o[b] = s[a]; o[b + 1] = s[a + 1]; o[b + 2] = s[a + 2]; o[b + 3] = s[a + 3]; }
+    return { data: o, width: h, height: w };
+  }
+  function transposeMask(m, w, h) { if (!m) return null; var o = new Uint8Array(m.length); for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) o[x * h + y] = m[y * w + x]; return o; }
+  function scaleMask(m, w, h, W2, H2) { if (!m) return null; var o = new Uint8Array(W2 * H2); for (var y = 0; y < H2; y++) for (var x = 0; x < W2; x++) o[y * W2 + x] = m[Math.min(h - 1, Math.floor(y * h / H2)) * w + Math.min(w - 1, Math.floor(x * w / W2))]; return o; }
+  function scaleImg(img, W2, H2) {      // box-ish downscale for finding seams
+    var w = img.width, h = img.height, s = img.data, o = new Uint8ClampedArray(W2 * H2 * 4);
+    for (var y = 0; y < H2; y++) for (var x = 0; x < W2; x++) {
+      var x0 = Math.floor(x * w / W2), x1 = Math.max(x0 + 1, Math.floor((x + 1) * w / W2)), y0 = Math.floor(y * h / H2), y1 = Math.max(y0 + 1, Math.floor((y + 1) * h / H2)), r = 0, g = 0, b = 0, a = 0, n = 0;
+      for (var yy = y0; yy < y1; yy++) for (var xx = x0; xx < x1; xx++) { var q = (yy * w + xx) * 4; r += s[q]; g += s[q + 1]; b += s[q + 2]; a += s[q + 3]; n++; }
+      var p = (y * W2 + x) * 4; o[p] = r / n; o[p + 1] = g / n; o[p + 2] = b / n; o[p + 3] = a / n;
+    }
+    return { data: o, width: W2, height: H2 };
+  }
+  // change the width of img to tw by removing (or doubling) the cheapest seams, found on a reduced copy
+  function carveWidth(img, protect, tw, skin, maxSide) {
+    var w = img.width, h = img.height, n = Math.abs(tw - w);
+    if (!n) return img;
+    var s = Math.min(1, (maxSide || 700) / Math.max(w, h)), lw = Math.max(2, Math.round(w * s)), lh = Math.max(1, Math.round(h * s));
+    var low = s < 1 ? scaleImg(img, lw, lh) : img, lp = s < 1 ? scaleMask(protect, w, h, lw, lh) : protect;
+    var nl = Math.min(lw - 1, Math.ceil(n * lw / w) + 1), order = VPIX.carveOrder(low, lp, nl, skin);
+    var out = new Uint8ClampedArray(tw * h * 4), src = img.data, cols = new Int32Array(w), rank = new Float64Array(w);
+    for (var y = 0; y < h; y++) {
+      var ly = Math.min(lh - 1, Math.floor(y * lh / h)), x;
+      for (x = 0; x < w; x++) { var lx = Math.min(lw - 1, Math.floor(x * lw / w)), o = order[ly * lw + lx]; rank[x] = o < 0 ? 1e9 + x : o * 1e5 + x; cols[x] = x; }
+      var sorted = Array.prototype.slice.call(cols).sort(function (a, b) { return rank[a] - rank[b]; }), pick = new Uint8Array(w);
+      for (x = 0; x < Math.min(n, w); x++) pick[sorted[x]] = 1;
+      var row = y * w * 4, ro = y * tw * 4, k = 0;
+      for (x = 0; x < w && k < tw; x++) {
+        if (tw < w && pick[x]) continue;
+        var q = row + x * 4; out[ro + k * 4] = src[q]; out[ro + k * 4 + 1] = src[q + 1]; out[ro + k * 4 + 2] = src[q + 2]; out[ro + k * 4 + 3] = src[q + 3]; k++;
+        if (tw > w && pick[x] && k < tw) {      // enlarge: a new pixel between this one and the next
+          var q2 = row + Math.min(w - 1, x + 1) * 4;
+          for (var c = 0; c < 4; c++) out[ro + k * 4 + c] = (src[q + c] + src[q2 + c]) / 2;
+          k++;
+        }
+      }
+    }
+    return { data: out, width: tw, height: h };
+  }
+  // full job: width first, then height (on the transposed image). n > width (or height) - 1 per pass is split into passes.
+  VPIX.carve = function (img, protect, tw, th, skin, maxSide) {
+    var cur = img, pm = protect;
+    function steps(from, to) { var out = []; while (from !== to) { var next = to < from ? Math.max(to, Math.ceil(from / 2)) : Math.min(to, from * 2 - 1); out.push(next); from = next; } return out; }
+    steps(cur.width, tw).forEach(function (t) { var w0 = cur.width; cur = carveWidth(cur, pm, t, skin, maxSide); pm = pm ? scaleMask(pm, w0, cur.height, cur.width, cur.height) : null; });
+    if (th !== cur.height) {
+      var T = transpose(cur), tp = pm ? transposeMask(pm, cur.width, cur.height) : null;
+      steps(T.width, th).forEach(function (t) { var w0 = T.width; T = carveWidth(T, tp, t, skin, maxSide); tp = tp ? scaleMask(tp, w0, T.height, T.width, T.height) : null; });
+      cur = transpose(T);
+    }
+    return cur;
+  };
+
   VPIX.call = function (fn, args) {
     if (typeof VPIX[fn] !== "function" || fn === "call") throw new Error("Unknown job " + fn);
     return VPIX[fn].apply(null, args);

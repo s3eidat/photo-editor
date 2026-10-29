@@ -42,3 +42,4 @@
 .pe-vtogs { gap: 3px; }
 .pe-vtog { min-width: 32px; justify-content: center; padding: 0 7px; font-weight: 700; }
 .pe-vtog[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.pe-vcarve { display: block; max-width: 100%; height: auto; border-radius: 8px; background: var(--surface-3); align-self: flex-start; }

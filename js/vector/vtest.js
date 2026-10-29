@@ -213,3 +213,21 @@
     ok(PE.textLayout(T).glyphs.length < 10, "letters past the end of an open path are hidden");
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, VX = PE.VX, VPIX = window.VPIX;
+  VX.test("smart resize", function (ok) {
+    // flat background with a textured 6-px object: narrowing removes background and keeps the object whole
+    var W = 40, H = 12, d = new Uint8ClampedArray(W * H * 4), x, y;
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) { var i = (y * W + x) * 4, obj = x >= 16 && x < 22, v = obj ? ((x + y) % 2 ? 250 : 20) : 100; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
+    var r = VPIX.carve({ data: d, width: W, height: H }, null, 24, H, false), kept = 0;
+    for (x = 0; x < 24; x++) { var a = r.data[(5 * 24 + x) * 4]; if (a === 250 || a === 20) kept++; }
+    ok(r.width === 24 && r.height === H && kept === 6, "seams avoid the detailed object (" + kept + " of 6 columns kept)");
+    var prot = new Uint8Array(W * H); for (y = 0; y < H; y++) for (x = 0; x < 6; x++) prot[y * W + x] = 255;
+    var flat = new Uint8ClampedArray(W * H * 4).fill(100); for (i = 3; i < flat.length; i += 4) flat[i] = 255; for (y = 0; y < H; y++) { flat[(y * W) * 4] = 7; }
+    var r2 = VPIX.carve({ data: flat, width: W, height: H }, prot, 20, H, false);
+    ok(r2.data[0] === 7 && r2.width === 20, "a protected area survives");
+    var r3 = VPIX.carve({ data: d, width: W, height: H }, null, 50, 15, false);
+    ok(r3.width === 50 && r3.height === 15 && r3.data[(14 * 50 + 49) * 4 + 3] === 255, "widening and heightening fill every pixel");
+  });
+})();
