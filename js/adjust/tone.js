@@ -44,4 +44,38 @@
       return L ? PIX.applyLuts(img, L[0], L[1], L[2], sel) : img;
     });
   });
+
+  // ---------- shadows / highlights ----------
+  // Lifts dark areas and recovers bright ones by their neighbourhood brightness (a blurred luminance B), so whole
+  // regions move together and the texture inside them is kept: L' = L * target(B) / B (B is edge-aware, so no halos). Tonal width limits the range
+  // of B that is touched, radius sets the neighbourhood size. Colour sets how much the colours follow the gain.
+  A.reg("shadowsHighlights", function (img, p, sel) {
+    var w = img.width, h = img.height, n = w * h, d = img.data;
+    var aS = clamp(num(p.sAmt, 35), 0, 100) / 100, tS = 0.02 + clamp(num(p.sTone, 50), 0, 100) / 100 * 0.98, rS = clamp(num(p.sRad, 30), 0, 500);
+    var aH = clamp(num(p.hAmt, 0), 0, 100) / 100, tH = 0.02 + clamp(num(p.hTone, 50), 0, 100) / 100 * 0.98, rH = clamp(num(p.hRad, 30), 0, 500);
+    var col = clamp(num(p.color, 20), -100, 100) / 100, mid = clamp(num(p.mid, 0), -100, 100) / 100;
+    var L = A.lumPlane(img, 1 / 255), Bs = aS ? A.guided(L, L, w, h, rS, 0.01) : null;     // edge-aware: no halos along strong edges
+    var Bh = aH ? (Bs && rH === rS ? Bs : A.guided(L, L, w, h, rH, 0.01)) : null, ce = 0.5 + col / 2;
+    for (var q = 0, i = 0; q < n; q++, i += 4) {
+      if (sel && !sel[q]) continue;
+      var l = L[q], l2 = l;
+      if (aS) {
+        var b = Bs[q], ws = 1 - A.smooth(0, tS, b);
+        if (ws > 0 && b > 1e-4) l2 = l * Math.min(10, Math.pow(b, 1 / (1 + 3 * aS * ws)) / b);
+      }
+      if (aH) {
+        var bh = Bh[q], wh = A.smooth(1 - tH, 1, bh);
+        if (wh > 0 && bh < 1 - 1e-4) l2 = 1 - (1 - Math.min(1, l2)) * Math.min(10, (1 - (1 - Math.pow(1 - bh, 1 / (1 + 3 * aH * wh)))) / (1 - bh));
+      }
+      if (mid) l2 = 0.5 + (l2 - 0.5) * (1 + mid * 4 * l2 * (1 - l2));
+      l2 = clamp(l2, 0, 1);
+      if (l2 === l && !mid) continue;
+      var k = l > 1e-4 ? l2 / l : 1, ck = Math.pow(k, ce), L255 = l * 255, T = l2 * 255;
+      var r = T + (d[i] - L255) * ck, g = T + (d[i + 1] - L255) * ck, bb = T + (d[i + 2] - L255) * ck;
+      if (l <= 1e-4) { r = g = bb = T; }
+      if (sel && sel[q] < 255) { var f = sel[q] / 255; r = d[i] + (r - d[i]) * f; g = d[i + 1] + (g - d[i + 1]) * f; bb = d[i + 2] + (bb - d[i + 2]) * f; }
+      d[i] = r; d[i + 1] = g; d[i + 2] = bb;
+    }
+    return img;
+  });
 })(typeof self !== "undefined" ? self : this);
