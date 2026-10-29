@@ -2,9 +2,9 @@
 (function () {
   "use strict";
   var PE = window.PE, ED = PE.ed, AUI = PE.adjUI, sl = AUI.sl, pc = AUI.pc, pxf = AUI.pxf, has = AUI.has, h = S3.h;
-  var F = AUI.FILTERS = { blur: [], distort: [], noise: [], pixelate: [], render: [], stylize: [], other: [] };
+  var F = AUI.FILTERS = { blur: [], distort: [], noise: [], pixelate: [], render: [], sharpen: [], stylize: [], other: [] };
   AUI.addMenu("Filter", ["-", AUI.sub("Filter", "Blur", F.blur), AUI.sub("Filter", "Distort", F.distort), AUI.sub("Filter", "Noise", F.noise), AUI.sub("Filter", "Pixelate", F.pixelate),
-    AUI.sub("Filter", "Render", F.render), AUI.sub("Filter", "Stylize", F.stylize), AUI.sub("Filter", "Other", F.other)]);
+    AUI.sub("Filter", "Render", F.render), AUI.sub("Filter", "Sharpen", F.sharpen), AUI.sub("Filter", "Stylize", F.stylize), AUI.sub("Filter", "Other", F.other)]);
   // Add a filter: spec registered under op; quick filters (no settings) pass spec = null.
   AUI.filter = function (group, label, op, spec, key) {
     if (spec) AUI.adj(op, spec);
@@ -102,6 +102,28 @@
     el.insertBefore(box, el.firstChild); el.insertBefore(add, box.nextSibling); draw();
   } });
 
+  // more blurs
+  F.blur.push("-");
+  AUI.filter("blur", "Average", "average", null);
+  AUI.filter("blur", "Blur", "blurLight", null);
+  AUI.filter("blur", "Blur more", "blurMore", null);
+  AUI.filter("blur", "Box blur…", "boxBlur", { t: "Box blur", c: [sl("radius", "Radius", 1, 999, 1, 10, pxf)] });
+  AUI.filter("blur", "Shape blur…", "shapeBlur", { t: "Shape blur", mp: 8e5, c: [sl("radius", "Radius", 1, 500, 1, 10, pxf)],
+    sel: [["shape", "Shape", [["heart", "Heart"], ["star", "Star"], ["ring", "Ring"], ["disc", "Disc"], ["diamond", "Diamond"], ["square", "Square"], ["cross", "Cross"], ["line", "Line"]], "heart"]] });
+  AUI.filter("blur", "Spin blur…", "spinBlur", { t: "Spin blur", c: [sl("angle", "Blur angle", 1, 90, 1, 15, deg), sl("cx", "Centre X", 0, 100, 1, 50, pc), sl("cy", "Centre Y", 0, 100, 1, 50, pc),
+    sl("size", "Size", 1, 150, 1, 30, pc), sl("aspect", "Height : width", 10, 300, 1, 100, pc)], ui: function (el, st) { placeCentre(el, st); } });
+
+  // sharpen
+  AUI.filter("sharpen", "Smart sharpen…", "smartSharpen", { t: "Smart sharpen", c: [sl("amount", "Amount", 0, 500, 1, 150, pc), sl("radius", "Radius", 0.1, 64, 0.1, 1, pxf), sl("noise", "Reduce noise", 0, 100, 1, 10, pc),
+    sl("angle", "Angle (motion blur)", -180, 180, 1, 0, deg), sl("shFade", "Shadows: fade", 0, 100, 1, 0, pc), sl("shTone", "Shadows: tonal width", 0, 100, 1, 50, pc), sl("hiFade", "Highlights: fade", 0, 100, 1, 0, pc), sl("hiTone", "Highlights: tonal width", 0, 100, 1, 50, pc)],
+    sel: [["remove", "Remove", [["gaussian", "Gaussian blur"], ["lens", "Lens blur"], ["motion", "Motion blur"]], "lens"]] });
+  AUI.filter("sharpen", "Sharpen more", "sharpenMore", null);
+  AUI.filter("sharpen", "Sharpen edges", "sharpenEdges", null);
+  AUI.filter("sharpen", "Shake reduction…", "shakeReduction", { t: "Shake reduction", mp: 1e6, c: [sl("length", "Blur trace length", 1, 199, 1, 9, pxf), sl("angle", "Blur trace angle", -90, 90, 1, 0, deg), sl("iterations", "Iterations", 1, 40, 1, 12), sl("smooth", "Smoothing", 0, 100, 1, 30, pc)] });
+  F.sharpen.push("-");
+  F.sharpen.push(["Sharpen", "", function () { ED.adjKit.QUICK && ED.ui.quick("sharpen"); }, has]);
+  F.sharpen.push(["Unsharp mask…", "", function () { ED.ui.openAdjust("unsharp"); }, has]);
+
   // noise
   AUI.filter("noise", "Reduce noise…", "reduceNoise", { t: "Reduce noise", c: [sl("strength", "Strength", 0, 10, 1, 6), sl("details", "Preserve details", 0, 100, 1, 60, pc), sl("color", "Reduce colour noise", 0, 100, 1, 45, pc), sl("sharpen", "Sharpen details", 0, 100, 1, 25, pc)] });
   AUI.filter("noise", "Dust & scratches…", "dustScratches", { t: "Dust & scratches", c: [sl("radius", "Radius", 1, 100, 1, 2, pxf), sl("threshold", "Threshold (levels)", 0, 255, 1, 10)] });
@@ -177,6 +199,24 @@
     ["shortLines", "Short lines"], ["medLines", "Medium lines"], ["longLines", "Long lines"], ["shortStrokes", "Short strokes"], ["medStrokes", "Medium strokes"], ["longStrokes", "Long strokes"]], "medDots"]] });
   F.pixelate.push(["Mosaic…", "", function () { ED.ui.openAdjust("pixelate"); }, has]);
   AUI.filter("pixelate", "Pointillize…", "pointillize", { t: "Pointillize", c: [sl("size", "Cell size", 3, 300, 1, 6, pxf)], ui: function (el, st) { st.p.bg = ED.doc.bg; el.appendChild(h("p", { "class": "faint pe-p", text: "Gaps show the background colour." })); } });
+
+  // other
+  AUI.adj("customKernel", { t: "Custom", ui: function (el, st) {
+    var p = st.p, K = ED.adjKit, grid = h("div", { "class": "pe-akernel", role: "group", "aria-label": "5 by 5 kernel" }), sc0, off;
+    p.kernel = [0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, -1, 5, -1, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0]; p.scale = 1; p.offset = 0; p.keepAlpha = true;
+    p.kernel.forEach(function (v, i) {
+      var inp = h("input", { type: "number", "class": "input", value: String(v), min: "-999", max: "999", step: "1", "aria-label": "Row " + (Math.floor(i / 5) + 1) + " column " + (i % 5 + 1) });
+      inp.addEventListener("input", function () { var x = +inp.value; p.kernel[i] = isFinite(x) ? Math.max(-999, Math.min(999, x)) : 0; st.schedule(); });
+      grid.appendChild(inp);
+    });
+    sc0 = h("input", { type: "number", "class": "input", value: "1", min: "-9999", max: "9999", step: "1" }); sc0.addEventListener("input", function () { p.scale = +sc0.value || 1; st.schedule(); });
+    off = h("input", { type: "number", "class": "input", value: "0", min: "-9999", max: "9999", step: "1" }); off.addEventListener("input", function () { p.offset = +off.value || 0; st.schedule(); });
+    el.appendChild(grid);
+    el.appendChild(h("div", { "class": "row pe-arow" }, [K.field("Scale", sc0), K.field("Offset", off)]));
+    el.appendChild(K.check("Keep transparency", true, function (v) { p.keepAlpha = v; st.schedule(); }));
+  } });
+  F.other.push(["Custom…", "", function () { AUI.open("customKernel"); }, has]);
+  AUI.filter("other", "HSB / HSL…", "hsbhsl", { t: "HSB / HSL", sel: [["direction", "", [["toHsx", "RGB to H, S, B/L"], ["fromHsx", "H, S, B/L to RGB"]], "toHsx"], ["model", "Model", [["hsb", "HSB"], ["hsl", "HSL"]], "hsb"]] });
 
   // stylize
   AUI.filter("stylize", "Emboss…", "emboss", { t: "Emboss", c: [sl("angle", "Angle", -180, 180, 1, 135, deg), sl("height", "Height", 1, 100, 1, 3, pxf), sl("amount", "Amount", 1, 500, 1, 100, pc)], chk: [["color", "Keep colours", false]] });

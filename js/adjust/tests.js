@@ -198,6 +198,18 @@
     });
     ok(!gfails.length, "filter gallery effects run (" + gfails.join(", ") + ")");
     var pw = get(run(gray(10, 10, function () { return 255; }), "gallery", { effect: "pencil", grain: 0 }, null, 10, 10), 55); ok(pw[0] > 245, "pencil sketch: white paper stays white");
+
+    // sharpen, more blurs, other
+    var ss = run(gray(12, 1, function (x) { return x < 6 ? 80 : 160; }), "smartSharpen", { amount: 200, radius: 1, noise: 0, remove: "gaussian" }, null, 12, 1);
+    ok(get(ss, 5)[0] < 80 && get(ss, 6)[0] > 160 && get(ss, 0)[0] === 80, "smart sharpen steepens an edge");
+    var avg = run([[0, 0, 0], [100, 200, 50]], "average", {}); ok(get(avg, 0).join() === "50,100,25" && get(avg, 1).join() === "50,100,25", "average fills with the mean colour");
+    var bb = run(gray(9, 1, function (x) { return x === 4 ? 90 : 0; }), "boxBlur", { radius: 1 }, null, 9, 1); ok(get(bb, 3)[0] === 30 && get(bb, 4)[0] === 30 && get(bb, 2)[0] === 0, "box blur radius 1");
+    var ck = run(gray(5, 5, function (x, y) { return x * 10 + y; }), "customKernel", { kernel: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], scale: 1, offset: 5 }, null, 5, 5);
+    ok(get(ck, 12)[0] === 27, "custom kernel identity + offset");
+    var hx = get(run([[255, 0, 0]], "hsbhsl", { direction: "toHsx", model: "hsb" }), 0), hb = get(run([[0, 255, 255]], "hsbhsl", { direction: "fromHsx", model: "hsb" }), 0);
+    ok(hx.join() === "0,255,255" && hb.join() === "255,0,0", "HSB to channels and back");
+    var shk = run(gray(10, 10, function () { return 120; }), "shakeReduction", { length: 5 }, null, 10, 10); ok(near(get(shk, 55)[0], 120, 2), "shake reduction keeps a flat area");
+    var shp = PIX.A.shapeTaps("heart", 40); ok(shp.length >= 30, "shape blur taps fill the shape");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };
