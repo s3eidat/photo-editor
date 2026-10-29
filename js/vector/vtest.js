@@ -14,7 +14,7 @@
       out.forEach(function (m) { fails.push("vector/" + tests[i][0] + ": " + m); });
     }
     ED.testing = false;
-    if (keepDoc) { ED.doc = keepDoc; ED.hist = keepHist; ED.live = { over: {}, maskOver: {}, hide: null }; ED.changed(); }
+    ED.doc = keepDoc; ED.hist = keepHist; ED.live = { over: {}, maskOver: {}, hide: null }; ED.changed();
     return fails.length ? fails : true;
   };
   function near(a, b, e) { return Math.abs(a - b) <= (e == null ? 1e-6 : e); }
@@ -90,5 +90,28 @@
     var evil = '{"format":"s3photo","version":1,"name":"x","w":10,"h":10,"vpaths":[{"name":"<b>","comps":[{"op":"eval","pts":[[1e99,"x",null],[2,3]]}]}],"layers":[{"kind":"shape","shape":{"type":"path","comps":"no","dash":["a",5e9],"cap":"javascript:"}}]}';
     var pj = PE.parseProjectJson(evil), dd = PE.newDoc(10, 10, "e"); VX.openDoc(dd, evil);
     ok(pj.layers[0].shape.type === "rect" && pj.layers[0].shape.cap === undefined && pj.layers[0].shape.dash[1] === 1000 && dd.vpaths[0].comps[0].op === "add" && dd.vpaths[0].comps[0].pts[0][0] === 3 * PE.LIM.side, "path fields are whitelisted and clamped");
+  });
+})();
+(function () {
+  "use strict";
+  var PE = window.PE, VX = PE.VX, VG = PE.VG, VPIX = window.VPIX;
+  VX.test("paths", async function (ok) {
+    // a 20x20 square with a 6x6 hole traces to an outer ring and a reversed inner ring
+    var w = 30, h = 30, m = new Uint8Array(w * h);
+    for (var y = 5; y < 25; y++) for (var x = 5; x < 25; x++) m[y * w + x] = (x >= 12 && x < 18 && y >= 12 && y < 18) ? 0 : 255;
+    var rings = VPIX.traceMask(m, w, h, 128).map(function (r) { var o = []; for (var i = 0; i < r.length; i += 2) o.push({ x: r[i], y: r[i + 1] }); return o; });
+    ok(rings.length === 2 && VX.near(Math.abs(VG.areaRings(rings)), 400 - 36), "trace keeps the hole (" + rings.length + " rings, area " + VG.areaRings(rings) + ")");
+    ok(Math.sign(VG.area(rings[0])) !== Math.sign(VG.area(rings[1])), "hole ring runs the other way");
+    var cs = await VX.work("maskToComps", [m, w, h, 1]);
+    ok(cs.length === 2 && VG.winding(VG.flatten(cs, 0.1), 15, 15) === 0 && VG.winding(VG.flatten(cs, 0.1), 7, 7) !== 0, "selection to path: hole stays a hole");
+    // curvature anchors flow through their neighbours
+    var c = VG.comp([VG.Pc(0, 0, 0, 0, 0, 0, 2), VG.Pc(50, 50, 50, 50, 50, 50, 2), VG.Pc(100, 0, 100, 0, 100, 0, 2)], false);
+    VX.autoSmooth(c);
+    ok(VX.near(c.pts[1][3], 50) && VX.near(c.pts[1][5], 50) && c.pts[1][2] < 50 && c.pts[1][4] > 50, "curvature anchor gets a horizontal tangent at the turning point");
+    // path -> selection is filled with the non-zero rule after the component operations
+    var d = PE.newDoc(40, 40, "p"), msk;
+    PE.ed.doc = d; PE.ed.testing = true;
+    msk = VX.maskOf([VG.comp([VG.P(5, 5), VG.P(35, 5), VG.P(35, 35), VG.P(5, 35)]), VG.comp([VG.P(15, 15), VG.P(25, 15), VG.P(25, 25), VG.P(15, 25)], true, "sub")]);
+    ok(msk[20 * 40 + 20] === 0 && msk[10 * 40 + 10] === 255 && msk[2 * 40 + 2] === 0, "make selection respects subtract");
   });
 })();

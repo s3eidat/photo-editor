@@ -203,3 +203,31 @@
     return (doc.vpaths || []).filter(function (p) { return p.id === id; })[0] || null;
   };
 })();
+/* worker bridge for the vector lane's heavy pixel jobs (falls back to this thread) */
+(function () {
+  "use strict";
+  var PE = window.PE, VX = PE.VX;
+  var W = null, alive = false, jid = 0, pend = {};
+  function start() {
+    if (W !== null) return;
+    try {
+      W = new Worker("js/vector/vworker.js");
+      W.onmessage = function (e) { var m = e.data, p = pend[m.id]; if (m.id === 0) { alive = true; return; } if (!p) return; delete pend[m.id]; if (m.ok) p.res(m.result); else p.rej(new Error(m.error)); };
+      W.onerror = function () { alive = false; W = false; Object.keys(pend).forEach(function (k) { var p = pend[k]; delete pend[k]; p.local(); }); };
+      W.postMessage({ id: 0, fn: "traceMask", args: [new Uint8Array(1), 1, 1, 128] });
+    } catch (e) { W = false; }
+  }
+  // VX.work(fn, args, transfer?) runs VPIX[fn](...args) in the worker (copies the inputs unless transfer lists buffers)
+  VX.work = function (fn, args, transfer) {
+    start();
+    function local() { return window.VPIX.call(fn, args); }
+    if (!alive || !W) return Promise.resolve().then(local);
+    return new Promise(function (res, rej) {
+      var id = ++jid;
+      pend[id] = { res: res, rej: rej, local: function () { try { res(local()); } catch (e) { rej(e); } } };
+      W.postMessage({ id: id, fn: fn, args: args }, transfer || []);
+    });
+  };
+  VX.workerAlive = function () { start(); return alive; };
+  setTimeout(start, 400);
+})();
