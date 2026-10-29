@@ -437,6 +437,7 @@
     if (!files.length) return;
     var proj = files.filter(function (f) { return /\.s3photo$/i.test(f.name); })[0];
     if (proj) { openProjectFile(proj); return; }
+    if (ED.ui.openExt && ED.ui.openExt(files, asLayers)) return;   // lane:files (.psd, .tif and other formats)
     var imgs = files.filter(function (f) { return /^image\//.test(f.type) || /\.(png|jpe?g|webp|gif|bmp|avif|ico|svg)$/i.test(f.name); });
     if (!imgs.length) { S3.toast("Those files are not images", "error"); return; }
     var chain = Promise.resolve(), first = !ED.doc || !asLayers;
@@ -844,6 +845,7 @@
     if (floatState) { if (k === "Escape") { e.preventDefault(); closeFloat(false); } else if (k === "Enter" && !typing) { e.preventDefault(); closeFloat(true); } return; }
     if (typing) return;
     if (openMenu && k === "Escape") { closeMenus(); return; }
+    if ((ED.ui.keys || []).some(function (f) { return f(e); })) return;   // lane:selection (lanes add key handlers to ED.ui.keys)
     function go(fn) { e.preventDefault(); fn(); }
     if (c) {
       if (lk === "z") return go(function () { if (e.shiftKey) ED.redo(); else ED.undo(); });
@@ -985,5 +987,6 @@
     ED.ready = restoreLast().then(function (ok) { if (!ok) renderEmpty(); return ok; });
   }
   ED.ui = { openAdjust: openAdjust, closeFloat: closeFloat, quick: quick, exportDialog: exportDialog, newDialog: newDialog, renderLayers: renderLayers, buildOpts: buildOpts, buildProps: buildProps, colors: colors, saveFile: saveFile, openFiles: openFiles, floatState: function () { return floatState; } };
+  ED.ui.MENUS = MENUS; ED.ui.TOOLS = TOOLS; ED.ui.w = { field: field, range: range, check: check, seg: seg, select: select, btn: btn, numInput: numInput, modal: modal, svg: svg, numberDialog: numberDialog, need: need, K: K, pct: pct, px: px };   // lane:selection
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
