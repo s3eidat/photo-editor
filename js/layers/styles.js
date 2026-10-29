@@ -6,11 +6,11 @@
   "use strict";
   var PE = window.PE, PIX = window.PIX, FXM = window.FXM, ED = PE.ed, SX = PE.sx, h = S3.h;
   var DEF = {
-    dropShadow: { on: false, blend: "multiply", color: "#000000", op: 0.75, angle: 120, dist: 8, spread: 0, size: 10 },
-    innerShadow: { on: false, blend: "multiply", color: "#000000", op: 0.75, angle: 120, dist: 5, choke: 0, size: 6 },
+    dropShadow: { on: false, blend: "multiply", color: "#000000", op: 0.75, angle: 120, global: true, dist: 8, spread: 0, size: 10 },
+    innerShadow: { on: false, blend: "multiply", color: "#000000", op: 0.75, angle: 120, global: true, dist: 5, choke: 0, size: 6 },
     outerGlow: { on: false, blend: "screen", color: "#ffffbe", op: 0.75, spread: 0, size: 14 },
     innerGlow: { on: false, blend: "screen", color: "#ffffbe", op: 0.75, source: "edge", choke: 0, size: 10 },
-    bevel: { on: false, style: "inner", depth: 100, dir: "up", size: 6, soften: 0, angle: 120, altitude: 30, hiBlend: "screen", hiColor: "#ffffff", hiOp: 0.75, shBlend: "multiply", shColor: "#000000", shOp: 0.75 },
+    bevel: { on: false, style: "inner", depth: 100, dir: "up", size: 6, soften: 0, angle: 120, altitude: 30, global: true, hiBlend: "screen", hiColor: "#ffffff", hiOp: 0.75, shBlend: "multiply", shColor: "#000000", shOp: 0.75 },
     satin: { on: false, blend: "multiply", color: "#000000", op: 0.5, angle: 19, dist: 11, size: 14, invert: true },
     colorOverlay: { on: false, blend: "normal", color: "#e5484d", op: 1 },
     gradOverlay: { on: false, blend: "normal", op: 1, from: "#000000", to: "#ffffff", style: "linear", angle: 90, scale: 100, reverse: false },
@@ -134,6 +134,19 @@
   var panel = null;
   function blendSel(label, val, onSet) { return ED.ui.w.select(label, PIX.BLEND_LIST.filter(function (m) { return NAT[m[0]]; }), val, onSet); }
   function color(label, val, onSet) { var c = h("input", { type: "color", value: val }); c.addEventListener("input", function () { onSet(c.value); }); return ED.ui.w.field(label, c); }
+  // Global light: shadows and bevels marked "global" share one light angle (and bevels one altitude) across the document.
+  var GL = ["dropShadow", "innerShadow", "bevel"];
+  function isGlobal(e) { return e && e.global !== false; }
+  SX.globalLight = function (doc) {     // {angle, altitude} of the first global effect, or null
+    for (var i = doc.layers.length - 1; i >= 0; i--) { var fx = doc.layers[i].fx; if (!fx) continue; for (var j = 0; j < GL.length; j++) { var e = fx[GL[j]]; if (e && isGlobal(e)) return { angle: e.angle == null ? 120 : e.angle, altitude: fx.bevel && isGlobal(fx.bevel) && fx.bevel.altitude != null ? fx.bevel.altitude : 30 }; } }
+    return null;
+  };
+  SX.setGlobalLight = function (doc, key, v) {   // key "angle" or "altitude": every global effect follows
+    doc.layers.forEach(function (M) {
+      if (!M.fx) return;
+      GL.forEach(function (k) { var e = M.fx[k]; if (!e || !isGlobal(e) || (key === "altitude" && k !== "bevel")) return; M.fx[k] = Object.assign({}, e); M.fx[k][key] = v; });
+    });
+  };
   function controls(k, e, set) {
     var w = ED.ui.w, pct = w.pct, px = w.px, deg = function (v) { return v + "°"; }, out = [];
     function R(key, label, min, max, step, fmt) { out.push(w.range(label, e[key], min, max, step, function (v) { set(key, v); }, fmt)); }
@@ -141,6 +154,7 @@
       out.push(w.select("Style", [["inner", "Inner bevel"], ["outer", "Outer bevel"], ["emboss", "Emboss"], ["pillow", "Pillow emboss"]], e.style, function (v) { set("style", v); }));
       R("depth", "Depth", 1, 1000, 1, function (v) { return v + "%"; }); out.push(w.seg("Direction", [["up", "Up"], ["down", "Down"]], e.dir, function (v) { set("dir", v); }));
       R("size", "Size", 0, 250, 1, px); R("soften", "Soften", 0, 16, 1, px); R("angle", "Angle", -180, 180, 1, deg); R("altitude", "Altitude", 0, 90, 1, deg);
+      out.push(w.check("Use global light", isGlobal(e), function (v) { set("global", v); }));
       out.push(blendSel("Highlight", e.hiBlend, function (v) { set("hiBlend", v); }), color("Highlight colour", e.hiColor, function (v) { set("hiColor", v); })); R("hiOp", "Highlight opacity", 0, 1, 0.01, pct);
       out.push(blendSel("Shadow", e.shBlend, function (v) { set("shBlend", v); }), color("Shadow colour", e.shColor, function (v) { set("shColor", v); })); R("shOp", "Shadow opacity", 0, 1, 0.01, pct);
       return out;
@@ -149,7 +163,7 @@
     out.push(blendSel("Blend mode", e.blend, function (v) { set("blend", v); }));
     if (k !== "gradOverlay") out.push(color("Colour", e.color, function (v) { set("color", v); }));
     R("op", "Opacity", 0, 1, 0.01, pct);
-    if (k === "dropShadow" || k === "innerShadow") { R("angle", "Angle", -180, 180, 1, deg); R("dist", "Distance", 0, 500, 1, px); R(k === "dropShadow" ? "spread" : "choke", k === "dropShadow" ? "Spread" : "Choke", 0, 100, 1, function (v) { return v + "%"; }); R("size", "Size", 0, 250, 1, px); }
+    if (k === "dropShadow" || k === "innerShadow") { R("angle", "Angle", -180, 180, 1, deg); out.push(w.check("Use global light", isGlobal(e), function (v) { set("global", v); })); R("dist", "Distance", 0, 500, 1, px); R(k === "dropShadow" ? "spread" : "choke", k === "dropShadow" ? "Spread" : "Choke", 0, 100, 1, function (v) { return v + "%"; }); R("size", "Size", 0, 250, 1, px); }
     if (k === "outerGlow") { R("spread", "Spread", 0, 100, 1, function (v) { return v + "%"; }); R("size", "Size", 0, 250, 1, px); }
     if (k === "innerGlow") { out.push(w.seg("Source", [["edge", "Edge"], ["center", "Centre"]], e.source, function (v) { set("source", v); })); R("choke", "Choke", 0, 100, 1, function (v) { return v + "%"; }); R("size", "Size", 0, 250, 1, px); }
     if (k === "satin") { R("angle", "Angle", -180, 180, 1, deg); R("dist", "Distance", 1, 250, 1, px); R("size", "Size", 0, 250, 1, px); out.push(w.check("Invert", e.invert, function (v) { set("invert", v); })); }
@@ -168,7 +182,7 @@
     if (L.kind === "group") { S3.toast("Styles apply to pixel, text, shape and fill layers. Pick a layer inside the group.", "error"); return; }
     if (panel) closePanel(false);
     ED.cancelModes();
-    var before = PE.snap(ED.doc), orig = PE.clone(L.fx || null), origBif = PE.clone(L.blendIf || null), stage = S3.$("#stage");
+    var before = PE.snap(ED.doc), orig = PE.clone(L.fx || null), others = ED.doc.layers.map(function (M) { return [M, PE.clone(M.fx || null)]; }), origBif = PE.clone(L.blendIf || null), stage = S3.$("#stage");
     if (!L.fx) L.fx = { on: true };
     var box = h("div", { "class": "pe-float pe-fxpanel", role: "dialog", "aria-label": "Layer style" }), body = h("div", { "class": "pe-fbody" });
     var open = focus || ORDER.filter(function (k) { return on(L, k); })[0] || "dropShadow";
@@ -186,7 +200,16 @@
         body.appendChild(head);
         if (open === k) {
           var sec = h("div", { "class": "pe-fxsec" });
-          controls(k, cur, function (key, v) { var e2 = L.fx[k] = Object.assign({}, cur, L.fx[k] || {}); e2[key] = v; cur[key] = v; if (!e2.on) { e2.on = true; cb.checked = true; } changed(); }).forEach(function (el) { sec.appendChild(el); });
+          controls(k, cur, function (key, v) {
+            var e2 = L.fx[k] = Object.assign({}, cur, L.fx[k] || {}); e2[key] = v; cur[key] = v; if (!e2.on) { e2.on = true; cb.checked = true; }
+            if (GL.indexOf(k) >= 0 && isGlobal(e2)) {
+              if (key === "global") {                  // joining: take the document's light, then rebuild to show it
+                var g = null, keep = L.fx[k]; L.fx[k] = Object.assign({}, keep, { global: false }); g = SX.globalLight(ED.doc); L.fx[k] = keep;
+                if (g) { keep.angle = cur.angle = g.angle; if (k === "bevel") keep.altitude = cur.altitude = g.altitude; build(); }
+              } else if (key === "angle" || key === "altitude") SX.setGlobalLight(ED.doc, key, v);
+            }
+            changed();
+          }).forEach(function (el) { sec.appendChild(el); });
           body.appendChild(sec);
         }
       });
@@ -196,7 +219,7 @@
     box.appendChild(body);
     box.appendChild(h("div", { "class": "row pe-ffoot" }, [w.btn("Clear", function () { L.fx = { on: true }; changed(); build(); }, "ghost"), h("span", { "class": "grow" }), w.btn("Cancel", function () { closePanel(false); }, "ghost"), w.btn("OK", function () { closePanel(true); }, "primary")]));
     stage.appendChild(box);
-    panel = { box: box, L: L, before: before, orig: orig, origBif: origBif };
+    panel = { box: box, L: L, before: before, orig: orig, origBif: origBif, others: others };
     ED.modal = true;
     build(); changed();
   };
@@ -205,7 +228,7 @@
     panel = null; ED.modal = false; p.box.remove();
     var L = p.L;
     if (L.fx && !SX.fxOn(L) && !ORDER.some(function (k) { return L.fx[k]; })) delete L.fx;
-    if (!ok) { if (p.orig) L.fx = p.orig; else delete L.fx; if (p.origBif) L.blendIf = p.origBif; else delete L.blendIf; ED.changed(); return; }
+    if (!ok) { p.others.forEach(function (r) { if (r[0] !== L) { if (r[1]) r[0].fx = r[1]; else delete r[0].fx; } }); if (p.orig) L.fx = p.orig; else delete L.fx; if (p.origBif) L.blendIf = p.origBif; else delete L.blendIf; ED.changed(); return; }
     if (JSON.stringify(p.orig || null) === JSON.stringify(L.fx || null) && JSON.stringify(p.origBif || null) === JSON.stringify(L.blendIf || null)) { ED.changed(); return; }
     ED.push(PE.metaEntry("Layer style", ED.doc, p.before));
   }
@@ -257,6 +280,13 @@
     parse: function (v) { if (!v || typeof v !== "object") return undefined; var o = { on: v.on !== false }; ORDER.forEach(function (k) { var e = cleanEffect(k, v[k]); if (e) o[k] = e; }); return o; }
   };
 
+  SX.tests.push(async function (ok) {
+    var a = PE.rasterFromCanvas(SX.solid(4, 4, "#ff0000"), "a"), b = PE.rasterFromCanvas(SX.solid(4, 4, "#00ff00"), "b"), d = SX.scratch(4, 4, [a, b]);
+    a.fx = { on: true, dropShadow: { on: true, angle: 120, global: true } }; b.fx = { on: true, bevel: { on: true, angle: 120, altitude: 30 }, innerShadow: { on: true, angle: 45, global: false } };
+    SX.setGlobalLight(d, "angle", 60); SX.setGlobalLight(d, "altitude", 50);
+    ok(a.fx.dropShadow.angle === 60 && b.fx.bevel.angle === 60 && b.fx.bevel.altitude === 50 && b.fx.innerShadow.angle === 45 && !a.fx.dropShadow.altitude, "global light moves every global shadow and bevel, not the others");
+    ok(SX.globalLight(d).angle === 60, "global light reads back");
+  });
   SX.tests.push(async function (ok, near) {
     var a = new Float32Array(20 * 20); for (var y = 5; y < 15; y++) for (var x = 5; x < 15; x++) a[y * 20 + x] = 1;
     var st = FXM.stroke(a, 20, 20, { size: 2, pos: "outside" }); ok(st[10 * 20 + 3] === 1 && st[10 * 20 + 2] === 0 && st[10 * 20 + 10] === 0, "outside stroke ring");
