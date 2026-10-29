@@ -203,6 +203,7 @@
     var P = $("#props"); if (!P) return; P.textContent = "";
     var d = ED.doc, L = ED.layer();
     if (!d || !L) { P.appendChild(h("p", { "class": "faint pe-p", text: "Open a photo to see its layers here." })); return; }
+    if (ED.ui.propsExt && ED.ui.propsExt(P, L)) return;   // lane:selection (group, adjustment, fill, smart layers)
     var head = h("div", { "class": "pe-phead" }, [svg(L.kind === "text" ? "t-text" : L.kind === "shape" ? "t-shape" : "i-image"), h("b", { text: L.name }), h("span", { "class": "faint", text: L.kind === "raster" ? "Pixel layer" : L.kind === "text" ? "Text layer" : "Shape layer" })]);
     P.appendChild(head);
     if (L.kind === "text") {
@@ -266,6 +267,7 @@
   function checkTile() { if (!ct) { ct = PE.mk(8, 8); var x = ct.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, 8, 8); x.fillStyle = "#ccc"; x.fillRect(0, 0, 4, 4); x.fillRect(4, 4, 4, 4); } return ct; }
   var dragId = null;
   function renderLayers() {
+    if (ED.ui.layersExt) return ED.ui.layersExt();   // lane:selection (tree with groups, clipping, styles)
     var list = $("#layerList"); list.textContent = "";
     var d = ED.doc;
     $("#layerBlend").disabled = $("#layerOp").disabled = !d;
@@ -329,12 +331,14 @@
     newLayer: function () { if (need()) ED.newRasterLayer(); },
     duplicate: function () {
       if (!need()) return; var a = L(); if (!a) return;
+      if (PE.dupExt && PE.dupExt(a)) return;   // lane:selection
       var c = PE.newLayer(a.kind, { name: a.name + " copy", visible: a.visible, opacity: a.opacity, blend: a.blend, x: a.x, y: a.y, maskOn: a.maskOn, text: PE.clone(a.text), shape: PE.clone(a.shape), canvas: a.canvas ? PE.touch(PE.cloneCanvas(a.canvas)) : null });
       if (a.mask) c.mask = { canvas: PE.touch(PE.cloneCanvas(a.mask.canvas)), x: a.mask.x, y: a.mask.y };
       ED.addLayer(c, "Duplicate layer");
     },
     remove: function () {
       if (!need()) return; var d = doc(), a = L(); if (!a) return;
+      if (PE.removeExt && PE.removeExt(a)) return;   // lane:selection
       if (d.layers.length === 1) { S3.toast("A document needs at least one layer", "error"); return; }
       ED.meta("Delete layer", function () { var i = d.layers.indexOf(a); d.layers.splice(i, 1); d.active = d.layers[Math.max(0, i - 1)].id; ED.maskEdit = false; });
     },
@@ -361,6 +365,7 @@
     },
     mergeDown: function () {
       if (!need()) return; var d = doc(), a = L(), i = d.layers.indexOf(a), b = d.layers[i - 1];
+      if (PE.mergeExt && PE.mergeExt(a)) return;   // lane:selection
       if (!b) { S3.toast("There is no layer below to merge into", "error"); return; }
       if (b.locked || a.locked) { S3.toast("Unlock both layers to merge them", "error"); return; }
       var below = PE.newLayer("raster", {}), save = { o: b.opacity, bl: b.blend };
@@ -389,6 +394,7 @@
   };
   function move(dir) {
     if (!need()) return; var d = doc(), a = L(), i = d.layers.indexOf(a), j = i + dir;
+    if (PE.moveExt && PE.moveExt(a, dir)) return;   // lane:selection
     if (j < 0 || j >= d.layers.length) return;
     ED.meta(dir > 0 ? "Bring forward" : "Send backward", function () { d.layers.splice(i, 1); d.layers.splice(j, 0, a); });
   }

@@ -204,6 +204,7 @@
     if (!L) { S3.toast("Add a layer first", "error"); return false; }
     if (L.locked) { S3.toast("“" + L.name + "” is locked. Unlock it in the Layers panel.", "error"); return false; }
     if (!L.visible) { S3.toast("“" + L.name + "” is hidden. Show it to edit it.", "error"); return false; }
+    if (PE.editableExt && !PE.editableExt(L, need)) return false;   // lane:selection (groups, adjustment layers)
     if (need === "pixels" && L.kind !== "raster" && !ED.maskEdit) ED.rasterize(L);
     return true;
   }
@@ -568,6 +569,7 @@
   }
   function shiftLayer(dr, dx, dy) {
     var L = dr.L;
+    if (PE.shiftExt) PE.shiftExt(dr, dx, dy);   // lane:selection (groups, linked layers)
     if (L.kind === "raster") { L.x = dr.x + dx; L.y = dr.y + dy; }
     if (L.text) { L.text.ax = dr.t.ax + dx; L.text.ay = dr.t.ay + dy; }
     if (L.shape) { L.shape.x = dr.s.x + dx; L.shape.y = dr.s.y + dy; }
@@ -695,6 +697,7 @@
   };
   function transformLayer(L, m, xf) {
     if (L.mask) { var mb = PE.bake(L.mask.canvas, L.mask.x, L.mask.y, m); L.mask = { canvas: mb.canvas, x: mb.x, y: mb.y }; }
+    if (PE.xfExt && PE.xfExt[L.kind]) return PE.xfExt[L.kind](L, m, xf);   // lane:selection
     if (L.kind === "raster") { var r = PE.bake(L.canvas, L.x, L.y, m); L.canvas = r.canvas; L.x = r.x; L.y = r.y; return; }
     // vector layers stay editable: new centre, size, rotation and flips
     var b = PE.vbox(L), c = PE.mApply(m, b.x + b.w / 2, b.y + b.h / 2), sx = xf ? xf.sx : 1, sy = xf ? xf.sy : 1, rot = xf ? (b.rot + xf.rot) : b.rot;

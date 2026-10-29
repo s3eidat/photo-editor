@@ -30,6 +30,7 @@
   PE.parseExt = function (raw, out, i, ids) {
     if (typeof raw.uid === "string" && ID.test(raw.uid)) out.uid = raw.uid;
     Object.keys(F).forEach(function (k) { if (raw[k] === undefined || !F[k].parse) return; var v = F[k].parse(raw[k], out, raw, i, ids); if (v !== undefined) out[k] = v; });
+    (SX.parseFix || []).forEach(function (f) { f(raw, out, i, ids); });
   };
   PE.openExt = function (l, L, img, jobs) {
     if (l.uid) L.id = l.uid;

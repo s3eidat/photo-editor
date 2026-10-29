@@ -105,6 +105,7 @@
   }
   // ---------- vector box helpers (text + shape share: box, rotation about its centre, flips) ----------
   function vbox(L) {
+    if (PE.vboxExt && PE.vboxExt[L.kind]) return PE.vboxExt[L.kind](L);   // lane:selection
     if (L.kind === "text") { var b = textLayout(L.text).box; return { x: b.x, y: b.y, w: b.w, h: b.h, rot: L.text.rot || 0, fx: !!L.text.flipX, fy: false }; }
     var s = L.shape; return { x: s.x, y: s.y, w: s.w, h: s.h, rot: s.rot || 0, fx: !!s.flipX, fy: !!s.flipY };
   }
@@ -164,6 +165,7 @@
   var VCACHE = new WeakMap();
   function surface(L, doc) {
     if (L.kind === "raster") return { canvas: L.canvas, x: L.x, y: L.y };
+    if (PE.surfaceExt && PE.surfaceExt[L.kind]) return PE.surfaceExt[L.kind](L, doc);   // lane:selection
     var key = JSON.stringify(L.kind === "text" ? L.text : L.shape) + "|" + doc.w + "x" + doc.h, hit = VCACHE.get(L);
     if (hit && hit.key === key) return hit.s;
     var b = vbox(L), pad = L.kind === "text" ? L.text.size * 0.6 + 4 : (L.shape.sw || 0) + 4;

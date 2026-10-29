@@ -1,3 +1,20 @@
 /* Selection lane styles (layers panel additions, selection tools). Colours from the kit variables. */
 .pe-lfill { margin-top: -2px; }
 .pe-lfill input:disabled { opacity: .4; }
+.pe-lind { flex: none; display: block; }
+.pe-ltog { flex: none; width: 16px; height: 22px; padding: 0; margin-right: -3px; border: 0; background: transparent; color: var(--text-2); font-size: 11px; cursor: pointer; border-radius: 4px; }
+.pe-ltog:hover { color: var(--text); background: var(--surface-3); }
+.pe-lclip { flex: none; display: grid; place-items: center; width: 14px; color: var(--text-3); }
+.pe-lclip .i { width: 13px; height: 13px; }
+.pe-kthumb { display: grid; place-items: center; width: 44px; height: 34px; border-radius: 3px; background: var(--surface-3); color: var(--text-2); }
+.pe-kthumb .i { width: 20px; height: 20px; }
+.pe-layer.pk { border-color: var(--line-strong); background: var(--surface-3); box-shadow: inset 3px 0 0 var(--accent); }
+.pe-layer.grp .pe-lname { font-weight: 600; }
+.pe-layer.under { box-shadow: 0 2px 0 var(--accent); }
+.pe-layer.into { box-shadow: inset 0 0 0 2px var(--accent); }
+.pe-lbadges { display: flex; align-items: center; gap: 1px; flex: none; }
+.pe-lfx, .pe-llink { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--text-3); }
+.pe-lfx { cursor: pointer; color: var(--accent); }
+.pe-lfx:hover { background: var(--surface-3); }
+.pe-lfx .i, .pe-llink .i { width: 14px; height: 14px; }
+.pe-lmeta { text-transform: none; }

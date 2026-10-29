@@ -79,8 +79,15 @@
   PE.drawHook = function (ctx, doc, opts) {
     var sp = special(doc);
     if (!sp) return false;
+    var R = makeR(ctx, doc, opts, sp);
+    if (R) run(R, ctx, R.tree.roots);
+    return true;
+  };
+  // Draw `list` (default: the whole document) onto ctx, whose transform maps doc px -> target px.
+  SX.renderInto = function (ctx, doc, list, opts) { opts = opts || {}; var R = makeR(ctx, doc, opts, Math.max(1, special(doc))); if (R) run(R, ctx, list ? list(R.tree) : R.tree.roots); return R; };
+  function makeR(ctx, doc, opts, sp) {
     var M = ctx.getTransform(), cv = ctx.canvas, region = PE.inter(devRect(M, { x: 0, y: 0, w: doc.w, h: doc.h }), { x: 0, y: 0, w: cv.width, h: cv.height });
-    if (!region) return true;
+    if (!region) return null;
     var T = tree(doc), R = { doc: doc, opts: opts, M: M, region: region, tree: T, smooth: ctx.imageSmoothingEnabled, quality: ctx.imageSmoothingQuality, gpu: sp < 2 };
     if (opts.only) {      // only these layers: a group in the list brings its contents; groups above them are pass-through containers
       var self = {}, anc = {};
@@ -88,17 +95,19 @@
       R.inOnly = function (L) { if (self[L.id] || anc[L.id]) return true; for (var p = T.parentOf(L); p; p = T.parentOf(p)) if (self[p.id]) return true; return false; };
       R.container = function (L) { if (self[L.id]) return false; for (var p = T.parentOf(L); p; p = T.parentOf(p)) if (self[p.id]) return false; return !!anc[L.id]; };
     }
+    return R;
+  }
+  function run(R, ctx, list) {
     ctx.save();
-    if (R.gpu) renderList(R, { c: ctx, ox: 0, oy: 0, d: 0 }, T.roots);
+    if (R.gpu) renderList(R, { c: ctx, ox: 0, oy: 0, d: 0 }, list);
     else {           // pixel work: build the picture in a CPU canvas, then hand it to the target in one draw
-      var root = buffer(R, "root", 0);
-      renderList(R, root, T.roots);
+      var root = buffer(R, "root", 0), rg = R.region;
+      renderList(R, root, list);
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = "source-over";
-      ctx.drawImage(root.canvas, region.x, region.y);
+      ctx.drawImage(root.canvas, rg.x, rg.y);
     }
     ctx.restore();
-    return true;
-  };
+  }
   function show(R, L) { return L.visible && R.opts.hide !== L.id && (!R.inOnly || R.inOnly(L)); }
   SX.show = show;
 
