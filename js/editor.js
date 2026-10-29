@@ -793,6 +793,7 @@
       if (L.text) { L.text.ax -= R.x; L.text.ay -= R.y; }
       if (L.shape) { L.shape.x -= R.x; L.shape.y -= R.y; }
       if (L.mask) L.mask = { canvas: L.mask.canvas, x: L.mask.x - R.x, y: L.mask.y - R.y };
+      if (PE.offsetExt) PE.offsetExt(L, -R.x, -R.y);   // lane:selection (crop / canvas size for new layer kinds)
     });
     d.w = R.w; d.h = R.h; d.sel = null;
   }
@@ -811,6 +812,7 @@
         if (L.kind === "raster") { var r = PE.bake(L.canvas, L.x, L.y, m); L.canvas = r.canvas; L.x = r.x; L.y = r.y; }
         if (L.text) { var T = L.text, k = Math.sqrt(kx * ky); T.ax *= kx; T.ay *= ky; T.size = PE.clamp(T.size * k, 1, 2000); }
         if (L.shape) { var S = L.shape; S.x *= kx; S.y *= ky; S.w *= kx; S.h *= ky; S.sw *= Math.sqrt(kx * ky); }
+        if (PE.scaleExt) PE.scaleExt(L, kx, ky);   // lane:selection (image size for new layer kinds)
       });
       d.w = w; d.h = h; d.sel = null;
     });

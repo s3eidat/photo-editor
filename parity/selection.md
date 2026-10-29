@@ -20,6 +20,7 @@
 | Linked layers | done | Layer › Link / Unlink layers or the chain button: picked layers move together (drag and arrow keys); link icon in the panel; saved in projects. Free transform does not yet carry linked layers. |
 | Stamp visible / merge copy | done | Ctrl+Shift+Alt+E stamps everything visible into a new layer; Ctrl+Alt+E merges a copy of the picked layers; originals stay. |
 | Channels panel, save/load selection | done | Channels panel (under Layers): RGB, Red, Green, Blue (click to preview one colour channel in grey) and alpha channels. Select › Save selection… (new channel, or replace/add/subtract/intersect into one) and Load selection… (invert, operation); Ctrl+click a channel thumbnail loads it (Shift adds, Alt subtracts); click an alpha channel to paint it (red film), rename by double-click, delete. Alpha channels are hidden helper layers (kind `channel`), so they undo and save in projects. Editing a single colour channel is not supported (preview only). |
+| Smart layers + smart filters | done | Layer › Convert to smart layer (one layer, several picked layers or a group become one smart layer). Keeps the source pixels and a transform matrix: free transform (box follows the layer's rotation), flips, moves, align, crop/canvas size, rotate canvas and image size only change the matrix, so shrinking and enlarging again loses nothing. Smart filters (every filter/adjustment without a custom panel, plus invert/desaturate/sharpen) are added, edited, hidden and removed in Properties; reset transform; rasterize. Saved in projects (source in the layer's image slot). No "edit contents" (nested document) yet. |
 | Grow, similar | done | Select › Grow / Similar use the Magic wand tolerance and "All layers" setting; colours are matched against every colour already selected (binned 64 levels/channel, max-channel distance like the wand). |
 
 ## Hooks this lane added to shared files
@@ -32,6 +33,7 @@ All marked `// lane:selection` (or `<!-- lane:selection -->`).
 - `js/ui.js`: `ED.ui.layersExt` (Layers panel as a tree), `ED.ui.propsExt` (Properties for new kinds), `PE.dupExt`, `PE.removeExt`, `PE.mergeExt`, `PE.moveExt` (layer operations that understand groups).
 - `js/ui.js`: `ED.ui.optsTail` — array of `f(tool, items)` that append controls to the tool options bar.
 - `index.html`: CSP `script-src 'self' 'wasm-unsafe-eval'`; vendored `lib/ort.*` (ONNX Runtime Web, MIT) and `models/u2netp/` (Apache-2.0), see `models/LICENSES.md`.
+- `js/editor.js`: `PE.offsetExt(L, dx, dy)` in crop/canvas size and `PE.scaleExt(L, kx, ky)` in image size, for layer kinds with their own geometry.
 - `js/editor.js`: `ED.emit("overlay", {c, docPath, dpr})` at the end of the overlay paint, so lanes can draw previews.
 - `js/editor.js`: tools in `ED.TOOLS` flagged `brush: true` get the round brush cursor.
 - `js/ui.js`: `ED.ui.keys` — array of key handlers `f(e) -> true if handled`, run before the built-in shortcuts.
