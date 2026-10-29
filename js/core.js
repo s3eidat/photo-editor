@@ -97,6 +97,7 @@
   var mctx = null;
   function mcx() { if (!mctx) mctx = cx2(mk(4, 4)); return mctx; }
   function textLayout(t) {
+    if (PE.VX && PE.VX.layout) { var vl = PE.VX.layout(t); if (vl) return vl; }   // lane:vector (paragraph text, tracking, text on path)
     var c = mcx(); c.font = fontCss(t); c.direction = textDir(t);
     var lines = String(t.text).split("\n"), ws = lines.map(function (s) { return c.measureText(s).width; });
     var w = Math.max(1, Math.max.apply(null, ws)), lh = t.size * (t.lh || 1.2), h = Math.max(lh, lines.length * lh);
@@ -143,6 +144,7 @@
     var b = vbox(L), cx = b.x + b.w / 2, cy = b.y + b.h / 2;
     c.save();
     c.translate(cx, cy); c.rotate((b.rot || 0) * RAD); c.scale(b.fx ? -1 : 1, b.fy ? -1 : 1); c.translate(-cx, -cy);
+    if (PE.VX && PE.VX.draw && PE.VX.draw(c, L, b)) { c.restore(); return; }   // lane:vector (paths, dashes, polygons, styled text)
     if (L.kind === "text") {
       var t = L.text, lay = textLayout(t), dir = textDir(t);
       c.font = fontCss(t); c.direction = dir; c.fillStyle = hex(t.color, "#111111"); c.textBaseline = "middle";
@@ -167,6 +169,7 @@
     var key = JSON.stringify(L.kind === "text" ? L.text : L.shape) + "|" + doc.w + "x" + doc.h, hit = VCACHE.get(L);
     if (hit && hit.key === key) return hit.s;
     var b = vbox(L), pad = L.kind === "text" ? L.text.size * 0.6 + 4 : (L.shape.sw || 0) + 4;
+    if (PE.VX && PE.VX.pad) pad = PE.VX.pad(L, pad);   // lane:vector
     var a = aabbOf(boxCorners(b)); a = { x: a.x - pad, y: a.y - pad, w: a.w + 2 * pad, h: a.h + 2 * pad };
     var r = inter(rectI(a), { x: -64, y: -64, w: doc.w + 128, h: doc.h + 128 }) || { x: 0, y: 0, w: 1, h: 1 };
     var cv = mk(r.w, r.h), c = cx2(cv);
@@ -507,6 +510,7 @@
         if (typeof m.src !== "string" || !/^masks\/\d{1,3}\.png$/.test(m.src) || ids[m.src]) throw new Error("Layer " + (i + 1) + " has a bad mask reference");
         ids[m.src] = 1; out.mask = { src: m.src, x: Math.round(num(m.x, -LIM.layerSide, LIM.layerSide, 0)), y: Math.round(num(m.y, -LIM.layerSide, LIM.layerSide, 0)) };
       }
+      if (PE.VX && PE.VX.parseLayer) PE.VX.parseLayer(l, out);   // lane:vector (whitelists the extra text / shape fields)
       return out;
     });
     return { name: str(d.name, 120, "Untitled").trim() || "Untitled", w: w, h: h, fg: hex(d.fg, "#111111"), bg: hex(d.bg, "#ffffff"), active: Math.round(num(d.active, 0, layers.length - 1, layers.length - 1)), layers: layers };
@@ -523,6 +527,7 @@
       if (L.mask) { l.mask = { src: "masks/" + i + ".png", x: L.mask.x, y: L.mask.y }; jobs.push(pngOf(L.mask.canvas).then(function (e) { files.push({ name: l.mask.src, data: e.bytes, crc: e.crc }); })); }
       meta.layers.push(l);
     });
+    if (PE.VX && PE.VX.saveDoc) PE.VX.saveDoc(doc, meta);   // lane:vector (saved paths)
     return Promise.all(jobs).then(function () {
       files.sort(function (a, b) { return a.name < b.name ? -1 : 1; });
       return [{ name: "project.json", data: JSON.stringify(meta) }].concat(files);
@@ -537,6 +542,7 @@
     return zipRead(u8, byName["project.json"], 4e6).then(function (jb) {
       var meta = parseProjectJson(new TextDecoder().decode(jb)), doc = newDoc(meta.w, meta.h, meta.name);
       doc.fg = meta.fg; doc.bg = meta.bg;
+      if (PE.VX && PE.VX.openDoc) PE.VX.openDoc(doc, new TextDecoder().decode(jb));   // lane:vector (validates its own fields)
       function img(src) {
         var e = byName[src]; if (!e) throw new Error("The project is missing " + src);
         return zipRead(u8, e, 400e6).then(function (b) {

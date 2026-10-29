@@ -114,6 +114,7 @@
     });
     if (ED.crop) paintCrop(c);
     if (ED.xf) paintXf(c);
+    emit("ovl", { c: c, dpr: dpr, docPath: docPath });   // lane:vector (path anchors, warp grids)
     if (ED.cloneSrc && (ED.tool === "clone" || ED.tool === "heal")) {
       var sp = ED.cloneSrc, cur = ED.stroke && ED.stroke.off && cursorPt ? toDoc(cursorPt.x, cursorPt.y) : null;
       if (cur) sp = { x: cur.x + ED.stroke.off.x, y: cur.y + ED.stroke.off.y };
@@ -274,6 +275,7 @@
     if (space || ED.tool === "hand") return ED.drag && ED.drag.kind === "pan" ? "grabbing" : "grab";
     if (ED.xf) { var h = xfHit(p); return h ? (h === "move" ? "move" : h === "rot" ? "alias" : "nwse-resize") : "default"; }
     if (ED.crop) { var ch = cropHit(p); return ch ? (ch === "move" ? "move" : "crosshair") : "crosshair"; }
+    if (TOOLS[ED.tool] && TOOLS[ED.tool].cursor) return TOOLS[ED.tool].cursor(p);   // lane:vector
     if (brushTool()) return "none";
     return { move: "move", zoom: "zoom-in", text: "text", eyedropper: "crosshair", bucket: "crosshair" }[ED.tool] || "crosshair";
   }
@@ -953,6 +955,7 @@
     if (ED.poly) { ED.poly = null; }
     if (ED.crop && t !== "crop") ED.cancelCrop();
     if (ED.xf && t !== "move") ED.applyTransform();
+    if (TOOLS[ED.tool] && TOOLS[ED.tool].leave) TOOLS[ED.tool].leave(t);   // lane:vector
     ED.tool = t; S3.store("pe-tool", t);
     if (t === "crop" && ED.doc && !ED.crop) ED.startCrop();
     emit("tool"); renderOvl();

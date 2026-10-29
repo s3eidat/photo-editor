@@ -167,6 +167,7 @@
       items.push(btn("Fit", function () { ED.fit(true); }, "ghost"), btn("100%", function () { ED.zoomAt(1); }, "ghost"));
       items.push(h("span", { "class": "pe-hint", text: "Click to zoom in, Alt+click to zoom out. " + K("Alt+wheel or Ctrl+wheel zooms anywhere.") }));
     } else if (t === "hand") items.push(h("span", { "class": "pe-hint", text: "Drag to pan. Hold Space with any tool. Double-click fits the screen." }));
+    if (ED.ui.optsFor && ED.ui.optsFor[t]) items = ED.ui.optsFor[t](items);   // lane:vector (pen, path, shape and type options)
     items.forEach(function (x) { bar.appendChild(x); });
   }
   function textLive(fn) {
@@ -249,6 +250,7 @@
         seg("", [["pix", "Pixels"], ["mask", "Mask"]], ED.maskEdit ? "mask" : "pix", function (v) { ED.setActive(L.id, v === "mask"); })]));
       P.appendChild(h("div", { "class": "pe-prow" }, [btn("Invert", function () { maskOp("invert"); }, "ghost"), btn("Apply", function () { maskOp("apply"); }, "ghost"), btn("Delete", function () { maskOp("delete"); }, "ghost")]));
     }
+    (ED.ui.propsExt || []).forEach(function (f) { f(P, L); });   // lane:vector (shape stroke / dash, character, paragraph)
   }
 
   // ---------- Layers panel ----------
@@ -844,6 +846,7 @@
     if (floatState) { if (k === "Escape") { e.preventDefault(); closeFloat(false); } else if (k === "Enter" && !typing) { e.preventDefault(); closeFloat(true); } return; }
     if (typing) return;
     if (openMenu && k === "Escape") { closeMenus(); return; }
+    if ((ED.ui.keys || []).some(function (f) { return f(e); })) return;   // lane:selection (lanes add key handlers to ED.ui.keys)
     function go(fn) { e.preventDefault(); fn(); }
     if (c) {
       if (lk === "z") return go(function () { if (e.shiftKey) ED.redo(); else ED.undo(); });
@@ -985,5 +988,6 @@
     ED.ready = restoreLast().then(function (ok) { if (!ok) renderEmpty(); return ok; });
   }
   ED.ui = { openAdjust: openAdjust, closeFloat: closeFloat, quick: quick, exportDialog: exportDialog, newDialog: newDialog, renderLayers: renderLayers, buildOpts: buildOpts, buildProps: buildProps, colors: colors, saveFile: saveFile, openFiles: openFiles, floatState: function () { return floatState; } };
+  ED.ui.MENUS = MENUS; ED.ui.TOOLS = TOOLS; ED.ui.w = { field: field, range: range, check: check, seg: seg, select: select, btn: btn, numInput: numInput, modal: modal, svg: svg, numberDialog: numberDialog, need: need, K: K, pct: pct, px: px };   // lane:selection
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
