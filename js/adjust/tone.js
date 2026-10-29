@@ -107,4 +107,26 @@
     var f = GREY[p.method] || GREY.lum601, k = clamp(num(p.amount, 100), 0, 100) / 100;
     return A.perPixel(img, sel, function (r, g, b, o) { var v = f(r, g, b); o[0] = r + (v - r) * k; o[1] = g + (v - g) * k; o[2] = b + (v - b) * k; });
   });
+
+  // ---------- posterize ----------
+  A.lutPosterize = function (n) {
+    n = clamp(Math.round(num(n, 4)), 2, 255);
+    var l = new Uint8Array(256);
+    for (var i = 0; i < 256; i++) l[i] = c255(Math.round(i * (n - 1) / 255) * 255 / (n - 1));
+    return l;
+  };
+  A.reg("posterize", function (img, p, sel) { var l = A.lutPosterize(p.levels); return PIX.applyLuts(img, l, l, l, sel); });
+
+  // ---------- equalize ----------
+  // One table for all three channels from their combined histogram (keeps hues), so brightness values are spread
+  // evenly. basis "sel": histogram of the selection, applied to it; "image": histogram of the selection, applied to all.
+  A.lutEqualize = function (img, sel) {
+    var H = A.hists(img, sel), all = new Float64Array(256), i, tot = 0;
+    for (i = 0; i < 256; i++) { all[i] = H.r[i] + H.g[i] + H.b[i]; tot += all[i]; }
+    var l = new Uint8Array(256); if (!tot) { for (i = 0; i < 256; i++) l[i] = i; return l; }
+    var acc = 0, first = 0; for (i = 0; i < 256; i++) if (all[i] > 0) { first = all[i]; break; }
+    for (i = 0; i < 256; i++) { acc += all[i]; l[i] = c255(tot - first > 0 ? (acc - first) / (tot - first) * 255 : i); }
+    return l;
+  };
+  A.reg("equalize", function (img, p, sel) { var l = A.lutEqualize(img, sel); return PIX.applyLuts(img, l, l, l, p.basis === "image" ? null : sel); });
 })(typeof self !== "undefined" ? self : this);
