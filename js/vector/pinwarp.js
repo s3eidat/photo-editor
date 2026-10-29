@@ -180,7 +180,7 @@
   function up() { var dr = ED.drag; ED.drag = null; if (dr && dr.kind === "vpin") relax(20); }
   ED.TOOLS.vpin = { down: down, move: move, up: up, cursor: function () { return "crosshair"; }, leave: function (next) { if (Z && next !== "vpin") VX.applyPin(); } };
   UI.NAMES.vpin = "Pin warp";
-  ED.on("ovl", function (o) {
+  ED.on("overlay", function (o) {
     if (!Z || ED.tool !== "vpin") return;
     var c = o.c, m = Z;
     if (OPT.mesh) o.docPath(c, function (c2, px) {

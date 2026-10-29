@@ -92,10 +92,23 @@
   });
 
   // ---------- options-bar and properties hooks ----------
+  // tool options: OPTS[tool](items) returns the new list (shared hook: optsTail edits the list in place)
   var OPTS = ED.ui.optsFor = ED.ui.optsFor || {};
   UI.opts = function (tool, f) { OPTS[tool] = f; };
-  var PROPS = ED.ui.propsExt = ED.ui.propsExt || [];
+  (ED.ui.optsTail = ED.ui.optsTail || []).push(function (t, items) {
+    if (!OPTS[t]) return;
+    var r = OPTS[t](items.slice()); items.length = 0; Array.prototype.push.apply(items, r);
+  });
+  // Properties: the shared single hook is chained so other lanes' additions still run
+  var PROPS = [];
   UI.props = function (f) { PROPS.push(f); };
+  function propsTail(P, L) { PROPS.forEach(function (f) { f(P, L); }); }
+  function chainProps() {
+    if (ED.ui.propsTail && ED.ui.propsTail.vx) return;
+    var prev = ED.ui.propsTail, mine = function (P, L) { if (prev) prev(P, L); propsTail(P, L); };
+    mine.vx = true; ED.ui.propsTail = mine;
+  }
+  chainProps();
 
   // ---------- live edits: one history step per pause (like the Properties panel) ----------
   var pb = null, pt = 0, plabel = "";
@@ -150,6 +163,7 @@
 
   // run after the main UI has built its tool bar and menus
   function ready() {
+    chainProps();
     ED.on("tool", syncGroups);
     syncGroups();
     ED.emit("vready");

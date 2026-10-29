@@ -254,7 +254,7 @@
     ED.emit("layers"); ED.startText(L, before, true);
   };
   TT.cursor = function (p) { var L = ED.layer(); if (L && L.kind === "text" && L.text.box && boxHandle(L, p)) return "nwse-resize"; return "text"; };
-  ED.on("ovl", function (o) {
+  ED.on("overlay", function (o) {
     var dr = ED.drag, c = o.c;
     if (dr && dr.kind === "tbox" && dr.b) o.docPath(c, function (c2, px) { c2.lineWidth = px; c2.setLineDash([4 * px, 3 * px]); c2.strokeStyle = "#1b8cff"; c2.strokeRect(dr.a.x, dr.a.y, dr.b.x - dr.a.x, dr.b.y - dr.a.y); c2.setLineDash([]); });
     var L = ED.layer();

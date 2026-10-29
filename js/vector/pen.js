@@ -465,7 +465,7 @@
 
   // ---------- overlay ----------
   var BLUE = "#1b8cff";
-  ED.on("ovl", function (o) {
+  ED.on("overlay", function (o) {
     var g = UI.groupOf(ED.tool); if (!g || !ED.doc) return;
     var c = o.c, dpr = o.dpr, tg = curTarget(), dr = ED.drag && ED.drag.kind === "vec" ? ED.drag : null;
     if (tg) {

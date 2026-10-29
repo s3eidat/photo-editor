@@ -114,7 +114,7 @@
     });
     if (ED.crop) paintCrop(c);
     if (ED.xf) paintXf(c);
-    emit("ovl", { c: c, dpr: dpr, docPath: docPath });   // lane:vector (path anchors, warp grids)
+    emit("overlay", { c: c, docPath: docPath, dpr: dpr });   // lane:selection (lanes draw previews on the overlay)
     if (ED.cloneSrc && (ED.tool === "clone" || ED.tool === "heal")) {
       var sp = ED.cloneSrc, cur = ED.stroke && ED.stroke.off && cursorPt ? toDoc(cursorPt.x, cursorPt.y) : null;
       if (cur) sp = { x: cur.x + ED.stroke.off.x, y: cur.y + ED.stroke.off.y };

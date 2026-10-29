@@ -130,7 +130,7 @@
     cursor: function (p) { if (!P) return "default"; var set = P.phase === "warp" ? "dst" : "src"; return hitCorner(p, set) ? "crosshair" : P.phase === "layout" && hitQuad(p, "src") >= 0 ? "move" : P.phase === "layout" ? "crosshair" : "default"; },
     leave: function (next) { if (P && next !== "vpw") { if (P.phase === "warp") VX.applyPerspectiveWarp(); else VX.cancelPerspectiveWarp(); } } };
   UI.NAMES.vpw = "Perspective warp";
-  ED.on("ovl", function (o) {
+  ED.on("overlay", function (o) {
     if (!P || ED.tool !== "vpw") return;
     var c = o.c, set = P.phase === "warp" ? "dst" : "src", BL = "#1b8cff", dr = ED.drag;
     o.docPath(c, function (c2, px) {

@@ -249,7 +249,7 @@
   UI.NAMES.vxf = "Transform";
 
   // ---------- overlay ----------
-  ED.on("ovl", function (o) {
+  ED.on("overlay", function (o) {
     if (!Q || ED.tool !== "vxf") return;
     var c = o.c, q = Q, f = mapper(q), BL = "#1b8cff";
     o.docPath(c, function (c2, px) {

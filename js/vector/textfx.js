@@ -189,7 +189,7 @@
     return cur0 ? cur0(p) : "text";
   };
   // path text: show the path and the start point while the type tool is active
-  ED.on("ovl", function (o) {
+  ED.on("overlay", function (o) {
     var L = ED.layer();
     if ((ED.tool !== "text" && ED.tool !== "psel" && ED.tool !== "dsel") || !L || L.kind !== "text" || !L.text.path) return;
     var T = L.text, b = PE.vbox(L), cx = b.x + b.w / 2, cy = b.y + b.h / 2, lay = VX.pathLayout(T);
