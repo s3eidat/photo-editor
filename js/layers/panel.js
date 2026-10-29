@@ -44,6 +44,24 @@
       clearTimeout(fT); fT = setTimeout(function () { var b = fB; fB = null; ED.push(PE.metaEntry("Fill opacity", ED.doc, b)); }, 400);
     });
     syncPanel();
+    // Several picked layers: opacity, fill and blend mode change on all of them, in one undo step.
+    var mB = null, mT = 0;
+    function many() { var a = ED.layer(); return a && Object.keys(SX.picked).length ? SX.pickedList().filter(function (L) { return L.kind !== "qmask" && L.kind !== "channel"; }) : null; }
+    function multi(input, label, set, live) {
+      input.parentNode.addEventListener(live ? "input" : "change", function (e) {
+        if (e.target !== input) return;
+        var list = many(); if (!list || list.length < 2) return;
+        e.stopPropagation();
+        if (!live) { ED.meta(label, function () { list.forEach(function (L) { set(L, input.value); }); }); return; }
+        if (!mB) mB = PE.snap(ED.doc);
+        list.forEach(function (L) { set(L, input.value); }); ED.render();
+        var out = input.parentNode.querySelector("output"); if (out) out.textContent = input.value + "%";
+        clearTimeout(mT); mT = setTimeout(function () { var b = mB; mB = null; ED.push(PE.metaEntry(label, ED.doc, b)); }, 400);
+      }, true);
+    }
+    multi($("#layerOp"), "Layer opacity", function (L, v) { L.opacity = +v / 100; }, true);
+    multi(fillIn, "Fill opacity", function (L, v) { if (L.kind === "group" || L.kind === "adjust") return; L.fillOp = +v / 100; if (L.fillOp >= 1) delete L.fillOp; }, true);
+    multi($("#layerBlend"), "Blend mode", function (L, v) { if (v === "pass" && L.kind !== "group") return; L.blend = v; }, false);
   });
   ED.on("changed", syncPanel); ED.on("layers", syncPanel);
 
