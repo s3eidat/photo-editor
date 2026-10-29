@@ -69,32 +69,42 @@
     return img;
   }));
 
-  // ---------- lighting effects: one light on a bump surface (Phong) ----------
-  // height from the image's luminance (or none); light: spot / point / infinite; ambient, gloss, metallic.
+  // ---------- lighting effects: up to 8 lights on a bump surface (Phong) ----------
+  // The panel edits one light in the top-level settings; p.lights holds all of them and p.lightIdx says which one
+  // the top-level settings replace. Surface: ambience, gloss, metallic, bump height from the image's brightness.
+  var LKEYS = ["light", "intensity", "color", "x", "y", "height", "focus", "size", "angle"];
+  A.LIGHT_KEYS = LKEYS;
+  function prepLight(o, w, h) {
+    var t = o.light === "infinite" || o.light === "point" ? o.light : "spot", a = num(o.angle, -45) * Math.PI / 180;
+    return { type: t, inten: clamp(num(o.intensity, 35), -100, 100) / 50, lc: A.hex(o.color, [255, 255, 255]).map(function (v) { return v / 255; }),
+      x: clamp(num(o.x, 50), -50, 150) / 100 * w, y: clamp(num(o.y, 35), -50, 150) / 100 * h, z: clamp(num(o.height, 50), 1, 100) / 100 * Math.max(w, h) * 0.6,
+      focus: clamp(num(o.focus, 50), 1, 100) / 100, size: clamp(num(o.size, 60), 1, 200) / 100 * Math.max(w, h), dx: Math.cos(a), dy: -Math.sin(a) };
+  }
   A.reg("lighting", A.filter(function (img, p) {
-    var w = img.width, h = img.height, d = img.data, S = sc(p), n = w * h, q, i;
-    var type = p.light || "spot", inten = clamp(num(p.intensity, 35), -100, 100) / 50, lc = A.hex(p.color, [255, 255, 255]).map(function (v) { return v / 255; });
-    var lx = clamp(num(p.x, 50), -50, 150) / 100 * w, ly = clamp(num(p.y, 35), -50, 150) / 100 * h, lz = clamp(num(p.height, 50), 1, 100) / 100 * Math.max(w, h) * 0.6;
-    var focus = clamp(num(p.focus, 50), 1, 100) / 100, size = clamp(num(p.size, 60), 1, 200) / 100 * Math.max(w, h), amb = clamp(num(p.ambient, 15), -100, 100) / 100;
-    var gloss = clamp(num(p.gloss, 0), -100, 100) / 100, metal = clamp(num(p.metallic, 0), -100, 100) / 100, bump = clamp(num(p.bump, 30), 0, 100) / 100, ang = num(p.angle, -45) * Math.PI / 180;
-    var H = bump ? A.blur(A.lumPlane(img, 1 / 255), w, h, Math.max(0.6, 1.5 * S)) : null, bk = bump * 6 / S;
-    var dirx = Math.cos(ang), diry = -Math.sin(ang), shin = 4 + (gloss + 1) * 30, ks = 0.15 + (gloss + 1) * 0.35;
+    var w = img.width, h = img.height, d = img.data, S = sc(p), q, i;
+    var cur = {}; LKEYS.forEach(function (k) { cur[k] = p[k]; });
+    var list = Array.isArray(p.lights) && p.lights.length ? p.lights.slice(0, 8).map(function (L, k) { return k === (p.lightIdx | 0) ? cur : L; }) : [cur];
+    var Ls = list.filter(function (L) { return L && L.on !== false; }).map(function (L) { return prepLight(L, w, h); });
+    var amb = clamp(num(p.ambient, 15), -100, 100) / 100, gloss = clamp(num(p.gloss, 0), -100, 100) / 100, metal = clamp(num(p.metallic, 0), -100, 100) / 100, bump = clamp(num(p.bump, 30), 0, 100) / 100;
+    var H = bump ? A.blur(A.lumPlane(img, 1 / 255), w, h, Math.max(0.6, 1.5 * S)) : null, bk = bump * 6 / S, shin = 4 + (gloss + 1) * 30, ks = 0.15 + (gloss + 1) * 0.35, sum = [0, 0, 0], spc = [0, 0, 0];
     for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
       q = y * w + x; i = q * 4;
       var nx = 0, ny = 0, nz = 1;
       if (H) { nx = -(H[y * w + Math.min(w - 1, x + 1)] - H[y * w + Math.max(0, x - 1)]) * bk; ny = -(H[Math.min(h - 1, y + 1) * w + x] - H[Math.max(0, y - 1) * w + x]) * bk; var nl = Math.sqrt(nx * nx + ny * ny + 1); nx /= nl; ny /= nl; nz = 1 / nl; }
-      var Lx, Ly, Lz, att = 1;
-      if (type === "infinite") { Lx = dirx * 0.7; Ly = diry * 0.7; Lz = 0.7; }
-      else {
-        Lx = lx - x; Ly = ly - y; Lz = lz; var dist = Math.sqrt(Lx * Lx + Ly * Ly + Lz * Lz); Lx /= dist; Ly /= dist; Lz /= dist;
-        var rr = Math.sqrt((x - lx) * (x - lx) + (y - ly) * (y - ly)) / size;
-        att = type === "spot" ? Math.pow(Math.max(0, 1 - rr), 0.5 + focus * 3) : 1 / (1 + rr * rr * 2);
+      sum[0] = sum[1] = sum[2] = amb; spc[0] = spc[1] = spc[2] = 0;
+      for (var k = 0; k < Ls.length; k++) {
+        var L = Ls[k], Lx, Ly, Lz, att = 1;
+        if (L.type === "infinite") { Lx = L.dx * 0.7; Ly = L.dy * 0.7; Lz = 0.7; }
+        else {
+          Lx = L.x - x; Ly = L.y - y; Lz = L.z; var dist = Math.sqrt(Lx * Lx + Ly * Ly + Lz * Lz); Lx /= dist; Ly /= dist; Lz /= dist;
+          var rr = Math.sqrt((x - L.x) * (x - L.x) + (y - L.y) * (y - L.y)) / L.size;
+          att = L.type === "spot" ? Math.pow(Math.max(0, 1 - rr), 0.5 + L.focus * 3) : 1 / (1 + rr * rr * 2);
+        }
+        if (!att) continue;
+        var ndl = Math.max(0, nx * Lx + ny * Ly + nz * Lz), hz = Lz + 1, hl = Math.sqrt(Lx * Lx + Ly * Ly + hz * hz), sp = Math.pow(Math.max(0, (nx * Lx + ny * Ly + nz * hz) / hl), shin) * ks * att * L.inten;
+        for (var c = 0; c < 3; c++) { sum[c] += L.inten * att * ndl * L.lc[c]; spc[c] += sp * L.lc[c]; }
       }
-      var ndl = Math.max(0, nx * Lx + ny * Ly + nz * Lz), hz = Lz + 1, hl = Math.sqrt(Lx * Lx + Ly * Ly + hz * hz), spec = Math.pow(Math.max(0, (nx * Lx + ny * Ly + nz * hz) / hl), shin) * ks * att * inten;
-      for (var c = 0; c < 3; c++) {
-        var alb = d[i + c] / 255, light = amb + inten * att * ndl * lc[c], sp = spec * (metal > 0 ? alb * metal + (1 - metal) : 1) * lc[c];
-        d[i + c] = c255((alb * Math.max(0, light) + sp) * 255);
-      }
+      for (var c2 = 0; c2 < 3; c2++) { var alb = d[i + c2] / 255; d[i + c2] = c255((alb * Math.max(0, sum[c2]) + spc[c2] * (metal > 0 ? alb * metal + (1 - metal) : 1)) * 255); }
     }
     return img;
   }));

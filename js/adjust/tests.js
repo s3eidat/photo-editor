@@ -260,6 +260,10 @@
     var ai2 = im([[200, 100, 50]]); PIX.A.applyImage(ai2, im([[0, 255, 0]]), { channel: "g", invert: true, mode: "normal", opacity: 0.5, keepAlpha: true });
     ok(ai2.data[0] === 100 && ai2.data[1] === 50, "apply image: one channel, inverted, half opacity");
     var calc = PIX.A.calculate(im([[255, 0, 0]]), im([[0, 0, 255]]), { ch1: "r", ch2: "b", mode: "multiply", opacity: 1 }); ok(calc[0] === 1, "calculations multiply two channels");
+
+    var lg2 = run(gray(10, 10, function () { return 120; }), "lighting", { light: "point", x: 50, y: 50, intensity: 30, ambient: 0, bump: 0, lights: [{ light: "point", x: 50, y: 50, intensity: 30 }, { light: "point", x: 50, y: 50, intensity: 30 }], lightIdx: 0 }, null, 10, 10);
+    var lg1 = run(gray(10, 10, function () { return 120; }), "lighting", { light: "point", x: 50, y: 50, intensity: 30, ambient: 0, bump: 0 }, null, 10, 10);
+    ok(get(lg2, 55)[0] > get(lg1, 55)[0] + 20, "lighting: two lights add up");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };

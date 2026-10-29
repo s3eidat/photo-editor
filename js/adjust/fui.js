@@ -199,7 +199,35 @@
     sl("height", "Light height", 1, 100, 1, 50, pc), sl("size", "Spread", 1, 200, 1, 60, pc), sl("focus", "Focus", 1, 100, 1, 50, pc), sl("angle", "Direction (infinite light)", -180, 180, 1, -45, deg),
     sl("ambient", "Ambience", -100, 100, 1, 15), sl("gloss", "Gloss", -100, 100, 1, 0), sl("metallic", "Metallic", -100, 100, 1, 0), sl("bump", "Texture height (from brightness)", 0, 100, 1, 30)],
     sel: [["light", "Light", [["spot", "Spot"], ["point", "Point"], ["infinite", "Infinite"]], "spot"]],
-    ui: function (el, st) { st.p.color = "#ffffff"; el.insertBefore(AUI.colorInput("Light colour", "#ffffff", function (v) { st.p.color = v; st.schedule(); }), el.firstChild); placeBtn(el, st, "x", "y", "Place the light"); } });
+    ui: function (el, st) {
+      var p = st.p, K = ED.adjKit, LK = PIX.A.LIGHT_KEYS, box = h("div", { "class": "stack pe-asecin" }), col;
+      p.color = "#ffffff"; p.lights = null; p.lightIdx = 0;
+      function snap() { var o = {}; LK.forEach(function (k) { o[k] = p[k]; }); return o; }
+      function load(o) { LK.forEach(function (k) { if (o[k] == null) return; if (k === "color") { p.color = o.color; col._set(o.color); } else st.set(k, o[k]); }); }
+      var PRESETS = [["", "Presets…"], ["spot", "Spotlight", [{ light: "spot", x: 50, y: 35, intensity: 35, size: 60, focus: 50, height: 50 }], 15],
+        ["torch", "Torch beam", [{ light: "spot", x: 50, y: 45, intensity: 55, size: 35, focus: 85, height: 30 }], -10],
+        ["blue", "Blue all round", [{ light: "point", x: 50, y: 50, intensity: 40, size: 90, height: 60, color: "#7fa8ff" }], 5],
+        ["cross", "Crossing beams", [{ light: "spot", x: 10, y: 10, intensity: 40, size: 90, focus: 60, height: 40 }, { light: "spot", x: 90, y: 10, intensity: 40, size: 90, focus: 60, height: 40 }], 5],
+        ["three", "Three spots", [{ light: "spot", x: 20, y: 30, intensity: 35, size: 35, focus: 70, height: 40 }, { light: "spot", x: 50, y: 30, intensity: 35, size: 35, focus: 70, height: 40 }, { light: "spot", x: 80, y: 30, intensity: 35, size: 35, focus: 70, height: 40 }], 0],
+        ["warmcool", "Warm and cool", [{ light: "point", x: 15, y: 40, intensity: 35, size: 70, height: 40, color: "#ffb36b" }, { light: "point", x: 85, y: 40, intensity: 35, size: 70, height: 40, color: "#6bb8ff" }], 5],
+        ["sun", "Low sun", [{ light: "infinite", angle: 160, intensity: 45 }], 25], ["soft", "Soft overhead", [{ light: "point", x: 50, y: 20, intensity: 25, size: 160, height: 90 }], 35]];
+      function list() { if (!p.lights) p.lights = [snap()]; p.lights[p.lightIdx] = snap(); return p.lights; }
+      function draw() {
+        box.textContent = "";
+        var L = list();
+        box.appendChild(h("div", { "class": "row pe-arow" }, [K.select("Light", L.map(function (o, i) { return [String(i), "Light " + (i + 1) + " (" + (o.light || "spot") + ")"]; }), String(p.lightIdx), function (v) { list(); p.lightIdx = +v; load(p.lights[p.lightIdx]); st.schedule(); }),
+          K.btn("Add", function () { var L2 = list(); if (L2.length >= 8) return; var o = snap(); o.x = Math.min(150, (o.x || 50) + 15); L2.push(o); p.lightIdx = L2.length - 1; load(o); draw(); st.schedule(); }, "ghost", "i-plus", "Add a light"),
+          K.btn("", function () { var L2 = list(); if (L2.length < 2) return; L2.splice(p.lightIdx, 1); p.lightIdx = Math.max(0, p.lightIdx - 1); load(L2[p.lightIdx]); draw(); st.schedule(); }, "ghost icon", "i-trash", "Delete this light")]));
+      }
+      col = AUI.colorInput("Light colour", "#ffffff", function (v) { p.color = v; st.schedule(); });
+      el.insertBefore(col, el.firstChild); el.insertBefore(box, col);
+      el.insertBefore(K.select("", PRESETS.map(function (x) { return [x[0], x[1]]; }), "", function (v) {
+        var pr = PRESETS.filter(function (x) { return x[0] === v; })[0]; if (!pr || !pr[2]) return;
+        p.lights = pr[2].map(function (o) { return Object.assign({ light: "spot", intensity: 35, color: "#ffffff", x: 50, y: 35, height: 50, focus: 50, size: 60, angle: -45 }, o); });
+        p.lightIdx = 0; load(p.lights[0]); st.set("ambient", pr[3]); draw(); st.schedule();
+      }), box);
+      draw(); placeBtn(el, st, "x", "y", "Place the light");
+    } });
 
   // pixelate
   AUI.filter("pixelate", "Colour halftone…", "colorHalftone", { t: "Colour halftone", c: [sl("radius", "Max. radius", 4, 127, 1, 8, pxf), sl("a1", "Screen angle: cyan", -360, 360, 1, 108, deg), sl("a2", "Screen angle: magenta", -360, 360, 1, 162, deg),

@@ -219,7 +219,7 @@
     }
     var st = { op: op, t: t, p: p, key: key, busy: false, again: false, shown: null, previewOn: true, scale: s, live: true, src: src, ctrl: {} };
     // set a slider's value from elsewhere (on-canvas handles), keeping its control in step
-    st.set = function (k, v) { p[k] = v; if (st.ctrl[k]) st.ctrl[k]._set(Math.round(v * 100) / 100); st.schedule(); };
+    st.set = function (k, v) { p[k] = v; if (st.ctrl[k]) st.ctrl[k]._set(typeof v === "number" ? Math.round(v * 100) / 100 : v); st.schedule(); };
     function show() {
       if (!st.previewOn || !st.shown) { delete ED.live.over[L.id]; ED.render(); return; }
       var c = small;
@@ -250,7 +250,11 @@
     st.ver = 0; st.schedule = function () { st.ver++; sched(); }; st.run = run;
     st.pn = AUI.panel(spec.t, function (el) {
       (spec.c || []).forEach(function (c) { var r = K.range(c.label, p[c.k], c.min, c.max, c.step, function (v) { p[c.k] = v; st.schedule(); }, c.fmt); st.ctrl[c.k] = r; el.appendChild(r); });
-      (spec.sel || []).forEach(function (c) { var f = function (v) { p[c[0]] = v; st.schedule(); }; el.appendChild(c[2].length <= 3 ? K.seg(c[1], c[2], p[c[0]], f) : K.select(c[1], c[2], p[c[0]], f)); });
+      (spec.sel || []).forEach(function (c) {
+        var f = function (v) { p[c[0]] = v; st.schedule(); }, seg = c[2].length <= 3, ctl = seg ? K.seg(c[1], c[2], p[c[0]], f) : K.select(c[1], c[2], p[c[0]], f);
+        ctl._set = function (v) { if (seg) S3.$$("button", ctl).forEach(function (b, i) { b.setAttribute("aria-pressed", String(String(c[2][i][0]) === String(v))); }); else ctl.querySelector("select").value = v; };
+        st.ctrl[c[0]] = ctl; el.appendChild(ctl);
+      });
       (spec.chk || []).forEach(function (c) { el.appendChild(K.check(c[1], !!p[c[0]], function (v) { p[c[0]] = v; st.schedule(); })); });
       if (spec.ui) spec.ui(el, st);
       if (spec.handles && AUI.handles) AUI.handles(st, spec.handles);
