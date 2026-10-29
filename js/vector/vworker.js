@@ -1,7 +1,7 @@
 /* Vector lane worker: runs the heavy maths of vpix.js (mask tracing, mesh warps, liquify, seam carving) off the
    main thread. Messages: {id, fn, args} -> {id, ok, result} | {id, ok: false, error}. Nothing leaves this device. */
 "use strict";
-importScripts("geom.js", "vpix.js");
+importScripts("geom.js", "warpfx.js", "vpix.js");
 function transfers(v, out) {
   if (!v || typeof v !== "object") return out;
   if (ArrayBuffer.isView(v)) { if (out.indexOf(v.buffer) < 0) out.push(v.buffer); return out; }

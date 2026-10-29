@@ -28,6 +28,7 @@
     "v-new": '<rect x="5" y="5" width="14" height="14" rx="1.5"/><path d="M12 8.5v7M8.5 12h7"/>',
     "v-path": '<path d="M4 18C6 8 12 6 20 6"/><rect x="2.5" y="16.5" width="3" height="3" fill="currentColor"/><rect x="18.5" y="4.5" width="3" height="3" fill="currentColor"/>',
     "v-liquify": '<path d="M4 12c2-6 6-6 8 0s6 6 8 0"/><path d="M4 6c2-2 4-2 6 0M14 18c2 2 4 2 6 0"/>',
+    "t-vxf": '<path d="M4 6c5-3 11 3 16 0M4 18c5-3 11 3 16 0M4 6v12M20 6v12M9.3 5.2v13.6M14.7 6.8v11.6"/>',
     "v-pin": '<circle cx="12" cy="7" r="3.5"/><path d="M12 10.5V21"/>'
   };
   (function sprite() {

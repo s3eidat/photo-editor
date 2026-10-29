@@ -143,3 +143,28 @@
     ok(t2.weight === 300 && t2.align === "justify-left" && t2.box.w === 150 && t2.track === 50 && t2.caps === "small" && t2.sup === "sup" && t2.fbold === true && t2.indF === 12 && t2.spA === 4 && t2.kern === "none" && t2.hs === 90, "type settings round-trip");
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, VX = PE.VX, WF = PE.WF, VPIX = window.VPIX;
+  VX.test("transforms", function (ok) {
+    var q = [{ x: 10, y: 20 }, { x: 110, y: 30 }, { x: 90, y: 140 }, { x: 0, y: 100 }], f = WF.homog(q), near = VX.near;
+    ok([[0, 0, 0], [1, 0, 1], [1, 1, 2], [0, 1, 3]].every(function (z) { var p = f(z[0], z[1]); return near(p.x, q[z[2]].x, 1e-9) && near(p.y, q[z[2]].y, 1e-9); }), "square corners land on the quad");
+    var m = f(0.3, 0.7), back = f.inv(m.x, m.y); ok(near(back.u, 0.3, 1e-9) && near(back.v, 0.7, 1e-9), "projective inverse");
+    var r = { x: 5, y: 7, w: 40, h: 30 }, P = WF.gridPatch(r), g = WF.patch(P), gp = g(0.25, 0.5);
+    ok(near(gp.x, 15, 1e-9) && near(gp.y, 22, 1e-9), "identity patch is linear");
+    var P2 = WF.fitPatch(function (u, v) { return { x: r.x + u * r.w, y: r.y + v * r.h }; }, 7);
+    ok(P2.every(function (p, i) { return near(p.x, P[i].x, 1e-6) && near(p.y, P[i].y, 1e-6); }), "fitting a flat surface gives the flat patch");
+    var P3 = WF.dragPatch(P, 0.5, 0.5, 10, 0), h3 = WF.patch(P3)(0.5, 0.5); ok(near(h3.x, 25 + 10, 1e-9) && near(h3.y, 22, 1e-9), "mesh drag moves the grabbed point exactly");
+    ok(WF.STYLES.every(function (s) { var fn = WF.style(s[0], 0, 0, 0), a = fn(0.2, 0.6); return near(a[0], 0.2, 1e-9) && near(a[1], 0.6, 1e-9); }), "every warp style is the identity at zero bend");
+    var arc = WF.style("arc", 0.5, 0, 0)(0.5, 0.5); ok(near(arc[0], 0.5, 1e-9) && near(arc[1], 0.5, 1e-9), "arc keeps the centre");
+    // mesh warp: identity grid copies pixels; a 2x scale doubles the size
+    var W = 8, H = 6, d = new Uint8ClampedArray(W * H * 4); for (var i = 0; i < W * H; i++) { d[i * 4] = i * 5; d[i * 4 + 1] = 255 - i * 3; d[i * 4 + 2] = 77; d[i * 4 + 3] = 255; }
+    var n = 3, dst = new Float32Array(n * n * 2); for (var j = 0; j < n; j++) for (i = 0; i < n; i++) { dst[(j * n + i) * 2] = i / (n - 1) * W; dst[(j * n + i) * 2 + 1] = j / (n - 1) * H; }
+    var out = VPIX.meshWarp({ data: d, width: W, height: H }, 0, 0, W, H, n, n, dst, W, H), same = true;
+    for (i = 0; i < d.length; i++) if (Math.abs(out.data[i] - d[i]) > 1) { same = false; break; }
+    ok(same, "identity mesh warp keeps the pixels");
+    var dst2 = new Float32Array(dst.length); for (i = 0; i < dst.length; i++) dst2[i] = dst[i] * 2;
+    var big = VPIX.meshWarp({ data: d, width: W, height: H }, 0, 0, W, H, n, n, dst2, W * 2, H * 2);
+    ok(big.data[((3 * 16) + 5) * 4 + 3] === 255 && big.data[3] === 255 && big.data[(11 * 16 + 15) * 4 + 3] === 255 && Math.abs(big.data[0] - d[0]) <= 2, "scaled mesh warp fills the larger area, edges stay solid");
+  });
+})();
