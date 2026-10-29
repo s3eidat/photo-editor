@@ -46,3 +46,6 @@
 .pe-vsel { color: var(--accent); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 860px) { .pe-vws-foot > .faint { display: none; } }
 .pe-textedit.pe-vmask { background: rgba(229, 72, 77, .28); }
+.pe-vstops { display: flex; flex-direction: column; gap: 4px; }
+.pe-vstop { display: grid; grid-template-columns: 40px 1fr auto 1fr auto auto; gap: 4px; align-items: center; font-size: 12px; }
+.pe-vstop .input { height: 28px; padding: 2px 6px; font-size: 12px; min-width: 0; }

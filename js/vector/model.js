@@ -76,7 +76,7 @@
     if (L.kind === "text") return VX.drawText ? VX.drawText(c, L, b) : false;
     var s = L.shape, line = s.type === "line", o = outline(L, s, b);
     var sw = line ? Math.max(1, s.sw || b.h) : s.sw || 0, al = line ? "center" : s.align || "center";
-    if (!line && s.fill) { tracePath(c, o); c.fillStyle = PE.hex(s.fill, "#cccccc"); if (s.fillOp != null) c.globalAlpha = s.fillOp; c.fill("nonzero"); c.globalAlpha = 1; }
+    if (!line && s.fill) { tracePath(c, o); c.fillStyle = s.grad ? gradient(c, s.grad, b) : PE.hex(s.fill, "#cccccc"); if (s.fillOp != null) c.globalAlpha = s.fillOp; c.fill("nonzero"); c.globalAlpha = 1; }
     if (sw > 0) {
       c.save();
       c.lineJoin = s.join || "round"; c.lineCap = s.cap || "round"; c.miterLimit = 10;
@@ -93,6 +93,15 @@
     if (line && (s.arrowS || s.arrowE)) drawArrows(c, s, b, sw);
     return true;
   };
+  // gradient fill across the shape's box (in its own rotated frame): linear at an angle, or radial from the centre
+  function gradient(c, G, b) {
+    var cx = b.x + b.w / 2, cy = b.y + b.h / 2, g, a = (G.angle || 0) * Math.PI / 180;
+    if (G.type === "radial") g = c.createRadialGradient(cx, cy, 0, cx, cy, Math.max(1, Math.max(b.w, b.h) / 2 * (G.scale || 1)));
+    else { var hl = (Math.abs(b.w * Math.cos(a)) + Math.abs(b.h * Math.sin(a))) / 2 * (G.scale || 1), dx = Math.cos(a) * hl, dy = -Math.sin(a) * hl; g = c.createLinearGradient(cx - dx, cy - dy, cx + dx, cy + dy); }
+    (G.stops || []).forEach(function (st) { var q = PE.rgbOf(st[1]); g.addColorStop(PE.clamp(st[0], 0, 1), "rgba(" + q.join(",") + "," + (st[2] == null ? 1 : st[2]) + ")"); });
+    return g;
+  }
+  VX.gradient = gradient;
   function drawArrows(c, s, b, sw) {
     var y = b.y + b.h / 2, w = (s.aw || 5) * sw, l = (s.al || 5) * sw, cc = (s.ac || 0) / 100;
     c.save(); c.fillStyle = PE.hex(s.stroke, "#111111"); c.setLineDash([]);
@@ -150,6 +159,10 @@
     ["aw", "al"].forEach(function (k) { if (raw[k] != null) s[k] = num(raw[k], 1, 50, 5); });
     if (raw.ac != null) s.ac = num(raw.ac, -50, 50, 0);
     if (typeof raw.lib === "string" && /^[a-z]{1,20}$/.test(raw.lib)) s.lib = raw.lib;
+    if (raw.grad && typeof raw.grad === "object" && Array.isArray(raw.grad.stops)) {
+      var st = raw.grad.stops.slice(0, 16).map(function (q) { return Array.isArray(q) ? [num(q[0], 0, 1, 0), PE.hex(q[1], "#000000"), num(q[2], 0, 1, 1)] : null; }).filter(Boolean);
+      if (st.length >= 2) s.grad = { type: raw.grad.type === "radial" ? "radial" : "linear", angle: num(raw.grad.angle, -360, 360, 0), scale: num(raw.grad.scale, 0.1, 10, 1), stops: st };
+    }
   };
   var layerParsers = [];
   VX.onParseLayer = function (f) { layerParsers.push(f); };

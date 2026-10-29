@@ -321,3 +321,13 @@
     ok(out.length === 4 && VG.winding(rs, ob.x + ob.w / 2, ob.y + ob.h / 2) === 0 && VG.winding(rs, ob.x + 4, ob.y + ob.h / 2) !== 0, "letters trace with their holes (O and b counters)");
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, VX = PE.VX;
+  VX.test("gradient fill", function (ok) {
+    var d = PE.newDoc(100, 40, "g"), L = PE.newLayer("shape", { shape: { type: "rect", x: 0, y: 0, w: 100, h: 40, fill: "#000000", sw: 0, grad: { type: "linear", angle: 0, scale: 1, stops: [[0, "#ff0000", 1], [1, "#0000ff", 1]] } } }); d.layers = [L];
+    var c = PE.cx2(PE.flatten(d)), a = c.getImageData(2, 20, 1, 1).data, b = c.getImageData(97, 20, 1, 1).data, m = c.getImageData(50, 20, 1, 1).data;
+    ok(a[0] > 240 && a[2] < 15 && b[2] > 240 && b[0] < 15 && Math.abs(m[0] - m[2]) < 12, "linear gradient runs left to right across the shape");
+    L.shape.grad.angle = 90; c = PE.cx2(PE.flatten(d)); ok(c.getImageData(50, 38, 1, 1).data[0] > 200 && c.getImageData(50, 1, 1, 1).data[2] > 200, "90° runs bottom to top");
+  });
+})();

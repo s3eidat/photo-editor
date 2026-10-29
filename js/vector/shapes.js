@@ -90,6 +90,25 @@
   }
   VX.libPicker = libPicker;
 
+  // gradient stops: colour, position, opacity; add, remove, reverse
+  function stopsEditor(S, live) {
+    var box = h("div", { "class": "pe-vstops" }), G = S.grad;
+    G.stops.forEach(function (st, i) {
+      var col = h("input", { type: "color", "class": "pe-vcol", value: st[1], "aria-label": "Stop colour" });
+      col.addEventListener("input", function () { live("Gradient", function () { G.stops[i][1] = col.value; }); });
+      var pos = h("input", { type: "number", "class": "input", min: "0", max: "100", value: String(Math.round(st[0] * 100)), "aria-label": "Stop position %", title: "Position %" });
+      pos.addEventListener("input", function () { live("Gradient", function () { G.stops[i][0] = PE.clamp(+pos.value / 100, 0, 1); G.stops.sort(function (a, b) { return a[0] - b[0]; }); }); });
+      var op = h("input", { type: "number", "class": "input", min: "0", max: "100", value: String(Math.round((st[2] == null ? 1 : st[2]) * 100)), "aria-label": "Stop opacity %", title: "Opacity %" });
+      op.addEventListener("input", function () { live("Gradient", function () { G.stops[i][2] = PE.clamp(+op.value / 100, 0, 1); }); });
+      var del = ED.ui.w.btn("", function () { if (G.stops.length <= 2) return; live("Gradient", function () { G.stops.splice(i, 1); }); ED.ui.buildProps(); }, "ghost icon", "i-trash", "Remove stop");
+      box.appendChild(h("div", { "class": "pe-vstop" }, [col, pos, h("span", { "class": "faint", text: "%" }), op, h("span", { "class": "faint", text: "α" }), del]));
+    });
+    box.appendChild(h("div", { "class": "pe-prow" }, [
+      ED.ui.w.btn("Add stop", function () { live("Gradient", function () { var a = G.stops[G.stops.length - 2], b = G.stops[G.stops.length - 1]; G.stops.splice(G.stops.length - 1, 0, [(a[0] + b[0]) / 2, a[1], 1]); }); ED.ui.buildProps(); }, "ghost"),
+      ED.ui.w.btn("Reverse", function () { live("Gradient", function () { G.stops = G.stops.map(function (q) { return [1 - q[0], q[1], q[2]]; }).reverse(); }); ED.ui.buildProps(); }, "ghost")]));
+    return box;
+  }
+
   // ---------- Properties panel for shape layers ----------
   UI.props(function (P, L) {
     if (!L || L.kind !== "shape") return;
@@ -119,7 +138,13 @@
     // appearance
     P.insertBefore(h("h3", { text: "Appearance" }), at);
     var g2 = h("div", { "class": "pe-pgrid" });
-    if (!line) {
+    if (!line && S.fill) {
+      g2.appendChild(UI.psel("Fill type", [["solid", "Solid colour"], ["linear", "Linear gradient"], ["radial", "Radial gradient"]], S.grad ? S.grad.type : "solid", function (v) {
+        live("Fill type", function () { if (v === "solid") delete S.grad; else S.grad = S.grad ? Object.assign(S.grad, { type: v }) : { type: v, angle: 0, scale: 1, stops: [[0, S.fill, 1], [1, ED.doc.bg, 1]] }; }); ED.ui.buildProps(); }));
+    }
+    if (!line && S.grad && S.fill) {
+      g2.appendChild(UI.pnum(S.grad.type === "radial" ? "Size %" : "Angle °", S.grad.type === "radial" ? Math.round((S.grad.scale || 1) * 100) : S.grad.angle || 0, E("Gradient", function (v) { if (S.grad.type === "radial") S.grad.scale = Math.max(0.1, v / 100); else S.grad.angle = v; }), 1, -360, 1000));
+    } else if (!line) {
       g2.appendChild(S.fill ? UI.pcolor("Fill", S.fill, E("Fill", function (v) { S.fill = v; })) : h("span", { "class": "pe-pf faint", text: "No fill" }));
       g2.appendChild(UI.pnum("Fill opacity %", Math.round((S.fillOp == null ? 1 : S.fillOp) * 100), E("Fill opacity", function (v) { S.fillOp = v / 100; if (S.fillOp >= 1) delete S.fillOp; }), 1, 0, 100));
     }
@@ -134,6 +159,7 @@
     g2.appendChild(UI.psel("Caps", [["butt", "Butt"], ["round", "Round"], ["square", "Square"]], S.cap || "round", E("Stroke caps", function (v) { S.cap = v; })));
     g2.appendChild(UI.psel("Corners", [["miter", "Miter"], ["round", "Round"], ["bevel", "Bevel"]], S.join || "round", E("Stroke corners", function (v) { S.join = v; })));
     P.insertBefore(g2, at);
+    if (!line && S.grad && S.fill) P.insertBefore(stopsEditor(S, live), at);
     if (line) {
       P.insertBefore(h("div", { "class": "pe-prow" }, [ED.ui.w.check("Start arrow", !!S.arrowS, E("Arrowhead", function (v) { if (v) S.arrowS = true; else delete S.arrowS; })),
         ED.ui.w.check("End arrow", !!S.arrowE, E("Arrowhead", function (v) { if (v) S.arrowE = true; else delete S.arrowE; }))]), at);
