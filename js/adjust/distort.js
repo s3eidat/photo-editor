@@ -117,4 +117,29 @@
       s[0] = x + (dr - 128) / 128 * hx; s[1] = y + (dg - 128) / 128 * vy;
     }, p.edge === "wrap" ? "wrap" : "clamp");
   }));
+
+  // ---------- lens correction: scale, rotation, perspective, barrel / pincushion, colour fringes, vignette ----------
+  A.reg("lensCorrection", A.filter(function (img, p) {
+    var w = img.width, h = img.height, d = img.data, src = PIX.copyImg(img), cx = w / 2, cy = h / 2, R = Math.sqrt(cx * cx + cy * cy) || 1;
+    var k = -clamp(num(p.distort, 0), -100, 100) / 100 * 0.35, sR = 1 + clamp(num(p.caRed, 0), -100, 100) / 100 * 0.006, sB = 1 + clamp(num(p.caBlue, 0), -100, 100) / 100 * 0.006;
+    var pv = clamp(num(p.vertical, 0), -100, 100) / 100 * 0.6, ph = clamp(num(p.horizontal, 0), -100, 100) / 100 * 0.6, ang = -num(p.angle, 0) * Math.PI / 180, ca = Math.cos(ang), sa = Math.sin(ang);
+    var scl = clamp(num(p.scale, 100), 25, 400) / 100, va = clamp(num(p.vignette, 0), -100, 100) / 100, vm = clamp(num(p.vigMid, 50), 0, 100) / 100, edge = p.edge || "transparent";
+    var fill = A.hex(p.fillColor, [255, 255, 255]), o = [0, 0, 0, 0], mode = edge === "extend" ? "clamp" : "transparent";
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+      var u = (x + 0.5 - cx) / R / scl, v = (y + 0.5 - cy) / R / scl, uu = u * ca - v * sa, vv = u * sa + v * ca;
+      var den = 1 + ph * uu + pv * vv; if (den < 0.05) den = 0.05;
+      uu /= den; vv /= den;
+      var r2 = uu * uu + vv * vv, f = 1 + k * r2, i = (y * w + x) * 4, X = cx + uu * f * R, Y = cy + vv * f * R;
+      A.sample(src, X, Y, o, mode); var gg = o[1], aa = o[3], rr = o[0], bb = o[2];
+      if (sR !== 1) { A.sample(src, cx + uu * f * sR * R, cy + vv * f * sR * R, o, mode); rr = o[0]; }
+      if (sB !== 1) { A.sample(src, cx + uu * f * sB * R, cy + vv * f * sB * R, o, mode); bb = o[2]; }
+      if (edge === "color" && aa < 255) { var t = aa / 255; rr = rr * t + fill[0] * (1 - t); gg = gg * t + fill[1] * (1 - t); bb = bb * t + fill[2] * (1 - t); aa = 255; }
+      if (va) {
+        var dx = (x + 0.5 - cx) / cx, dy = (y + 0.5 - cy) / cy, rn = Math.sqrt(dx * dx + dy * dy) / Math.SQRT2, vf = A.smooth(0.15 + vm * 0.7, 1.15, rn);
+        if (va < 0) { var kv = 1 + va * vf; rr *= kv; gg *= kv; bb *= kv; } else { rr += (255 - rr) * va * vf; gg += (255 - gg) * va * vf; bb += (255 - bb) * va * vf; }
+      }
+      d[i] = rr; d[i + 1] = gg; d[i + 2] = bb; d[i + 3] = aa;
+    }
+    return img;
+  }));
 })(typeof self !== "undefined" ? self : this);

@@ -41,3 +41,4 @@ maths files, `openAdjust` calls `spec.ui`, `ED.adjKit` exposes the UI widgets, `
 | Smart sharpen, sharpen more, sharpen edges, shake reduction | done | Filter › Sharpen; smart sharpen removes gaussian / lens / motion blur on luminance (no colour fringes), reduce noise, shadow/highlight fade; shake reduction = Richardson–Lucy deconvolution with a straight blur trace (length, angle, iterations, smoothing) |
 | Average, blur, blur more, box blur, shape blur (8 shapes), spin blur | done | Filter › Blur |
 | Custom 5×5 kernel, HSB / HSL | done | Filter › Other |
+| Lens correction filter | done | Filter › Lens correction… (Ctrl+Shift+R): remove distortion, red/cyan and blue/yellow fringes, vignette, vertical / horizontal perspective, angle, scale, edge = transparent / extension / background colour. No camera lens profiles (needs a profile database) |

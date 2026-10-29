@@ -51,6 +51,12 @@
     choose("watercolor");
   } });
   AUI.addMenu("Filter", [["Filter gallery…", "", function () { AUI.open("gallery"); }, has]], "Gaussian blur");
+  AUI.adj("lensCorrection", { t: "Lens correction", c: [sl("distort", "Remove distortion (− pincushion, + barrel)", -100, 100, 1, 0), sl("caRed", "Fix red / cyan fringe", -100, 100, 1, 0), sl("caBlue", "Fix blue / yellow fringe", -100, 100, 1, 0),
+    sl("vignette", "Vignette amount", -100, 100, 1, 0), sl("vigMid", "Vignette midpoint", 0, 100, 1, 50, pc), sl("vertical", "Vertical perspective", -100, 100, 1, 0), sl("horizontal", "Horizontal perspective", -100, 100, 1, 0),
+    sl("angle", "Angle", -180, 180, 0.1, 0, deg), sl("scale", "Scale", 25, 400, 1, 100, pc)],
+    sel: [["edge", "Edge", [["transparent", "Transparency"], ["extend", "Edge extension"], ["color", "Background colour"]], "transparent"]], ui: function (el, st) { st.p.fillColor = ED.doc.bg; } });
+  AUI.addMenu("Filter", [["Lens correction…", "Ctrl+Shift+R", function () { AUI.open("lensCorrection"); }, has]], "Gaussian blur");
+  AUI.key("Ctrl+Shift+R", function () { AUI.open("lensCorrection"); });
 
   // depth of field
   var IRIS = [["sides", "Iris shape", [["0", "Circle"], ["3", "Triangle"], ["4", "Square"], ["5", "Pentagon"], ["6", "Hexagon"], ["7", "Heptagon"], ["8", "Octagon"]], "6"],

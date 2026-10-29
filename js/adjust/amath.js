@@ -165,7 +165,7 @@
   A.sample = function (img, x, y, o, edge) {
     var w = img.width, h = img.height, d = img.data;
     if (edge === "wrap") { x = ((x % w) + w) % w; y = ((y % h) + h) % h; }
-    else if (edge === "transparent" && (x < -0.5 || y < -0.5 || x > w - 0.5 || y > h - 0.5)) { o[0] = o[1] = o[2] = o[3] = 0; return o; }
+    else if (edge === "transparent" && (x < 0 || y < 0 || x > w || y > h)) { o[0] = o[1] = o[2] = o[3] = 0; return o; }
     var fx = x - 0.5, fy = y - 0.5, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
     var x1 = x0 + 1, y1 = y0 + 1;
     if (edge === "wrap") { x0 = (x0 + w) % w; x1 = x1 % w; y0 = (y0 + h) % h; y1 = y1 % h; }

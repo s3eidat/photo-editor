@@ -217,6 +217,11 @@
     var wbp = PIX.A.devNeutral(200, 180, 140), wbi = get(run([[200, 180, 140]], "develop", Object.assign(PIX.A.devDefaults(), wbp)), 0);
     ok(Math.max.apply(null, wbi) - Math.min.apply(null, wbi) <= 8, "white balance picker neutralises the colour (" + wbi + ")");
     var au = PIX.A.devAuto(im([[20, 20, 20], [40, 40, 40], [60, 60, 60], [50, 50, 50]]), null); ok(au.exposure > 0, "develop auto brightens a dark image");
+
+    // lens correction: defaults are identity; rotation 180° flips
+    var lc0 = run(grid, "lensCorrection", {}, null, 8, 8), lcs = true; for (i = 0; i < 64; i++) if (get(lc0, i)[0] !== grid[i][0]) lcs = false;
+    ok(lcs, "lens correction at defaults changes nothing");
+    var lc1 = run(grid, "lensCorrection", { angle: 180 }, null, 8, 8); ok(get(lc1, 0)[0] === grid[63][0], "lens correction angle 180°");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };
