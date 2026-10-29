@@ -208,3 +208,70 @@
       w.btn("Release from path", function () { VX.setText("Release text from path", function (t) { var g = VX.pathLayout(t).glyphs[0]; delete t.path; t.align = "left"; if (g) { t.ax = g.x - g.w / 2; t.ay = g.y - t.size; } }); ED.ui.buildProps(); }, "ghost")]));
   });
 })();
+/* Glyphs panel: browse characters by group in the current font and insert them into the text */
+(function () {
+  "use strict";
+  var PE = window.PE, ED = PE.ed, VX = PE.VX, h = S3.h;
+  function R(a, b) { var o = []; for (var i = a; i <= b; i++) o.push(i); return o; }
+  var GROUPS = [
+    ["recent", "Recently used", []],
+    ["punct", "Punctuation & symbols", R(0x21, 0x2f).concat(R(0x3a, 0x40), R(0x5b, 0x60), R(0x7b, 0x7e), R(0xa1, 0xbf), R(0x2010, 0x2027), R(0x2030, 0x203e), [0x2122, 0x2116, 0x2120])],
+    ["latin", "Latin and digits", R(0x41, 0x5a).concat(R(0x61, 0x7a), R(0x30, 0x39))],
+    ["accent", "Latin accented", R(0xc0, 0xff).concat(R(0x100, 0x17f))],
+    ["greek", "Greek", R(0x391, 0x3a1).concat(R(0x3a3, 0x3a9), R(0x3b1, 0x3c9))],
+    ["cyr", "Cyrillic", R(0x410, 0x44f)],
+    ["arabic", "Arabic", R(0x621, 0x63a).concat(R(0x641, 0x64a), R(0x64b, 0x652), R(0x660, 0x66d), [0x67e, 0x686, 0x698, 0x6a9, 0x6af, 0x6cc, 0x6f0, 0x6f1, 0x6f2, 0x6f3, 0x6f4, 0x6f5, 0x6f6, 0x6f7, 0x6f8, 0x6f9, 0xfdf2, 0x60c, 0x61b, 0x61f])],
+    ["money", "Currency", [0x24, 0xa2, 0xa3, 0xa4, 0xa5].concat(R(0x20a0, 0x20c0))],
+    ["arrows", "Arrows", R(0x2190, 0x21ff)],
+    ["math", "Maths", [0xb1, 0xd7, 0xf7, 0xb0, 0xb2, 0xb3, 0xb9, 0xbc, 0xbd, 0xbe].concat(R(0x2200, 0x2265), R(0x2153, 0x215e))],
+    ["shapes", "Shapes", R(0x25a0, 0x25ff)],
+    ["dings", "Symbols & dingbats", R(0x2600, 0x266f).concat(R(0x2700, 0x27bf))],
+    ["box", "Box drawing", R(0x2500, 0x257f).concat(R(0x2580, 0x259f))]
+  ];
+  var st = Object.assign({ group: "punct", recent: [] }, S3.store("pe-glyphs") || {});
+  function save() { S3.store("pe-glyphs", st); }
+  var panel = null, body = null, grid = null;
+  function font() { var L = ED.textL || (ED.doc && ED.layer()); return L && L.kind === "text" ? L.text.font : ED.o.text.font; }
+  function insert(ch) {
+    var ta = document.querySelector("#textEdit"), L = ED.doc && ED.layer();
+    if (!ED.textL) {
+      if (!L || L.kind !== "text") { S3.toast("Click with the type tool (T) first, then pick a character", "error"); return; }
+      if (!ED.editable(L)) return;
+      ED.setTool("text"); ED.startText(L, PE.snap(ED.doc)); ta.selectionStart = ta.selectionEnd = ta.value.length;
+    }
+    var s = ta.selectionStart || 0, e = ta.selectionEnd || 0;
+    ta.value = ta.value.slice(0, s) + ch + ta.value.slice(e); ta.selectionStart = ta.selectionEnd = s + ch.length;
+    ta.dispatchEvent(new Event("input")); ta.focus();
+    st.recent = [ch].concat(st.recent.filter(function (x) { return x !== ch; })).slice(0, 30); save();
+    if (st.group === "recent") fill();
+  }
+  VX.insertGlyph = insert;
+  function fill() {
+    grid.textContent = "";
+    var g = GROUPS.filter(function (x) { return x[0] === st.group; })[0] || GROUPS[1], list = g[0] === "recent" ? st.recent : g[2].map(function (cp) { return String.fromCodePoint(cp); });
+    if (!list.length) { grid.appendChild(h("p", { "class": "faint pe-p", text: "Characters you insert show up here." })); return; }
+    var f = '"' + PE.cleanFamily(font()) + '", "Noto Sans Arabic", sans-serif';
+    list.forEach(function (ch) {
+      var cp = ch.codePointAt(0), b = h("button", { type: "button", "class": "pe-glyph", title: "U+" + cp.toString(16).toUpperCase().padStart(4, "0"), "aria-label": "Insert U+" + cp.toString(16).toUpperCase() }, [/[ً-ْ]/.test(ch) ? "◌" + ch : ch]);
+      b.style.fontFamily = f;
+      b.addEventListener("mousedown", function (e) { e.preventDefault(); });      // keep the caret in the text being edited
+      b.addEventListener("click", function () { insert(ch); });
+      grid.appendChild(b);
+    });
+  }
+  function build() {
+    var side = document.querySelector(".pe-side"); if (!side) return;
+    grid = h("div", { "class": "pe-glyphs", role: "group", "aria-label": "Characters" });
+    var sel = ED.ui.w.select("Show", GROUPS.map(function (g) { return [g[0], g[1]]; }), st.group, function (v) { st.group = v; save(); fill(); });
+    body = h("div", { "class": "pe-pbody" }, [sel, grid, h("p", { "class": "faint pe-p", text: "Click a character to type it at the cursor (shown in the current text's font)." })]);
+    panel = h("details", { "class": "pe-panel", open: S3.store("pe-vglyph") === true }, [h("summary", { text: "Glyphs" }), body]);
+    panel.addEventListener("toggle", function () { S3.store("pe-vglyph", panel.open); if (panel.open) fill(); });
+    var paths = Array.prototype.filter.call(side.querySelectorAll(".pe-panel"), function (p) { return p.querySelector(".pe-vlist"); })[0];
+    side.insertBefore(panel, paths || null);
+    if (panel.open) fill();
+  }
+  ED.on("vready", function () { setTimeout(build, 0); });
+  var last = "";
+  ED.on("layers", function () { var f = font(); if (panel && panel.open && f !== last) { last = f; fill(); } });
+  VX.ui.menu("Layer", [["Glyphs…", "", function () { if (!panel) return; panel.open = true; fill(); panel.scrollIntoView({ block: "nearest" }); }]], "Warp text…");
+})();
