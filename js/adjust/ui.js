@@ -191,6 +191,32 @@
     sl("color", "Colour", -100, 100, 1, 20), sl("mid", "Midtone contrast", -100, 100, 1, 0)] });
   AUI.addMenu("Image", [["Shadows / highlights…", "", function () { AUI.open("shadowsHighlights"); }, has]], "Auto tone");
 
+  // "More adjustments ›" (Image menu) collects the rest of the lane's adjustments.
+  var MORE = AUI.MORE = [];
+  AUI.addMenu("Image", [AUI.sub("Image", "More adjustments", MORE)], "Invert");
+  AUI.more = function (label, op, key) {
+    var fn = typeof op === "function" ? op : function () { AUI.open(op); };
+    MORE.push([label, key || "", fn, has]);
+    if (key) AUI.key(key, fn);
+  };
+
+  // ---------- photo filter ----------
+  AUI.colorInput = function (label, val, onSet) {
+    var c = h("input", { type: "color", "class": "pe-acolor", value: val });
+    c.addEventListener("input", function () { onSet(c.value); });
+    var f = kit().field(label, c); f._set = function (v) { c.value = v; }; return f;
+  };
+  var PF = [["#ec8a00", "Warm (orange)"], ["#f2b33d", "Warm (amber)"], ["#1f6fff", "Cool (blue)"], ["#4aa3ff", "Cool (sky)"], ["#e8361d", "Red"], ["#f08519", "Orange"],
+    ["#f5d51b", "Yellow"], ["#2bb24c", "Green"], ["#19bfd8", "Cyan"], ["#2846e0", "Blue"], ["#8a35d8", "Violet"], ["#d62ab0", "Magenta"], ["#a8763a", "Sepia"], ["#2f8f7f", "Underwater teal"]];
+  AUI.adj("photoFilter", { t: "Photo filter", c: [sl("density", "Density", 0, 100, 1, 25, pc)], ui: function (el, st) {
+    var p = st.p, K = kit(); p.color = PF[0][0]; p.keepLum = true;
+    var col = AUI.colorInput("Colour", p.color, function (v) { p.color = v; st.schedule(); });
+    el.insertBefore(col, el.firstChild);
+    el.insertBefore(K.select("Filter", PF, p.color, function (v) { p.color = v; col._set(v); st.schedule(); }), col);
+    el.appendChild(K.check("Preserve luminosity", true, function (v) { p.keepLum = v; st.schedule(); }));
+  } });
+  AUI.more("Photo filter…", "photoFilter");
+
   // ---------- auto tone / contrast / colour ----------
   var AUTO = [["autoTone", "Auto tone", "Ctrl+Shift+L"], ["autoContrast", "Auto contrast", "Ctrl+Alt+Shift+L"], ["autoColor", "Auto colour", "Ctrl+Shift+B"]];
   AUI.addMenu("Image", AUTO.map(function (a) { return [a[1], a[2], function () { AUI.quick(a[0], a[1]); }, has]; }).concat(["-"]), "Vibrance");

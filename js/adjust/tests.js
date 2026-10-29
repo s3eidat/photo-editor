@@ -35,6 +35,12 @@
     var f1 = PE.adjUI.fadeMix(fb, fa, 0.5, "source-over", null), f2 = PE.adjUI.fadeMix(fb, fa, 1, "multiply", new Uint8Array([255, 0]));
     ok(near(cpx(f1, 0)[0], 128, 1) && near(cpx(f1, 0)[2], 128, 1), "fade 50% normal");
     ok(near(cpx(f2, 0)[0], 43, 1) && near(cpx(f2, 0)[1], 61, 1) && cpx(f2, 1).join() === "200,100,0", "fade multiply inside the old selection only");
+
+    // photo filter: grey through an orange gel keeps its luminance but turns warm
+    var pf = get(run([[128, 128, 128]], "photoFilter", { color: "#ff8000", density: 50, keepLum: true }), 0);
+    ok(pf[0] > pf[1] && pf[1] > pf[2] && near(0.299 * pf[0] + 0.587 * pf[1] + 0.114 * pf[2], 128, 1.5), "photo filter warms, keeps luminance (" + pf + ")");
+    var pf2 = get(run([[200, 200, 200]], "photoFilter", { color: "#ff0000", density: 100, keepLum: false }), 0);
+    ok(pf2.join() === "200,0,0", "photo filter without luminosity = multiply");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };
