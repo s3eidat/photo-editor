@@ -66,6 +66,25 @@
     sel: [["style", "Style", [["pond", "Pond ripples"], ["out", "Out from centre"], ["around", "Around centre"]], "pond"]] });
   AUI.filter("distort", "Offset…", "offset", { t: "Offset", c: [sl("dx", "Horizontal", -4000, 4000, 1, 50, pxf), sl("dy", "Vertical", -4000, 4000, 1, 0, pxf)], sel: EDGE3 });
 
+  // render
+  function colorsSeed(el, st) { st.p.fg = ED.doc.fg; st.p.bg = ED.doc.bg; st.p.seed = 1; el.appendChild(ED.adjKit.btn("Randomise", function () { st.p.seed = (st.p.seed || 1) + 1; st.schedule(); }, "ghost")); el.appendChild(h("p", { "class": "faint pe-p", text: "Uses the foreground and background colours." })); }
+  function placeBtn(el, st, kx, ky, label) {
+    var b = ED.adjKit.btn(label, function () {
+      AUI.pick(function (pt) { st.p[kx] = Math.round((pt.x - st.t.r.x) / st.t.r.w * 100); st.p[ky] = Math.round((pt.y - st.t.r.y) / st.t.r.h * 100); S3.$$("#float input[type=range]").forEach(function () {}); st.schedule(); }, b);
+    }, "ghost", null, "Click the image to place it");
+    b.setAttribute("aria-pressed", "false"); b.classList.add("pe-apick"); el.appendChild(b);
+  }
+  AUI.filter("render", "Clouds", "clouds", { t: "Clouds", proxy: true, c: [sl("size", "Cloud size", 8, 2048, 1, 256, pxf)], ui: colorsSeed });
+  AUI.filter("render", "Difference clouds", "differenceClouds", { t: "Difference clouds", c: [sl("size", "Cloud size", 8, 2048, 1, 256, pxf)], ui: colorsSeed });
+  AUI.filter("render", "Fibers…", "fibers", { t: "Fibers", c: [sl("variance", "Variance", 1, 64, 1, 16), sl("strength", "Strength", 1, 64, 1, 4)], ui: colorsSeed });
+  AUI.filter("render", "Lens flare…", "lensFlare", { t: "Lens flare", c: [sl("brightness", "Brightness", 10, 300, 1, 100, pc), sl("x", "Centre X", 0, 100, 1, 30, pc), sl("y", "Centre Y", 0, 100, 1, 30, pc)],
+    sel: [["lens", "Lens", [["zoom", "Zoom lens"], ["prime", "Prime lens"], ["movie", "Wide movie lens"]], "zoom"]], ui: function (el, st) { placeBtn(el, st, "x", "y", "Place on the image"); } });
+  AUI.filter("render", "Lighting effects…", "lighting", { t: "Lighting effects", c: [sl("intensity", "Intensity", -100, 100, 1, 35), sl("x", "Light X", -50, 150, 1, 50, pc), sl("y", "Light Y", -50, 150, 1, 35, pc),
+    sl("height", "Light height", 1, 100, 1, 50, pc), sl("size", "Spread", 1, 200, 1, 60, pc), sl("focus", "Focus", 1, 100, 1, 50, pc), sl("angle", "Direction (infinite light)", -180, 180, 1, -45, deg),
+    sl("ambient", "Ambience", -100, 100, 1, 15), sl("gloss", "Gloss", -100, 100, 1, 0), sl("metallic", "Metallic", -100, 100, 1, 0), sl("bump", "Texture height (from brightness)", 0, 100, 1, 30)],
+    sel: [["light", "Light", [["spot", "Spot"], ["point", "Point"], ["infinite", "Infinite"]], "spot"]],
+    ui: function (el, st) { st.p.color = "#ffffff"; el.insertBefore(AUI.colorInput("Light colour", "#ffffff", function (v) { st.p.color = v; st.schedule(); }), el.firstChild); placeBtn(el, st, "x", "y", "Place the light"); } });
+
   // stylize
   AUI.filter("stylize", "Emboss…", "emboss", { t: "Emboss", c: [sl("angle", "Angle", -180, 180, 1, 135, deg), sl("height", "Height", 1, 100, 1, 3, pxf), sl("amount", "Amount", 1, 500, 1, 100, pc)], chk: [["color", "Keep colours", false]] });
   AUI.filter("stylize", "Find edges", "findEdges", null);

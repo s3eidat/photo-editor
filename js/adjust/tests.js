@@ -161,6 +161,16 @@
     var dsp = run(grid, "displace", { map: { w: 8, h: 8, b64: btoa(bs) }, hScale: 50, vScale: 50 }, null, 8, 8); ok(get(dsp, 20)[0] === grid[20][0], "displace with a grey map does nothing");
     var pol = run(gray(16, 16, function (x, y) { return y < 8 ? 0 : 250; }), "polar", { mode: "toPolar" }, null, 16, 16);
     ok(get(pol, 8 * 16 + 8)[0] < 20 && pol.data[35] === 255 && get(pol, 8 * 16 + 1)[0] > 200, "polar: top row becomes the centre");
+
+    // render
+    var cl = run(gray(16, 16, function () { return 0; }), "clouds", { fg: "#000000", bg: "#ffffff", size: 8 }, null, 16, 16), cmin = 255, cmax = 0;
+    for (i = 0; i < 256; i++) { var cv = get(cl, i)[0]; cmin = Math.min(cmin, cv); cmax = Math.max(cmax, cv); if (get(cl, i)[0] !== get(cl, i)[1]) cmin = -1; }
+    ok(cmin >= 0 && cmax - cmin > 60, "clouds: a grey fractal between the two colours");
+    var cl2 = run(gray(16, 16, function () { return 0; }), "clouds", { fg: "#000000", bg: "#ffffff", size: 8, _scale: 0.5 }, null, 8, 8);
+    ok(near(get(cl2, 3 * 8 + 3)[0], get(cl, 6 * 16 + 6)[0], 3), "clouds look the same in a half-size preview");
+    var dcl = run(gray(4, 4, function () { return 255; }), "differenceClouds", { fg: "#000000", bg: "#000000" }, null, 4, 4); ok(get(dcl, 5)[0] === 255, "difference clouds with black is a no-op");
+    var lf = run(gray(20, 20, function () { return 40; }), "lensFlare", { x: 50, y: 50 }, null, 20, 20); ok(get(lf, 210)[0] > 200 && get(lf, 0)[0] >= 40, "lens flare brightens the centre, never darkens");
+    var li = run(gray(10, 10, function () { return 200; }), "lighting", { light: "infinite", intensity: 0, ambient: 50, bump: 0 }, null, 10, 10); ok(near(get(li, 55)[0], 100, 1), "lighting: ambient only scales the colour");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };
