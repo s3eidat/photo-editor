@@ -137,10 +137,18 @@
     } }
   };
   A.galleryDefaults = function (id) { var g = GAL[id], o = {}; if (g) g.params.forEach(function (q) { o[q[0]] = q[5]; }); return o; };
-  A.reg("gallery", A.filter(function (img, p) {
-    var g = GAL[p.effect] || GAL.watercolor, q = Object.assign(A.galleryDefaults(p.effect in GAL ? p.effect : "watercolor"), {}), S = clamp(num(p._scale, 1), 0.01, 1);
-    g.params.forEach(function (d) { q[d[0]] = clamp(num(p[d[0]], d[5]), d[2], d[3]); });
-    q.fg = p.fg; q.bg = p.bg; q.color = p.color;
+  function runOne(img, e, p, S) {
+    var id = e.effect in GAL ? e.effect : "watercolor", g = GAL[id], q = A.galleryDefaults(id);
+    g.params.forEach(function (d) { q[d[0]] = clamp(num(e[d[0]], d[5]), d[2], d[3]); });
+    q.fg = p.fg; q.bg = p.bg; q.color = e.color || p.color;
     return g.fn(img, q, S) || img;
+  }
+  // One effect (p.effect + its settings), or a stack of effect layers: p.stack = [{effect, on, ...settings}] applied
+  // bottom first; the layer at p.cur is the one being edited, so its settings come from the top level of p.
+  A.reg("gallery", A.filter(function (img, p) {
+    var S = clamp(num(p._scale, 1), 0.01, 1);
+    if (!Array.isArray(p.stack) || !p.stack.length) return runOne(img, p, p, S);
+    p.stack.slice(0, 12).forEach(function (e, k) { var it = k === (p.cur | 0) ? p : e; if (e && e.on !== false) runOne(img, it, p, S); });
+    return img;
   }));
 })(typeof self !== "undefined" ? self : this);

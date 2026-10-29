@@ -270,6 +270,9 @@
     var L3 = PIX.A.parse3dl(t3); ok(L3.n === 2 && lk(L3, [10, 128, 250]).join() === "250,128,10", ".3dl import (blue fastest, 10-bit)");
     var cube = PIX.A.opToCube("t", 9, "develop", Object.assign(PIX.A.devDefaults(), { exposure: 1 })), Lc = PIX.A.parseCube(cube), lc1 = lk(Lc, [128, 128, 128]), dv1 = get(run([[128, 128, 128]], "develop", Object.assign(PIX.A.devDefaults(), { exposure: 1 })), 0);
     ok(Lc.n === 9 && near(lc1[0], dv1[0], 3), "develop look exported as .cube (" + lc1[0] + " vs " + dv1[0] + ")");
+
+    var gs = get(run([[200, 100, 50]], "gallery", { effect: "grain", intensity: 0, contrast: 50, stack: [{ effect: "chrome", on: false }, { effect: "grain", intensity: 0, contrast: 50 }], cur: 1 }), 0);
+    ok(gs.join() === "200,100,50", "gallery effect layers: hidden layers are skipped (" + gs + ")");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };

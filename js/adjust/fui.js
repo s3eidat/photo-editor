@@ -26,10 +26,30 @@
   AUI.adj("gallery", { t: "Filter gallery", ui: function (el, st) {
     var p = st.p, K = ED.adjKit, G = PIX.A.GALLERY, ids = Object.keys(G), grid = h("div", { "class": "pe-agal", role: "listbox", "aria-label": "Effects" }), box = h("div", { "class": "stack pe-asecin" });
     p.fg = ED.doc.fg; p.bg = ED.doc.bg; p.color = "#50dcff";
-    function choose(id) {
-      p.effect = id; Object.keys(p).forEach(function (k) { if (["effect", "fg", "bg", "color"].indexOf(k) < 0) delete p[k]; }); Object.assign(p, PIX.A.galleryDefaults(id));
-      S3.$$("button", grid).forEach(function (b) { b.setAttribute("aria-selected", String(b.getAttribute("data-id") === id)); });
+    var KEEP = ["effect", "fg", "bg", "color", "stack", "cur"], layersBox = h("div", { "class": "stack pe-asecin pe-alayers" });
+    function settingsOf() { var o = {}; Object.keys(p).forEach(function (k) { if (["fg", "bg", "stack", "cur"].indexOf(k) < 0 && k.charAt(0) !== "_") o[k] = p[k]; }); o.on = p.stack && p.stack[p.cur] ? p.stack[p.cur].on !== false : true; return o; }
+    function load(e) { Object.keys(p).forEach(function (k) { if (KEEP.indexOf(k) < 0) delete p[k]; }); Object.keys(e).forEach(function (k) { if (k !== "on") p[k] = e[k]; }); }
+    function drawLayers() {         // effect layers, top of the list = applied last (like a layer stack)
+      layersBox.textContent = "";
+      if (!p.stack) { layersBox.appendChild(K.btn("New effect layer", function () { p.stack = [settingsOf()]; p.cur = 0; p.stack.push(settingsOf()); p.cur = 1; drawLayers(); st.schedule(); }, "ghost", "i-plus", "Stack another effect on top of this one")); return; }
+      p.stack[p.cur] = settingsOf();
+      p.stack.slice().reverse().forEach(function (e, ri) {
+        var i = p.stack.length - 1 - ri, row = h("div", { "class": "row pe-arow pe-alayer" + (i === p.cur ? " on" : "") });
+        var vis = h("input", { type: "checkbox", "aria-label": "Show " + G[e.effect].name }); vis.checked = e.on !== false;
+        vis.addEventListener("change", function () { p.stack[i].on = vis.checked; st.schedule(); });
+        var name = h("button", { type: "button", "class": "btn ghost small pe-alayername", text: (p.stack.length - ri) + ". " + G[e.effect].name, "aria-pressed": String(i === p.cur) });
+        name.addEventListener("click", function () { p.stack[p.cur] = settingsOf(); p.cur = i; load(p.stack[i]); choose(p.effect, true); drawLayers(); });
+        var del = K.btn("", function () { p.stack[p.cur] = settingsOf(); p.stack.splice(i, 1); if (p.stack.length < 2) { load(p.stack[0]); p.stack = null; p.cur = 0; } else { p.cur = Math.min(p.cur, p.stack.length - 1); load(p.stack[p.cur]); } choose(p.effect, true); drawLayers(); st.schedule(); }, "ghost icon small", "i-trash", "Delete this effect layer");
+        row.appendChild(vis); row.appendChild(name); row.appendChild(del); layersBox.appendChild(row);
+      });
+      layersBox.appendChild(K.btn("New effect layer", function () { p.stack[p.cur] = settingsOf(); if (p.stack.length >= 12) return; p.stack.push(settingsOf()); p.cur = p.stack.length - 1; drawLayers(); st.schedule(); }, "ghost", "i-plus", "Stack another effect on top"));
+    }
+    function choose(id, keep) {
+      if (!keep) { p.effect = id; Object.keys(p).forEach(function (k) { if (KEEP.indexOf(k) < 0) delete p[k]; }); Object.assign(p, PIX.A.galleryDefaults(id)); }
+      S3.$$("button", grid).forEach(function (b) { b.setAttribute("aria-selected", String(b.getAttribute("data-id") === p.effect)); });
+      if (p.stack && !keep) drawLayers();
       box.textContent = "";
+      id = p.effect;
       G[id].params.forEach(function (q) { box.appendChild(K.range(q[1], p[q[0]], q[2], q[3], q[4], function (v) { p[q[0]] = v; st.schedule(); })); });
       if (id === "neon") box.appendChild(AUI.colorInput("Glow colour", p.color, function (v) { p.color = v; st.schedule(); }));
       if (G[id].cat === "sketch" || id === "diffuseGlow") box.appendChild(h("p", { "class": "faint pe-p", text: "Uses the foreground and background colours." }));
@@ -49,8 +69,8 @@
       }, 30 + n * 15);
     });
     AUI.wide();
-    el.insertBefore(box, el.firstChild); el.insertBefore(grid, box); el.insertBefore(catSel, grid);
-    choose("watercolor");
+    el.insertBefore(box, el.firstChild); el.insertBefore(grid, box); el.insertBefore(catSel, grid); el.insertBefore(layersBox, box.nextSibling);
+    choose("watercolor"); drawLayers();
   } });
   AUI.addMenu("Filter", [["Filter gallery…", "", function () { AUI.open("gallery"); }, has]], "Gaussian blur");
   AUI.adj("lensCorrection", { t: "Lens correction", c: [sl("distort", "Remove distortion (− pincushion, + barrel)", -100, 100, 1, 0), sl("caRed", "Fix red / cyan fringe", -100, 100, 1, 0), sl("caBlue", "Fix blue / yellow fringe", -100, 100, 1, 0),
