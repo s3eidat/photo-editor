@@ -354,9 +354,10 @@
       var k = ty * st.ltx + tx; if (st.loaded[k]) continue;
       st.loaded[k] = 1;
       var x = tx * LT, y = ty * LT, w = Math.min(LT, st.w - x), h = Math.min(LT, st.h - y), t = st.cx.getImageData(x, y, w, h).data;
+      var t2 = st.rcx ? st.rcx.getImageData(x, y, w, h).data : t;        // tools that sample other layers read from rcx
       for (var j = 0; j < h; j++) {
-        var row = t.subarray(j * w * 4, (j + 1) * w * 4), at = ((y + j) * st.w + x) * 4;
-        st.img.data.set(row, at); if (st.orig !== st.img) st.orig.data.set(row, at);
+        var at = ((y + j) * st.w + x) * 4;
+        st.img.data.set(t2.subarray(j * w * 4, (j + 1) * w * 4), at); if (st.orig !== st.img) st.orig.data.set(t.subarray(j * w * 4, (j + 1) * w * 4), at);
       }
     }
   }

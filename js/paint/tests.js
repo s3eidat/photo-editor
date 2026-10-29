@@ -361,3 +361,16 @@
     ED.o.dodge.tip = ""; delete PP.tips["t:half"];
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, ED = PE.ed, PP = PE.paint;
+  PP.test("blur / smudge sampling all layers", function (ok) {
+    var s = PP.scratch(80, 40, "#ffffff"), c = PE.cx2(s.L.canvas); c.fillStyle = "#000"; c.fillRect(39, 0, 2, 40); PE.touch(s.L.canvas);
+    var top = PE.rasterFromCanvas(PE.touch(PE.mk(80, 40)), "Retouch"); s.d.layers.push(top); s.d.active = top.id;
+    Object.assign(ED.o.blurtool, PP.BDEF, { size: 16, hard: 1, op: 1, sample: "all", sizeC: "off" });
+    PP.drive("blurtool", [{ x: 40, y: 10 }]);
+    var q = PP.px(top.canvas, 40, 10); ok(q[3] === 255 && q[0] > 30 && q[0] < 230, "blur on an empty layer puts the blurred photo there (" + q + ")");
+    ok(PP.px(top.canvas, 40, 30)[3] === 0 && PP.px(top.canvas, 46, 2)[3] === 0, "only where the tip went");
+    ED.o.blurtool.sample = "current";
+  });
+})();

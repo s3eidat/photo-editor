@@ -34,6 +34,7 @@
       } else if (hard >= 0.99) w = PE.clamp(r - dd + 0.5, 0, 1); else w = dd <= rh ? 1 : dd >= r ? 0 : (r - dd) / (r - rh);
       if (w <= 0) continue;
       w *= a;
+      if (st.touched) st.touched[yy * W + xx] = 1;
       if (sel) { var sx = xx + st.ox, sy = yy + st.oy; w *= sx >= 0 && sy >= 0 && sx < sel.w && sy < sel.h ? sel.m[sy * sel.w + sx] / 255 : 0; if (w <= 0) continue; }
       fn(yy * W + xx, w);
     }
@@ -112,13 +113,26 @@
   // ---------- running tools ----------
   function runTool(id, spec, defs) {
     spec.process = true; spec.mode = "run";
-    spec.begin = (function (inner) { return function (st, p, e) { beginCommon(st, true); st.strength = PE.clamp(st.o.op, 0, 1); return inner ? inner(st, p, e) : true; }; })(spec.begin);
+    spec.begin = (function (inner) {
+      return function (st, p, e) {
+        beginCommon(st, true); st.strength = PE.clamp(st.o.op, 0, 1);
+        if (st.o.sample && st.o.sample !== "current" && !st.mask) { st.rcx = PE.cx2(PP.sampleCanvas(st.L, st.holder, st.o.sample)); st.touched = new Uint8Array(st.w * st.h); }
+        return inner ? inner(st, p, e) : true;
+      };
+    })(spec.begin);
+    // with other layers sampled, only the pixels the tip touched take the result; the rest of the layer stays
+    function write(st, R) {
+      if (!st.touched) { st.cx.putImageData(st.img, 0, 0, R.x, R.y, R.w, R.h); return; }
+      var out = region(st.orig, R), od = out.data, s = st.img.data, W = st.w;
+      for (var y = 0; y < R.h; y++) for (var x = 0; x < R.w; x++) { var i = (y + R.y) * W + x + R.x; if (st.touched[i]) od.set(s.subarray(i * 4, i * 4 + 4), (y * R.w + x) * 4); }
+      st.cx.putImageData(out, R.x, R.y);
+    }
     spec.preview = function (st) {
       var R = clipR(st, st.dirty); st.dirty = null;
-      if (R) { st.cx.putImageData(st.img, 0, 0, R.x, R.y, R.w, R.h); PE.touch(st.cv); }
+      if (R) { write(st, R); PE.touch(st.cv); }
       return null;
     };
-    spec.commit = function (st, label) { finish(st, label, function (bb) { st.cx.putImageData(st.img, 0, 0, bb.x, bb.y, bb.w, bb.h); }); };
+    spec.commit = function (st, label) { finish(st, label, function (bb) { write(st, bb); }); };
     spec.cancel = cancel;
     PP.engineTool(id, spec, Object.assign({ sizeC: "off" }, defs || {}));
   }
@@ -200,8 +214,8 @@
       });
     };
   }
-  runTool("blurtool", { label: "Blur", fill: "color", stamp: filterDab(false), sym: false }, { op: 0.5, hard: 0.4, size: 50, spacing: 25 });
-  runTool("sharpentool", { label: "Sharpen", fill: "color", stamp: filterDab(true), sym: false }, { op: 0.5, hard: 0.4, size: 50, spacing: 25 });
+  runTool("blurtool", { label: "Blur", fill: "color", stamp: filterDab(false), sym: false }, { op: 0.5, hard: 0.4, size: 50, spacing: 25, sample: "current" });
+  runTool("sharpentool", { label: "Sharpen", fill: "color", stamp: filterDab(true), sym: false }, { op: 0.5, hard: 0.4, size: 50, spacing: 25, sample: "current" });
   // Smudge: a "finger" picks up the colour under it and drags it along.
   runTool("smudge", {
     label: "Smudge", fill: "color", sym: false,
@@ -229,17 +243,17 @@
         F[f2] += (o0 - F[f2]) * pick; F[f2 + 1] += (o1 - F[f2 + 1]) * pick; F[f2 + 2] += (o2 - F[f2 + 2]) * pick; F[f2 + 3] += (o3 - F[f2 + 3]) * pick;
       });
     }
-  }, { op: 0.6, hard: 0.5, size: 40, spacing: 6, finger: false });
+  }, { op: 0.6, hard: 0.5, size: 40, spacing: 6, finger: false, sample: "current" });
   PP.addTool("blurtool", "Blur", "R", "sponge", ED.TOOLS.blurtool);
   PP.addTool("sharpentool", "Sharpen", "R", "blurtool", ED.TOOLS.sharpentool);
   PP.addTool("smudge", "Smudge", "R", "sharpentool", ED.TOOLS.smudge);
   PP.group("R", ["blurtool", "sharpentool", "smudge"]);
   ["blurtool", "sharpentool"].forEach(function (t) {
-    PP.optsFor[t] = function (items) { return PP.brushBar(t, items, [], t === "blurtool" ? "Softens detail where you paint; go over it again for more." : "Crisps up detail where you paint. A little goes a long way.", { opLabel: "Strength", noFlow: true, noSym: true }); };
+    PP.optsFor[t] = function (items) { return PP.brushBar(t, items, [PP.sampleSelect(t)], t === "blurtool" ? "Softens detail where you paint; go over it again for more." : "Crisps up detail where you paint. A little goes a long way.", { opLabel: "Strength", noFlow: true, noSym: true }); };
   });
   PP.optsFor.smudge = function (items) {
     var o = ED.o.smudge;
-    return PP.brushBar("smudge", items, [K.check("Finger painting", o.finger, function (v) { o.finger = v; ED.saveOpts(); })], "Drags the colour under the tip along the stroke. Finger painting starts with the foreground colour.", { opLabel: "Strength", noFlow: true, noSym: true });
+    return PP.brushBar("smudge", items, [K.check("Finger painting", o.finger, function (v) { o.finger = v; ED.saveOpts(); }), PP.sampleSelect("smudge")], "Drags the colour under the tip along the stroke. Finger painting starts with the foreground colour.", { opLabel: "Strength", noFlow: true, noSym: true });
   };
   PP.shortcut("Retouch tools", "O dodge / burn / sponge · R blur / sharpen / smudge · J spot healing / healing (Shift+key cycles)");
 })();
