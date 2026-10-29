@@ -36,3 +36,4 @@ Known-answer checks: `js/paint/tests.js` (run by `S3_SELFTEST` after the core ch
 | Patterns panel | done | Paint panel › Patterns: 12 built-in tiles drawn in code, define from selection (Edit › Define pattern…), import an image, Alt+click deletes; Edit › Fill with pattern… (scale, opacity, blend mode) |
 | Pattern stamp | done | S group with the clone stamp; aligned / not aligned, scale; full brush dynamics |
 | History brush | done | Y; source = opening state or any step (options bar, or Alt+click a History row; the source row is marked); eraser gets "Erase to history"; layer pixels only (not masks), painting back transparency is not done |
+| Colour replacement | done | B group; modes colour / hue / saturation / luminosity; sampling continuous / once / background colour; contiguous / discontiguous; tolerance |

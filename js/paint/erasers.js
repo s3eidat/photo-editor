@@ -40,9 +40,8 @@
   // ---------- background eraser ----------
   PP.icons({ "t-bgerase": ["m7.5 20.5-4-4a2 2 0 0 1 0-2.8L11 6.2a2 2 0 0 1 2.8 0l3 3a2 2 0 0 1 0 2.8l-8.3 8.5z", "M21 20.5H7.5", ["circle", { cx: "18.5", cy: "5.5", r: "2.5", "stroke-dasharray": "1.6 1.4" }]] });
   function dist(D, q, c) { return Math.max(Math.abs(D[q] - c[0]), Math.abs(D[q + 1] - c[1]), Math.abs(D[q + 2] - c[2])) / 2.55; }
-  PP.covTool("bgerase", {
-    label: "Background eraser", fill: "color", mask: false,
-    begin: function (st) { st.smp = null; st.o.op = 1; st.strength = 1; return true; },
+  // Sampling and tolerance limits shared with colour replacement: perDab picks the colour, weight judges a pixel.
+  var LIMIT = PP.colorLimit = {
     perDab: function (st, x, y, d) {
       var o = st.o, ix = Math.floor(x), iy = Math.floor(y), r = Math.max(1, Math.ceil(d / 2));
       PP.ensureTiles(st, { x: ix - r - 1, y: iy - r - 1, w: 2 * r + 3, h: 2 * r + 3 });
@@ -75,7 +74,12 @@
       if (st.cm) { var px = i % st.w - st.cm.x0, py = Math.floor(i / st.w) - st.cm.y0; if (px < 0 || py < 0 || px >= st.cm.S || py >= st.cm.S || !st.cm.m[py * st.cm.S + px]) return 0; }
       var dd = dist(D, q, st.cur);
       return dd <= o.tol ? 1 : dd <= o.tol + 8 ? (o.tol + 8 - dd) / 8 : 0;
-    },
+    }
+  };
+  PP.covTool("bgerase", {
+    label: "Background eraser", fill: "color", mask: false,
+    begin: function (st) { st.smp = null; st.o.op = 1; st.strength = 1; return true; },
+    perDab: LIMIT.perDab, weight: LIMIT.weight,
     effect: function (st, px) { return [px[0], px[1], px[2], 0]; }
   }, { size: 60, hard: 0.9, spacing: 15, sample: "cont", limits: "contig", tol: 50, protect: false });
   PP.addTool("bgerase", "Background eraser", "E", "eraser", ED.TOOLS.bgerase);
