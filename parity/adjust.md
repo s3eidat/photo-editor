@@ -26,3 +26,6 @@ maths files, `openAdjust` calls `spec.ui`, `ED.adjKit` exposes the UI widgets, `
 | Replace colour | done | Image › More adjustments; pick / add (Shift keeps picking) colours on the canvas, Lab-distance fuzziness, hue / saturation / lightness, show selected area |
 | Match colour | done | Image › More adjustments; source = any layer (optionally its selection), mean/std transfer in CIE Lab, luminance, colour intensity, fade, neutralise |
 | HDR toning (single image) | done | Image › More adjustments; log-luminance base/detail split (edge-aware or soft), strength, radius, detail, gamma, exposure, shadow, highlight, vibrance, saturation, 5 presets |
+| Emboss, find edges, glowing edges, solarize, trace contour | done | Filter › Stylize; emboss angle / height / amount (+ keep colours), glowing edges width / brightness / smoothness, trace contour level + upper/lower |
+| Oil paint | done | Filter › Stylize; Kuwahara smoothing + strokes along the local edge direction (structure tensor) + relief light: stylisation, cleanliness, brush scale, bristle detail, light angle, shine |
+| Wind, diffuse, tiles (extra stylize) | done | Filter › Stylize; wind / blast / stagger both ways, diffuse normal / darken / lighten / along edges, tiles with 4 fills |

@@ -132,6 +132,19 @@
     ok(Math.abs(neu.m[1]) < 1.5 && Math.abs(neu.m[2]) < 1.5, "match colour neutralise removes a cast");
     var hd = run(gray(32, 32, function (x) { return x < 16 ? 30 : 230; }), "hdrToning", { strength: 2, detail: 0, saturation: 0 }, null, 32, 32);
     ok(get(hd, 32 * 16 + 2)[0] > 30 && get(hd, 32 * 16 + 29)[0] < 230, "HDR toning compresses the range");
+
+    // stylize
+    var emb = run(gray(9, 9, function () { return 100; }), "emboss", {}, null, 9, 9);
+    ok(get(emb, 40)[0] === 128, "emboss of a flat image is mid grey");
+    var fe = run(gray(8, 8, function (x) { return x < 4 ? 0 : 255; }), "findEdges", {}, null, 8, 8);
+    ok(get(fe, 8 * 3 + 1)[0] === 255 && get(fe, 8 * 3 + 3)[0] < 100, "find edges: white flats, dark edges");
+    ok(get(run([[100, 200, 128]], "solarize", {}), 0).join() === "100,55,127", "solarize inverts above the threshold");
+    var tc = run(gray(6, 1, function (x) { return x < 3 ? 50 : 200; }), "traceContour", { level: 128, edge: "upper" }, null, 6, 1);
+    ok(get(tc, 3)[0] === 0 && get(tc, 2)[0] === 255 && get(tc, 5)[0] === 255, "trace contour draws a line at the level");
+    var ge = run(gray(10, 10, function () { return 140; }), "glowingEdges", {}, null, 10, 10);
+    ok(get(ge, 55)[0] === 0, "glowing edges: flat areas go black");
+    var op = run(gray(12, 12, function () { return 90; }), "oilPaint", { shine: 0, bristle: 0 }, null, 12, 12);
+    ok(near(get(op, 70)[0], 90, 1), "oil paint keeps a flat area");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };

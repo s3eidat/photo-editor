@@ -38,7 +38,7 @@
   };
   // A drill-down submenu: the item opens a second list in place of the menu (works the same on phones).
   AUI.sub = function (menuName, label, items) {
-    return [label + " ›", "", function () { openSub(menuName, label, items); }, has];
+    return [label + " ›", "", function () { openSub(menuName, label, items); }, function () { return has() && items.length > 0; }];
   };
   var subEl = null;
   function closeSub() { if (subEl) { subEl.remove(); subEl = null; document.removeEventListener("pointerdown", outside, true); } }
