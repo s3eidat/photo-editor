@@ -33,3 +33,17 @@
 .ws-corner { left: 0; top: 0; width: 20px; height: 20px; padding: 0; border: 0; border-right: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong);
   background: var(--surface-2); color: var(--text-3); font: 600 8.5px var(--mono); cursor: pointer; overflow: hidden; }
 .ws-corner:hover { color: var(--accent); }
+
+/* document tabs */
+.ws-tabs { display: flex; gap: 2px; padding: 4px 6px 0; background: var(--surface-2); border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: thin; flex: none; }
+.ws-tabs[hidden] { display: none; }
+.ws-tab { display: flex; align-items: center; gap: 4px; max-width: 220px; min-width: 0; padding: 4px 4px 4px 10px; border: 1px solid transparent; border-bottom: 0;
+  border-radius: 8px 8px 0 0; color: var(--text-2); font-size: 12.5px; cursor: pointer; white-space: nowrap; user-select: none; }
+.ws-tab:hover { background: var(--surface-3); color: var(--text); }
+.ws-tab.on { background: var(--surface); color: var(--text); border-color: var(--line); font-weight: 600; margin-bottom: -1px; }
+.ws-tab.lazy .ws-tn { font-style: italic; }
+.ws-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ws-tn { overflow: hidden; text-overflow: ellipsis; }
+.ws-tx { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--text-3); cursor: pointer; flex: none; }
+.ws-tx:hover { background: var(--surface-3); color: var(--text); }
+.ws-tx .i { width: 12px; height: 12px; }

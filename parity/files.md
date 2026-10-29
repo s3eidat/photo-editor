@@ -14,6 +14,7 @@
 | Grid | done | View › Grid (Ctrl+'), Guides & grid settings… (spacing in any unit, subdivisions, grid and guide colours). |
 | Snapping | done | View › Snap (Ctrl+Shift+;) and Snap to guides / grid / layers / document edges. Moving a layer or selected pixels snaps its edges and centre; marquee, crop, shape, gradient, text placement and transform handles snap the pointer; dragged guides snap to the grid and layer edges. Hold Ctrl while dragging to skip snapping. |
 | Smart guides | done | View › Smart guides: while moving, magenta lines show when the layer's edges or centre line up with another layer or the canvas centre (and it snaps there). |
+| Document tabs | done | Every new / opened document gets a tab above the canvas; each keeps its own history, zoom and scroll. Window menu: next / previous (Ctrl+Alt+→ / ←), close (Ctrl+Alt+W; also middle-click a tab), close others, close all, and the list of open documents. Leaving a tab autosaves it; tabs come back after a reload and load when clicked. Background tabs' oldest history steps are trimmed first when memory runs short. (Ctrl+Tab and Ctrl+W belong to the browser.) |
 
 Not supported (by the vendored parser, ag-psd 31.0.3): CMYK, Lab, multichannel and duotone colour modes (a clear message asks to convert to RGB first), PSB large-document files. Layer styles and adjustment layers are reported as left out until the selection/adjust lanes add them, then they get mapped.
 
