@@ -25,12 +25,15 @@ A free, local-first alternative to image editors like Photoshop, for the everyda
 - **History panel** with undo/redo and jump to any step. Steps store only the changed 64 px tiles and stay within a memory budget
 - Zoom and pan (wheel, Space-drag, pinch), **keyboard shortcuts** close to industry conventions (press `?`)
 - **Autosave** in this browser (IndexedDB) with a recent-projects list; **save and open `.s3photo` project files** (layers, masks, text and shapes stay editable). Opened files are checked field by field before use
-- **Export PNG, JPG or WebP** with quality and scale, or **export just the selection**
+- **Export as** PNG, JPG, WebP, AVIF, **TIFF**, BMP, **PNG-8** and **GIF** with quality, size (or pixel-art scaling), transparency or a matte, a live preview with the real file size, and optional author / copyright metadata; **quick export**, **export layers to files** (one .zip), export just the selection, and **print** with crop and registration marks
+- **PSD files**: open and save layered PSDs (layers, masks, vector masks, groups, live text and shapes, blend modes, opacity, layer styles, adjustment and fill layers, guides, notes); **TIFF** open and save
+- **Workspace**: documents in **tabs**, **rulers**, **guides** (and guide layouts), **grid**, **snapping** and **smart guides**, **navigator**, **histogram**, **info** panel (RGB / HSB / Lab), dockable and floating panels with **saved workspaces**, **customizable shortcuts**, **preferences**
+- **Automation and output**: **actions** (record, play, edit, import / export) and **batch** processing to a .zip, **image modes** (greyscale, duotone, indexed colour with palette export), **proof colours** (simulated CMYK, colour-blindness) with a gamut warning, **ruler**, **note** and **count** tools, **trim** and **reveal all**
 
 ## Limits
 
 - Documents are limited to 8000 px a side and 40 megapixels (bigger images are scaled down when opened, with a message).
-- 8-bit RGB only: no CMYK, 16-bit, RAW development or colour profiles. No PSD files.
+- 8-bit RGB editing: 16/32-bit PSD and TIFF files are converted on open; CMYK and Lab PSDs and PSB files cannot be opened. Colour proofing is simulated (no ICC profiles).
 - No AI features (generative fill, sky replacement, background removal), no adjustment layers or layer styles yet.
 - Fonts are the ones on your device; a project file opened on another device falls back if the font is missing.
 - Free transform on a pixel layer is applied when you press Apply (pixels are resampled once).
@@ -44,7 +47,7 @@ any attempt to send data anywhere. Projects are stored only in this browser unti
 
 ## Run it yourself
 
-It's plain HTML, CSS and JavaScript with no build step and no libraries:
+It's plain HTML, CSS and JavaScript with no build step; the only library is [ag-psd](https://github.com/Agamnentzar/ag-psd) (MIT, vendored in `lib/`) for PSD files:
 
 ```bash
 git clone https://github.com/s3eidat/photo-editor
