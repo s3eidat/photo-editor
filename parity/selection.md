@@ -65,3 +65,4 @@ Tried on 29 Oct by merging every lane branch onto this one in a scratch worktree
   anything that fails a pixel-shuffle test are left out; specs with their own `ui(el, st)` get a "More settings…" dialog (live, Cancel restores).
 - Locked transparency is enforced in `PE.editPixels` / `PE.tileEntry`, so the paint lane's engine respects it on commit (its live preview does not).
 - The files lane's PSD code reads `PE.sx.tree`, `L.parent`, `L.clip`, `L.fillOp` and group `open`: those names are stable.
+- Optional layer fields `L.maskDensity` (0..1) and `L.maskFeather` (px) soften a mask without changing its pixels; `PE.sx.effMask(L, L.mask)` returns the mask the compositor uses (PSD export can write them as the mask's density / feather parameters, or bake that canvas).
