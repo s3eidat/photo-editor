@@ -6,17 +6,28 @@
   "use strict";
   var PE = window.PE, PIX = window.PIX, FXM = window.FXM, ED = PE.ed, SX = PE.sx, h = S3.h;
   var DEF = {
-    dropShadow: { on: false, blend: "multiply", color: "#000000", op: 0.75, angle: 120, global: true, dist: 8, spread: 0, size: 10 },
-    innerShadow: { on: false, blend: "multiply", color: "#000000", op: 0.75, angle: 120, global: true, dist: 5, choke: 0, size: 6 },
-    outerGlow: { on: false, blend: "screen", color: "#ffffbe", op: 0.75, spread: 0, size: 14 },
-    innerGlow: { on: false, blend: "screen", color: "#ffffbe", op: 0.75, source: "edge", choke: 0, size: 10 },
+    dropShadow: { on: false, blend: "multiply", color: "#000000", op: 0.75, angle: 120, global: true, dist: 8, spread: 0, size: 10, contour: "linear", noise: 0 },
+    innerShadow: { on: false, blend: "multiply", color: "#000000", op: 0.75, angle: 120, global: true, dist: 5, choke: 0, size: 6, contour: "linear", noise: 0 },
+    outerGlow: { on: false, blend: "screen", color: "#ffffbe", op: 0.75, spread: 0, size: 14, contour: "linear", noise: 0 },
+    innerGlow: { on: false, blend: "screen", color: "#ffffbe", op: 0.75, source: "edge", choke: 0, size: 10, contour: "linear", noise: 0 },
     bevel: { on: false, style: "inner", depth: 100, dir: "up", size: 6, soften: 0, angle: 120, altitude: 30, global: true, hiBlend: "screen", hiColor: "#ffffff", hiOp: 0.75, shBlend: "multiply", shColor: "#000000", shOp: 0.75 },
-    satin: { on: false, blend: "multiply", color: "#000000", op: 0.5, angle: 19, dist: 11, size: 14, invert: true },
+    satin: { on: false, blend: "multiply", color: "#000000", op: 0.5, angle: 19, dist: 11, size: 14, invert: true, contour: "linear" },
     colorOverlay: { on: false, blend: "normal", color: "#e5484d", op: 1 },
     gradOverlay: { on: false, blend: "normal", op: 1, from: "#000000", to: "#ffffff", style: "linear", angle: 90, scale: 100, reverse: false },
     patternOverlay: { on: false, blend: "multiply", op: 0.6, pattern: "dots", color: "#000000", scale: 100 },
     stroke: { on: false, size: 3, pos: "outside", blend: "normal", color: "#000000", op: 1 }
   };
+  // Contours reshape an effect's falloff (input = its strength 0..1); noise breaks it up (deterministic per pixel).
+  var CONTOURS = [["linear", "Linear"], ["soft", "Soft (S-curve)"], ["round", "Half round"], ["cone", "Cone"], ["coneInv", "Cone, inverted"], ["ring", "Ring"], ["ring2", "Double ring"], ["saw", "Sawtooth"]];
+  var CF = { soft: function (t) { return t * t * (3 - 2 * t); }, round: function (t) { return Math.sqrt(1 - (1 - t) * (1 - t)); }, cone: function (t) { return 1 - Math.abs(2 * t - 1); },
+    coneInv: function (t) { return Math.abs(2 * t - 1); }, ring: function (t) { return Math.sin(Math.PI * t); }, ring2: function (t) { return Math.abs(Math.sin(2 * Math.PI * t)); }, saw: function (t) { return t >= 1 ? 1 : (t * 2) % 1; } };
+  function shapeFx(p, e, W) {
+    var f = CF[e.contour], n = Math.max(0, Math.min(1, (e.noise || 0) / 100)), i;
+    if (f) { var lut = new Float32Array(257); for (i = 0; i <= 256; i++) lut[i] = Math.max(0, Math.min(1, f(i / 256))); for (i = 0; i < p.length; i++) p[i] = lut[Math.round(Math.max(0, Math.min(1, p[i])) * 256)]; }
+    if (n > 0) for (i = 0; i < p.length; i++) { if (!p[i]) continue; var x = i % W, y = (i - x) / W, hsh = Math.imul(x * 73856093 ^ y * 19349663, 2654435761) >>> 0; p[i] *= 1 - n * (hsh / 4294967296); }
+    return p;
+  }
+  SX.fxContour = shapeFx;
   var ORDER = ["dropShadow", "innerShadow", "outerGlow", "innerGlow", "bevel", "satin", "colorOverlay", "gradOverlay", "patternOverlay", "stroke"];
   var NAMES = { dropShadow: "Drop shadow", innerShadow: "Inner shadow", outerGlow: "Outer glow", innerGlow: "Inner glow", bevel: "Bevel & emboss", satin: "Satin",
     colorOverlay: "Colour overlay", gradOverlay: "Gradient overlay", patternOverlay: "Pattern overlay", stroke: "Stroke" };
@@ -90,11 +101,11 @@
     function full(plane, color) { var c = planeCanvas(plane, W2, H2, color); if (k === 1) return c; var u = PE.mk(W, H), ux = PE.cx2(u); ux.imageSmoothingQuality = "high"; ux.drawImage(c, 0, 0, W, H); return u; }
     function part(list, plane, color, blend, op) { list.push({ img: full(plane, color), x: ox, y: oy, blend: blend, alpha: op }); }
     function inside(plane, color, blend, op, fullRes) { bc.save(); bc.globalCompositeOperation = gco(blend); bc.globalAlpha = op; bc.drawImage(fullRes ? planeCanvas(plane, W, H, color) : full(plane, color), 0, 0); bc.restore(); }
-    if (on(L, "dropShadow")) { e = eff(L, "dropShadow"); part(behind, FXM.dropShadow(a2, W2, H2, sc(e)), e.color, e.blend, e.op); }
-    if (on(L, "outerGlow")) { e = eff(L, "outerGlow"); part(behind, FXM.outerGlow(a2, W2, H2, sc(e)), e.color, e.blend, e.op); }
-    if (on(L, "innerShadow")) { e = eff(L, "innerShadow"); inside(FXM.innerShadow(a2, W2, H2, sc(e)), e.color, e.blend, e.op); }
-    if (on(L, "innerGlow")) { e = eff(L, "innerGlow"); inside(FXM.innerGlow(a2, W2, H2, sc(e)), e.color, e.blend, e.op); }
-    if (on(L, "satin")) { e = eff(L, "satin"); inside(FXM.satin(a2, W2, H2, sc(e)), e.color, e.blend, e.op); }
+    if (on(L, "dropShadow")) { e = eff(L, "dropShadow"); part(behind, shapeFx(FXM.dropShadow(a2, W2, H2, sc(e)), e, W2), e.color, e.blend, e.op); }
+    if (on(L, "outerGlow")) { e = eff(L, "outerGlow"); part(behind, shapeFx(FXM.outerGlow(a2, W2, H2, sc(e)), e, W2), e.color, e.blend, e.op); }
+    if (on(L, "innerShadow")) { e = eff(L, "innerShadow"); inside(shapeFx(FXM.innerShadow(a2, W2, H2, sc(e)), e, W2), e.color, e.blend, e.op); }
+    if (on(L, "innerGlow")) { e = eff(L, "innerGlow"); inside(shapeFx(FXM.innerGlow(a2, W2, H2, sc(e)), e, W2), e.color, e.blend, e.op); }
+    if (on(L, "satin")) { e = eff(L, "satin"); inside(shapeFx(FXM.satin(a2, W2, H2, sc(e)), e, W2), e.color, e.blend, e.op); }
     var shape = null;
     function shapeC() { if (shape) return shape; shape = PE.mk(W, H); var x = PE.cx2(shape); x.drawImage(P.img, pad - ab.x, pad - ab.y); return shape; }   // the layer's own alpha
     if (on(L, "patternOverlay")) {
@@ -173,6 +184,8 @@
       R("angle", "Angle", -180, 180, 1, deg); R("scale", "Scale", 10, 150, 1, function (v) { return v + "%"; }); out.push(w.check("Reverse", e.reverse, function (v) { set("reverse", v); }));
     }
     if (k === "patternOverlay") { out.push(w.select("Pattern", PATTERNS, e.pattern, function (v) { set("pattern", v); })); R("scale", "Scale", 10, 400, 1, function (v) { return v + "%"; }); }
+    if (DEF[k].contour) out.push(w.select("Contour", CONTOURS, e.contour || "linear", function (v) { set("contour", v); }));
+    if (DEF[k].noise != null) R("noise", "Noise", 0, 100, 1, function (v) { return v + "%"; });
     return out;
   }
   SX.openStyle = function (L, focus) {
@@ -259,7 +272,7 @@
 
   // ---------- project files (whitelisted fields) ----------
   var BLENDS_OK = function (v) { return typeof v === "string" && NAT[v] ? v : undefined; };
-  var ENUMS = { style: ["inner", "outer", "emboss", "pillow", "linear", "radial", "reflected"], dir: ["up", "down"], source: ["edge", "center"], pos: ["outside", "inside", "center"], pattern: PATTERNS.map(function (p) { return p[0]; }) };
+  var ENUMS = { style: ["inner", "outer", "emboss", "pillow", "linear", "radial", "reflected"], dir: ["up", "down"], source: ["edge", "center"], pos: ["outside", "inside", "center"], pattern: PATTERNS.map(function (p) { return p[0]; }), contour: CONTOURS.map(function (c) { return c[0]; }) };
   function cleanEffect(k, v) {
     if (!v || typeof v !== "object") return undefined;
     var o = {}, d = DEF[k];
@@ -286,6 +299,12 @@
     SX.setGlobalLight(d, "angle", 60); SX.setGlobalLight(d, "altitude", 50);
     ok(a.fx.dropShadow.angle === 60 && b.fx.bevel.angle === 60 && b.fx.bevel.altitude === 50 && b.fx.innerShadow.angle === 45 && !a.fx.dropShadow.altitude, "global light moves every global shadow and bevel, not the others");
     ok(SX.globalLight(d).angle === 60, "global light reads back");
+  });
+  SX.tests.push(async function (ok, near) {
+    var p = SX.fxContour(Float32Array.from([0, 0.25, 0.5, 1]), { contour: "cone" }, 4);
+    ok(p[0] === 0 && near(p[1], 0.5, 0.01) && p[2] === 1 && p[3] === 0, "style contour reshapes the falloff (cone)");
+    var q = SX.fxContour(new Float32Array(64).fill(1), { contour: "linear", noise: 50 }, 8), lo = Math.min.apply(null, q), hi = Math.max.apply(null, q);
+    ok(lo >= 0.5 && lo < 0.8 && hi <= 1 && hi > 0.9, "style noise breaks the effect up within its amount");
   });
   SX.tests.push(async function (ok, near) {
     var a = new Float32Array(20 * 20); for (var y = 5; y < 15; y++) for (var x = 5; x < 15; x++) a[y * 20 + x] = 1;
