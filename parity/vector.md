@@ -1,7 +1,6 @@
 # Lane: vector
 
-Files: `js/vector/*.js`, `js/vector/vector.css`. Hook lines in shared files are marked `// lane:vector`
-(the key-handler and `ED.ui.MENUS/TOOLS/w` lines are byte-identical to the selection lane's, so merges stay clean).
+Files: `js/vector/*.js`, `js/vector/vector.css`. Hook lines in shared files are marked `// lane:vector`.
 Merging: the overlay (`emit("overlay"…)`), tool-options (`ED.ui.optsTail`), Properties (`ED.ui.propsTail`), key
 (`ED.ui.keys`) and `ED.ui.MENUS/TOOLS/SHORTCUTS/w` lines are byte-identical to the selection lane's, so they merge
 cleanly. The vector-only lines (`PE.VX.*` in core.js, the `TOOLS[...].cursor/leave` and text hooks in editor.js) may
@@ -40,3 +39,7 @@ Self-test: `js/vector/vtest.js` extends `window.S3_SELFTEST` (path booleans, cur
 | On-canvas live-shape widgets | done | With the shape / path / direct selection tools: drag the round handle of a rectangle, polygon or star to set its corner radius, the diamond of a star to set its indent (one undo step each). Vector shortcuts added to the shortcuts list. |
 | Magnetic freeform pen | done | Freeform pen option: the stroke snaps to the strongest edge (Sobel on the visible image) within Width px, ignoring edges under the Contrast threshold, then curves are fitted. |
 | Text styles, align / distribute paths | done | Properties › Text styles: save the current text's character + paragraph settings by name (this browser), apply to a layer or to the selected characters, delete. Path selection options: align left / centre / right / top / middle / bottom and distribute horizontally / vertically for the selected components. |
+
+Skipped (and why): face-aware liquify (needs a face-landmark model); optical kerning, OpenType alternates and
+hyphenation (the canvas exposes no font tables); split / custom-size warp grids and pin depth / rotation (rarely used,
+the 4 × 4 mesh, styles and pins cover the common cases); clipping paths (only meaningful for print formats).
