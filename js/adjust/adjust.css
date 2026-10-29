@@ -19,3 +19,8 @@
 .pe-awheel:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .pe-apresets .pe-of { flex: 1; min-width: 0; }
 .pe-apresets .pe-of .select { max-width: none; width: 100%; }
+.pe-aswatches { display: flex; flex-wrap: wrap; gap: 6px; }
+.pe-aswatch { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line-strong); cursor: pointer; padding: 0; }
+.pe-aswatch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pe-apicking, .pe-apicking canvas { cursor: crosshair !important; }
+.pe-apick[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }

@@ -152,7 +152,7 @@
   // [key, label, [[value, text]...], default], ui(el, st)), but the preview is worked
   // out on a reduced copy for big layers and drawn scaled by the GPU; OK renders the exact full-size result in the
   // worker. Ops see p._scale (preview scale) so pixel radii look the same in the preview.
-  AUI.openLive = function (op) {
+  AUI.openLive = function (op, init) {
     var spec = ED.ADJ[op], K = kit(); if (!spec) return;
     if (ED.ui.floatState()) ED.ui.closeFloat(false);
     AUI.closePanel(false);
@@ -164,6 +164,7 @@
     (spec.c || []).forEach(function (c) { p[c.k] = c.def; });
     (spec.chk || []).forEach(function (c) { p[c[0]] = !!c[2]; });
     (spec.sel || []).forEach(function (c) { p[c[0]] = c[3]; });
+    if (init) Object.keys(init).forEach(function (k) { if (k in p) p[k] = init[k]; });
     if (s < 1 && t.sel) {          // selection as an alpha mask, to keep the outside crisp
       selC = PE.mk(W, H); var sx = selC.getContext("2d"), sd = sx.createImageData(W, H);
       for (var i = 0, q = 0; q < t.sel.length; q++, i += 4) sd.data[i + 3] = t.sel[q];
@@ -198,9 +199,9 @@
     }
     st.schedule = S3.debounce(run, w * hh > 2e6 ? 120 : 40); st.run = run;
     st.pn = AUI.panel(spec.t, function (el) {
-      (spec.c || []).forEach(function (c) { el.appendChild(K.range(c.label, c.def, c.min, c.max, c.step, function (v) { p[c.k] = v; st.schedule(); }, c.fmt)); });
-      (spec.sel || []).forEach(function (c) { var f = function (v) { p[c[0]] = v; st.schedule(); }; el.appendChild(c[2].length <= 3 ? K.seg(c[1], c[2], c[3], f) : K.select(c[1], c[2], c[3], f)); });
-      (spec.chk || []).forEach(function (c) { el.appendChild(K.check(c[1], !!c[2], function (v) { p[c[0]] = v; st.schedule(); })); });
+      (spec.c || []).forEach(function (c) { el.appendChild(K.range(c.label, p[c.k], c.min, c.max, c.step, function (v) { p[c.k] = v; st.schedule(); }, c.fmt)); });
+      (spec.sel || []).forEach(function (c) { var f = function (v) { p[c[0]] = v; st.schedule(); }; el.appendChild(c[2].length <= 3 ? K.seg(c[1], c[2], p[c[0]], f) : K.select(c[1], c[2], p[c[0]], f)); });
+      (spec.chk || []).forEach(function (c) { el.appendChild(K.check(c[1], !!p[c[0]], function (v) { p[c[0]] = v; st.schedule(); })); });
       if (spec.ui) spec.ui(el, st);
       if (t.sel) el.appendChild(h("p", { "class": "faint pe-p", text: "Applies inside the selection only." }));
       if (s < 1) el.appendChild(h("p", { "class": "faint pe-p", text: "Preview at " + Math.round(s * 100) + "% size for speed; OK applies it at full size." }));
@@ -445,6 +446,82 @@
     draw("b:tealOrange");
   } });
   AUI.more("Colour lookup…", "colorLookup");
+
+  // ---------- pick a colour from the canvas while a panel is open ----------
+  var picking = null;
+  AUI.pick = function (fn, btnEl) {
+    if (picking) { stopPick(); return; }
+    picking = { fn: fn, btn: btnEl }; ED.stage.classList.add("pe-apicking"); if (btnEl) btnEl.setAttribute("aria-pressed", "true");
+    S3.toast("Click the image to pick a colour");
+  };
+  function stopPick() { if (!picking) return; if (picking.btn) picking.btn.setAttribute("aria-pressed", "false"); picking = null; ED.stage.classList.remove("pe-apicking"); }
+  AUI.stopPick = stopPick;
+  document.addEventListener("pointerdown", function (e) {
+    if (!picking || !ED.doc || !e.target.closest || !e.target.closest("#stage") || e.target.closest("#float")) return;
+    e.preventDefault(); e.stopPropagation();
+    var r = ED.stage.getBoundingClientRect(), pt = ED.toDoc(e.clientX - r.left, e.clientY - r.top), f = picking.fn;
+    if (!e.shiftKey) stopPick();
+    f(pt, e);
+  }, true);
+  // Colour of the panel's source pixels (layer-local) at a document point, or null outside the layer.
+  AUI.sampleAt = function (st, pt) {
+    var img = st.t.img, x = Math.floor(pt.x - st.t.r.x), y = Math.floor(pt.y - st.t.r.y);
+    if (x < 0 || y < 0 || x >= img.width || y >= img.height) return null;
+    var i = (y * img.width + x) * 4; return PE.toHex(img.data[i], img.data[i + 1], img.data[i + 2]);
+  };
+
+  // ---------- replace colour ----------
+  AUI.adj("replaceColor", { t: "Replace colour", c: [sl("fuzz", "Fuzziness", 0, 200, 1, 40), sl("hue", "Hue", -180, 180, 1, 0), sl("sat", "Saturation", -100, 100, 1, 0), sl("light", "Lightness", -100, 100, 1, 0)],
+    chk: [["showMask", "Show the selected area (white)", false]], ui: function (el, st) {
+      var p = st.p, K = kit(), sw = h("div", { "class": "pe-aswatches", role: "list", "aria-label": "Sampled colours" });
+      p.colors = [ED.doc.fg];
+      var col = null;
+      function draw() {
+        sw.textContent = ""; if (col) col._set(p.colors[0]);
+        p.colors.forEach(function (c, i) {
+          var b = h("button", { type: "button", "class": "pe-aswatch", role: "listitem", title: c + (p.colors.length > 1 ? " (click to remove)" : ""), "aria-label": "Colour " + c + (p.colors.length > 1 ? ", remove" : "") });
+          b.style.background = c;
+          b.addEventListener("click", function () { if (p.colors.length > 1) { p.colors.splice(i, 1); draw(); st.schedule(); } });
+          sw.appendChild(b);
+        });
+      }
+      var pickB = K.btn("Pick", function () { AUI.pick(function (pt) { var c = AUI.sampleAt(st, pt); if (c) { p.colors = [c]; draw(); st.schedule(); } }, pickB); }, "ghost", null, "Pick the colour to replace from the image");
+      var addB = K.btn("Add", function () { AUI.pick(function (pt) { var c = AUI.sampleAt(st, pt); if (c && p.colors.length < 16) { p.colors.push(c); draw(); st.schedule(); } }, addB); }, "ghost", "i-plus", "Add more colours (Shift-click keeps picking)");
+      [pickB, addB].forEach(function (b) { b.setAttribute("aria-pressed", "false"); b.classList.add("pe-apick"); });
+      col = AUI.colorInput("Colour", p.colors[0], function (v) { p.colors = [v]; draw(); st.schedule(); });
+      el.insertBefore(h("div", { "class": "stack pe-asecin" }, [h("div", { "class": "row pe-arow" }, [col, pickB, addB]), sw]), el.firstChild);
+      draw();
+    } });
+  AUI.more("Replace colour…", "replaceColor");
+
+  // ---------- match colour ----------
+  AUI.adj("matchColor", { t: "Match colour", c: [sl("luminance", "Luminance", 1, 200, 1, 100), sl("intensity", "Colour intensity", 0, 200, 1, 100), sl("fade", "Fade", 0, 100, 1, 0, pc)],
+    chk: [["neutralize", "Neutralise", false]], ui: function (el, st) {
+      var p = st.p, K = kit(), d = ED.doc, me = st.t.L, others = d.layers.filter(function (l) { return l !== me && l.visible !== false; });
+      var useSel = false, srcId = others.length ? others[others.length - 1].id : me.id;
+      function stats() {
+        var L = PE.findLayer(d, srcId) || me, s = L.kind === "raster" ? { canvas: L.canvas, x: L.x, y: L.y } : PE.surface(L, d), c = s.canvas;
+        var img = PE.getData(c), sel = useSel && d.sel ? PE.selFor(d, { x: s.x, y: s.y, w: c.width, h: c.height }) : null;
+        p.src = PIX.A.labStats({ data: img.data, width: img.width, height: img.height }, sel) || null;
+        if (!p.src) S3.toast("The source has no visible pixels there", "error");
+      }
+      var opts = d.layers.slice().reverse().map(function (l) { return [l.id, (l === me ? "This layer: " : "") + l.name]; });
+      el.insertBefore(h("div", { "class": "stack pe-asecin" }, [K.select("Source layer", opts, srcId, function (v) { srcId = v; stats(); st.schedule(); }),
+        K.check("Use the selection in the source", false, function (v) { useSel = v; stats(); st.schedule(); })]), el.firstChild);
+      stats();
+    } });
+  AUI.more("Match colour…", "matchColor");
+
+  // ---------- HDR toning ----------
+  var HDR = [["", "Presets…"], ["natural", "Natural", { radius: 80, strength: 0.6, detail: 40, saturation: 15, smooth: true }], ["detail", "More detail", { radius: 40, strength: 1, detail: 120, saturation: 25, smooth: true }],
+    ["surreal", "Surreal", { radius: 25, strength: 2.4, detail: 220, saturation: 45, vibrance: 20, smooth: false }], ["soft", "Soft and flat", { radius: 150, strength: 1.4, detail: 0, gamma: 1.15, saturation: 0, smooth: true }],
+    ["mono", "Monochrome grit", { radius: 30, strength: 1.6, detail: 180, saturation: -100, smooth: false }]];
+  AUI.adj("hdrToning", { t: "HDR toning", c: [sl("radius", "Radius", 1, 500, 1, 60, pxf), sl("strength", "Strength", 0.1, 4, 0.05, 0.5), sl("gamma", "Gamma", 0.1, 3, 0.01, 1), sl("exposure", "Exposure", -5, 5, 0.05, 0),
+    sl("detail", "Detail", -100, 300, 1, 30, pc), sl("shadow", "Shadow", -100, 100, 1, 0, pc), sl("highlight", "Highlight", -100, 100, 1, 0, pc), sl("vibrance", "Vibrance", -100, 100, 1, 0, pc), sl("saturation", "Saturation", -100, 100, 1, 20, pc)],
+    chk: [["smooth", "Smooth edges", true]], ui: function (el) {
+      el.insertBefore(kit().select("", HDR.map(function (x) { return [x[0], x[1]]; }), "", function (v) { var pr = HDR.filter(function (x) { return x[0] === v; })[0]; if (pr && pr[2]) { AUI.closePanel(false); AUI.openLive("hdrToning", pr[2]); } }), el.firstChild);
+    } });
+  AUI.more("HDR toning…", "hdrToning");
 
   // ---------- auto tone / contrast / colour ----------
   var AUTO = [["autoTone", "Auto tone", "Ctrl+Shift+L"], ["autoContrast", "Auto contrast", "Ctrl+Alt+Shift+L"], ["autoColor", "Auto colour", "Ctrl+Shift+B"]];

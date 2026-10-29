@@ -120,6 +120,18 @@
     var bad = 0; ["LUT_3D_SIZE 2\n0 0 0\n", "hello", "LUT_3D_SIZE 999\n", "LUT_3D_SIZE 2\nDOMAIN_MIN 1 1 1\nDOMAIN_MAX 0 0 0\n" + "0 0 0\n".repeat(8)].forEach(function (t) { try { PIX.A.parseCube(t); } catch (e) { bad++; } });
     ok(bad === 4, "bad .cube files are rejected");
     var lkb = get(run([[60, 120, 200]], "colorLookup", { look: "tealOrange", amount: 0 }), 0); ok(lkb.join() === "60,120,200", "look amount 0 is a no-op");
+
+    // replace / match colour, HDR toning
+    var rc = run([[255, 0, 0], [0, 0, 255], [250, 10, 5]], "replaceColor", { colors: ["#ff0000"], fuzz: 40, hue: 120 });
+    ok(get(rc, 0).join() === "0,255,0" && get(rc, 1).join() === "0,0,255" && get(rc, 2)[1] > 200, "replace colour shifts only the sampled colour");
+    var rcm = run([[255, 0, 0], [0, 0, 255]], "replaceColor", { colors: ["#ff0000"], fuzz: 40, showMask: true });
+    ok(get(rcm, 0)[0] === 255 && get(rcm, 1)[0] === 0, "replace colour selection preview");
+    var srcI = im([[200, 100, 100], [230, 130, 120], [180, 90, 80]]), sst = PIX.A.labStats(srcI), tgt = run([[100, 100, 100], [160, 160, 160], [130, 130, 130]], "matchColor", { src: sst }), tst = PIX.A.labStats(tgt);
+    ok(near(tst.m[0], sst.m[0], 1.5) && near(tst.m[1], sst.m[1], 1.5) && near(tst.m[2], sst.m[2], 1.5), "match colour moves mean L, a, b to the source");
+    var neu = PIX.A.labStats(run([[150, 120, 100], [170, 140, 120]], "matchColor", { neutralize: true }));
+    ok(Math.abs(neu.m[1]) < 1.5 && Math.abs(neu.m[2]) < 1.5, "match colour neutralise removes a cast");
+    var hd = run(gray(32, 32, function (x) { return x < 16 ? 30 : 230; }), "hdrToning", { strength: 2, detail: 0, saturation: 0 }, null, 32, 32);
+    ok(get(hd, 32 * 16 + 2)[0] > 30 && get(hd, 32 * 16 + 29)[0] < 230, "HDR toning compresses the range");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };

@@ -23,3 +23,6 @@ maths files, `openAdjust` calls `spec.ui`, `ED.adjKit` exposes the UI widgets, `
 | Reduce noise, dust & scratches, median, despeckle | done | Filter › Noise; median is a sliding-histogram (O(r) per pixel); dust & scratches only replaces pixels beyond the threshold; despeckle keeps edges |
 | High pass, minimum, maximum (squareness / roundness) | done | Filter › Other; min/max use van Herk/Gil-Werman running min/max (O(1) per pixel) |
 | Colour lookup (.cube 3D / 1D LUT import) | done | Image › More adjustments › Colour lookup…: load any .cube (3D up to 129³ or 1D, DOMAIN_MIN/MAX), trilinear, amount; 11 built-in looks generated in code (own names); files stay on the device for this session |
+| Replace colour | done | Image › More adjustments; pick / add (Shift keeps picking) colours on the canvas, Lab-distance fuzziness, hue / saturation / lightness, show selected area |
+| Match colour | done | Image › More adjustments; source = any layer (optionally its selection), mean/std transfer in CIE Lab, luminance, colour intensity, fade, neutralise |
+| HDR toning (single image) | done | Image › More adjustments; log-luminance base/detail split (edge-aware or soft), strength, radius, detail, gamma, exposure, shadow, highlight, vibrance, saturation, 5 presets |
