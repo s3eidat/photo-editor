@@ -116,11 +116,11 @@
     while (i < list.length) {
       var L = list[i], j = i + 1;
       while (j < list.length && list[j].clip) j++;
+      var run = list.slice(i + 1, j).filter(function (C) { return show(R, C); });
       if (show(R, L)) {
-        var run = list.slice(i + 1, j).filter(function (C) { return show(R, C); });
         if (run.length && L.kind !== "adjust" && SX.drawClip) SX.drawClip(R, tgt, L, run);
         else { drawItem(R, tgt, L); run.forEach(function (C) { drawItem(R, tgt, C); }); }
-      }
+      } else if (R.inOnly) run.forEach(function (C) { drawItem(R, tgt, C); });    // asked for a clipped layer alone: its own pixels
       i = j;
     }
   }

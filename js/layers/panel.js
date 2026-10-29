@@ -152,7 +152,7 @@
     if (L.link) badges.appendChild(h("span", { "class": "pe-llink", title: "Linked: moves with its linked layers" }, [svg("t-link")]));
     var lock = h("button", { type: "button", "class": "pe-lbtn" + (L.locked ? " lk" : ""), title: L.locked ? "Unlock layer" : "Lock layer", "aria-label": (L.locked ? "Unlock " : "Lock ") + L.name,
       onclick: function (e) { e.stopPropagation(); ED.meta(L.locked ? "Unlock layer" : "Lock layer", function () { L.locked = !L.locked; }); } }, [svg(L.locked ? "t-lock" : "t-unlock")]);
-    var rowEl = h("div", { "class": "pe-layer" + (on ? " on" : "") + (picked ? " pk" : "") + (L.visible ? "" : " off") + (L.kind === "group" ? " grp" : "") + (L.clip ? " clp" : ""), draggable: "true", tabindex: "0", role: "option",
+    var rowEl = h("div", { "class": "pe-layer" + (on ? " on" : "") + (picked ? " pk" : "") + (L.visible ? "" : " off") + (L.kind === "group" ? " grp" : "") + (L.clip ? " clp" : "") + (isBase(L, t) ? " cbase" : ""), draggable: "true", tabindex: "0", role: "option",
       "aria-selected": String(on || picked), "aria-level": String(depth + 1), "data-id": L.id }, [eye, ind, tog, clip, th, mth, h("span", { "class": "pe-lmid" }, [nm, meta(L)]), badges, lock]);
     rowEl.addEventListener("click", function (e) { pick(L, e, ED.maskEdit && L === L0); });
     rowEl.addEventListener("dblclick", function (e) { if (e.target === nm || nm.contains(e.target)) return; if (SX.openStyle && L.kind !== "adjust") SX.openStyle(L); });
@@ -170,6 +170,7 @@
     });
     return rowEl;
   }
+  function isBase(L, t) { if (L.clip) return false; var sib = SX.groupsApi.siblings(L, t), n = sib[sib.indexOf(L) + 1]; return !!(n && n.clip); }
   function where(e, el, L) { var r = el.getBoundingClientRect(), y = (e.clientY - r.top) / r.height; if (L.kind === "group" && y > 0.28 && y < 0.72) return "into"; return y < 0.5 ? "over" : "under"; }
   function clearOver() { S3.$$(".pe-layer.over, .pe-layer.under, .pe-layer.into").forEach(function (x) { x.classList.remove("over", "under", "into"); }); }
   // Click: make active. Ctrl/Cmd+click: add/remove from the picked set. Shift+click: pick the range.

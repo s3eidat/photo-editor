@@ -138,4 +138,22 @@
     }
     return dst;
   };
+  // Clipping: blend src into dst only inside `shape` (the base layer's alpha, 0..255 per pixel). dst alpha never grows
+  // past the shape: the backdrop is treated as covering the shape, composited, then scaled back by the shape.
+  PIX.clipRegion = function (dst, src, shape, mode, opacity, pos) {
+    var n = dst.length >> 2, ns = !!NONSEP[mode], T = ns ? null : lut8(mode), dis = mode === "dissolve", op = opacity / 255;
+    for (var p = 0, i = 0; p < n; p++, i += 4) {
+      var S = shape[p], sa = src[i + 3]; if (!S || !sa) continue;
+      var as = sa * op;
+      if (dis) { var rx = p % pos.w, ry = (p - rx) / pos.w; as = hash(Math.floor((pos.x0 + rx - pos.ox) / pos.sx), Math.floor((pos.y0 + ry - pos.oy) / pos.sy)) < as ? 1 : 0; }
+      if (as <= 0) continue;
+      var s01 = S / 255, ab = Math.min(1, dst[i + 3] / 255 / s01), r, g, b;
+      if (ns) { nonsepS(mode, dst[i] / 255, dst[i + 1] / 255, dst[i + 2] / 255, src[i] / 255, src[i + 1] / 255, src[i + 2] / 255); r = clamp01(OR) * 255; g = clamp01(OG) * 255; b = clamp01(OB) * 255; }
+      else { r = T[(dst[i] << 8) | src[i]]; g = T[(dst[i + 1] << 8) | src[i + 1]]; b = T[(dst[i + 2] << 8) | src[i + 2]]; }
+      var ao = as + ab * (1 - as), w1 = as * (1 - ab) / ao, w2 = as * ab / ao, w3 = ab * (1 - as) / ao;
+      dst[i] = w1 * src[i] + w2 * r + w3 * dst[i]; dst[i + 1] = w1 * src[i + 1] + w2 * g + w3 * dst[i + 1]; dst[i + 2] = w1 * src[i + 2] + w2 * b + w3 * dst[i + 2];
+      dst[i + 3] = ao * S;
+    }
+    return dst;
+  };
 })();

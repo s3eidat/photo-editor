@@ -18,3 +18,4 @@
 .pe-lfx:hover { background: var(--surface-3); }
 .pe-lfx .i, .pe-llink .i { width: 14px; height: 14px; }
 .pe-lmeta { text-transform: none; }
+.pe-layer.cbase .pe-lname { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--text-3); }
