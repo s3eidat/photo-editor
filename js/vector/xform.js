@@ -20,7 +20,7 @@
   function mapper(q) {
     if (q.mode !== "warp") return WF.homog(q.quad);
     if (q.style && q.style !== "none") {
-      var f = WF.style(q.style, q.bend, q.hd, q.vd), r = q.r;
+      var r = q.r, f = WF.style(q.style, q.bend, q.hd, q.vd, r.h / Math.max(1e-9, r.w));
       return function (u, v) { var p = f(u, v); return { x: r.x + p[0] * r.w, y: r.y + p[1] * r.h }; };
     }
     return WF.patch(q.P);

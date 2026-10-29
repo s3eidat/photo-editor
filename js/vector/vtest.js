@@ -183,3 +183,17 @@
     ok(half.data[0] === d[4], "a half-size field is scaled up to the image");
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, VX = PE.VX, WF = PE.WF;
+  VX.test("warp text", async function (ok) {
+    var d = PE.newDoc(400, 200, "w"), L = PE.newLayer("text", { text: { text: "WARPED", size: 60, color: "#000000", ax: 40, ay: 60 } }); d.layers = [L];
+    function rows() { var px = PE.cx2(PE.flatten(d)).getImageData(0, 0, 400, 200).data, top = 200, bot = 0, n = 0; for (var y = 0; y < 200; y++) for (var x = 0; x < 400; x++) if (px[(y * 400 + x) * 4 + 3] > 128) { n++; top = Math.min(top, y); bot = Math.max(bot, y); } return { top: top, bot: bot, n: n }; }
+    var a = rows(); L.text.warp = { style: "arc", bend: 0.6, hd: 0, vd: 0, vert: false }; var b = rows();
+    ok(b.n > a.n * 0.6 && b.bot - b.top > (a.bot - a.top) * 1.3, "arc warp bends the text (height " + (a.bot - a.top) + " -> " + (b.bot - b.top) + ")");
+    var arc = WF.style("arc", 0.5, 0, 0, 0.25), mid = arc(0.5, 0.5), end = arc(0, 0.5);
+    ok(VX.near(mid[0], 0.5, 1e-9) && VX.near(mid[1], 0.5, 1e-9) && end[1] > 0.5 + 0.5, "aspect-aware arc: the ends drop by more than the band height");
+    var od = await PE.openProject(new Uint8Array(await (await PE.saveProject(d)).arrayBuffer()));
+    ok(JSON.stringify(od.layers[0].text.warp) === JSON.stringify(L.text.warp), "warp round-trips");
+  });
+})();
