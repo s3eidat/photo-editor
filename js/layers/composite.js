@@ -115,12 +115,16 @@
     }
     ctx.restore();
   }
+  // A canvas's identity and version (a swapped-in canvas can carry the same version number as the old one).
+  var CID = new WeakMap(), cidN = 0;
+  function cv(c) { if (!c) return ""; var id = CID.get(c); if (!id) { id = ++cidN; CID.set(c, id); } return id + "." + PE.ver(c); }
+  SX.cv = cv;
   // Signature of everything that affects how a layer (and its members) draws.
   function sig(L, R) {
-    var o = R.opts, ov = o.over && o.over[L.id], mo = o.maskOver && o.maskOver[L.id], s = [L.id, L.kind, L.visible, L.opacity, L.blend, L.x, L.y, L.canvas ? PE.ver(L.canvas) : "",
-      L.mask ? PE.ver(L.mask.canvas) + "@" + L.mask.x + "," + L.mask.y + L.maskOn : "", JSON.stringify(L.text || L.shape || ""), o.hide === L.id,
-      ov ? PE.ver(ov.canvas) + "@" + ov.x + "," + ov.y + (ov.m || "") : "", mo ? PE.ver(mo.canvas) : "", R.inOnly ? R.inOnly(L) : ""];
-    SX.KEYS.forEach(function (k) { var v = L[k]; s.push(v && typeof v === "object" ? (k === "smart" ? (v.src ? PE.ver(v.src) : "") + JSON.stringify(v.m || "") + JSON.stringify(v.filters || "") : JSON.stringify(v)) : v); });
+    var o = R.opts, ov = o.over && o.over[L.id], mo = o.maskOver && o.maskOver[L.id], s = [L.id, L.kind, L.visible, L.opacity, L.blend, L.x, L.y, cv(L.canvas),
+      L.mask ? cv(L.mask.canvas) + "@" + L.mask.x + "," + L.mask.y + L.maskOn : "", JSON.stringify(L.text || L.shape || ""), o.hide === L.id,
+      ov ? cv(ov.canvas) + "@" + ov.x + "," + ov.y + (ov.m || "") : "", mo ? cv(mo.canvas) : "", R.inOnly ? R.inOnly(L) : ""];
+    SX.KEYS.forEach(function (k) { var v = L[k]; s.push(v && typeof v === "object" ? (k === "smart" ? cv(v.src) + JSON.stringify(v.m || "") + JSON.stringify(v.filters || "") : JSON.stringify(v)) : v); });
     if (L.kind === "group") (R.tree.kids[L.id] || []).forEach(function (k) { s.push(sig(k, R)); });
     return s.join("|");
   }

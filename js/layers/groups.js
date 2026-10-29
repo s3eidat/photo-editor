@@ -226,7 +226,7 @@
   var GC = new WeakMap();
   function sigOf(G, t) {
     return descendants(G, t).concat([G]).map(function (L) {
-      return [L.id, L.kind, L.visible, L.opacity, L.blend, L.x, L.y, L.canvas ? PE.ver(L.canvas) : "", L.mask ? PE.ver(L.mask.canvas) + "@" + L.mask.x + "," + L.mask.y + L.maskOn : "", JSON.stringify(L.text || L.shape || ""), JSON.stringify(SX.KEYS.map(function (k) { return k === "smart" ? !!L[k] : L[k]; }))].join("|");
+      return [L.id, L.kind, L.visible, L.opacity, L.blend, L.x, L.y, SX.cv(L.canvas), L.mask ? SX.cv(L.mask.canvas) + "@" + L.mask.x + "," + L.mask.y + L.maskOn : "", JSON.stringify(L.text || L.shape || ""), JSON.stringify(SX.KEYS.map(function (k) { return k === "smart" ? !!L[k] : L[k]; }))].join("|");
     }).join("\n");
   }
   PE.surfaceExt = PE.surfaceExt || {};

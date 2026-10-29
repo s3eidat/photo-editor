@@ -21,8 +21,8 @@
   PE.surfaceExt.smart = function (L) {
     var S = L.smart; if (!S || !S.src) return { canvas: PE.mk(1, 1), x: 0, y: 0 };
     var fl = (S.filters || []).filter(function (f) { return f.on !== false; }), k1 = PE.ver(S.src) + ":" + S.src.width + "x" + S.src.height + ":" + S.m.join(","), k2 = k1 + JSON.stringify(fl), hit = CACHE.get(L) || {};
-    if (hit.k2 === k2 && hit.out) return hit.out;
-    var baked = hit.k1 === k1 && hit.baked ? hit.baked : null;
+    if (hit.k2 === k2 && hit.out && hit.src === S.src) return hit.out;
+    var baked = hit.k1 === k1 && hit.baked && hit.src === S.src ? hit.baked : null;
     if (!baked) { try { baked = PE.bake(S.src, 0, 0, S.m); } catch (e) { baked = { canvas: PE.mk(1, 1), x: 0, y: 0 }; } }
     var out = baked;
     if (fl.length) {
@@ -33,7 +33,7 @@
       x.putImageData(img, 0, 0);
       out = { canvas: PE.touch(c), x: baked.x - pad, y: baked.y - pad };
     }
-    CACHE.set(L, { k1: k1, baked: baked, k2: k2, out: out });
+    CACHE.set(L, { k1: k1, baked: baked, k2: k2, out: out, src: S.src });
     return out;
   };
   function decompose(m) { var sx = Math.hypot(m[0], m[1]), det = m[0] * m[3] - m[1] * m[2]; return { rot: Math.atan2(m[1], m[0]) * 180 / Math.PI, sx: sx, sy: sx ? det / sx : 0 }; }
@@ -98,6 +98,8 @@
     P.appendChild(h("div", { "class": "pe-prow" }, [w.btn("Free transform", function () { ED.setTool("move"); ED.startTransform(); }, "ghost", "t-xf"),
       w.btn("Reset transform", function () { var c = PE.mApply(S.m, S.src.width / 2, S.src.height / 2); ED.meta("Reset transform", function () { L.smart = Object.assign({}, L.smart, { m: [1, 0, 0, 1, Math.round(c.x - S.src.width / 2), Math.round(c.y - S.src.height / 2)] }); }); }, "ghost"),
       w.btn("Rasterize", function () { ED.rasterize(L, true); }, "ghost")]));
+    P.appendChild(h("div", { "class": "pe-prow" }, [w.btn("Replace contents…", function () { SX.pickSmartContents(L); }, "ghost", null, "Swap in another image: same place, transform and filters"),
+      w.btn("Export contents", function () { SX.exportSmart(L); }, "ghost", null, "Save the source pixels as a PNG")]));
     P.appendChild(h("h3", { text: "Smart filters" }));
     var list = S.filters || [];
     if (!list.length) P.appendChild(h("p", { "class": "faint pe-p", text: "Filters added here stay editable: hide, change or remove them any time." }));
@@ -142,8 +144,38 @@
     },
     open: function (l, L, img, jobs) { L.smart = { src: PE.mk(1, 1), m: l.smart.m, filters: l.smart.filters }; jobs.push(img(l.src).then(function (c) { L.smart.src = c; L.canvas = null; })); }
   };
+  // ---------- replace / export contents ----------
+  // The new image fills the old source size (scaled to cover, centred), so the transform and filters still fit.
+  SX.replaceSmart = function (L, img) {
+    var S = L.smart, w = S.src.width, hh = S.src.height, c = PE.mk(w, hh), x = PE.cx2(c), k = Math.max(w / img.width, hh / img.height);
+    x.imageSmoothingQuality = "high"; x.drawImage(img, (w - img.width * k) / 2, (hh - img.height * k) / 2, img.width * k, img.height * k);
+    ED.meta("Replace contents", function () { L.smart = Object.assign({}, L.smart, { src: PE.touch(c) }); });
+  };
+  SX.pickSmartContents = function (L) {
+    L = L || ED.layer(); if (!L || L.kind !== "smart") return;
+    var inp = h("input", { type: "file", accept: "image/*", hidden: true });
+    inp.addEventListener("change", function () {
+      var f = inp.files && inp.files[0]; inp.remove(); if (!f) return;
+      ED.working(PE.decodeImage(f), "Opening…").then(function (im) { SX.replaceSmart(L, im.canvas); S3.toast("Contents replaced: same place, transform and filters"); }).catch(function (e) { S3.toast(e.message, "error"); });
+    });
+    document.body.appendChild(inp); inp.click();
+  };
+  SX.exportSmart = function (L) {
+    L = L || ED.layer(); if (!L || L.kind !== "smart") return;
+    PE.toBlob(L.smart.src, "image/png").then(function (b) { S3.download(b, (L.name || "contents").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 80) + ".png"); }).catch(function (e) { S3.toast(e.message, "error"); });
+  };
+  function isSmart() { var L = ED.layer(); return !!(L && L.kind === "smart"); }
   SX.menu("Layer", [["Convert to smart layer", "", SX.toSmart, function () { var L = ED.layer(); return !!(L && L.kind !== "smart" && L.kind !== "adjust"); }]], "Rasterize layer");
+  SX.menu("Layer", [["Replace smart layer contents…", "", function () { SX.pickSmartContents(); }, isSmart], ["Export smart layer contents", "", function () { SX.exportSmart(); }, isSmart]], "Convert to smart layer");
 
+  SX.tests.push(async function (ok) {
+    var a = PE.rasterFromCanvas(SX.solid(10, 10, "#ff0000"), "a", 5, 5), d = SX.scratch(30, 30, [a]); d.active = a.id;
+    SX.toSmart(); var L = ED.layer(); ED.meta("Scale", function () { L.smart = Object.assign({}, L.smart, { m: [2, 0, 0, 2, 0, 0] }); });
+    SX.replaceSmart(L, SX.solid(40, 20, "#0000ff"));
+    var f = PE.flatten(d), px = SX.px(f, 10, 10), out = SX.px(f, 25, 25);
+    ok(L.smart.src.width === 10 && px[2] === 255 && px[0] === 0 && out[3] === 0, "replace contents keeps the size and transform");
+    ED.undo(); ok(SX.px(PE.flatten(d), 10, 10)[0] === 255, "replace contents undoes");
+  });
   SX.tests.push(async function (ok, near) {
     var c = PE.mk(40, 40); PE.cx2(c).fillStyle = "#ff0000"; PE.cx2(c).fillRect(10, 10, 10, 10);
     var L = PE.rasterFromCanvas(PE.touch(c), "r"), d = SX.scratch(40, 40, [L]);
