@@ -145,6 +145,22 @@
     ok(get(ge, 55)[0] === 0, "glowing edges: flat areas go black");
     var op = run(gray(12, 12, function () { return 90; }), "oilPaint", { shine: 0, bristle: 0 }, null, 12, 12);
     ok(near(get(op, 70)[0], 90, 1), "oil paint keeps a flat area");
+
+    // distort
+    var grid = gray(8, 8, function (x, y) { return x * 30 + y; });
+    var of = run(grid, "offset", { dx: 2, dy: 1, edge: "wrap" }, null, 8, 8);
+    ok(get(of, 1 * 8 + 2)[0] === 0 && get(of, 0)[0] === 6 * 30 + 7, "offset wraps around");
+    var of2 = run(grid, "offset", { dx: 3, dy: 0, edge: "transparent" }, null, 8, 8);
+    ok(of2.data[3] === 0 && of2.data[3 * 4 + 3] === 255, "offset leaves transparency behind");
+    var tw = run(grid, "twirl", { angle: 0 }, null, 8, 8), same = true; for (i = 0; i < 64; i++) if (get(tw, i)[0] !== grid[i][0]) same = false;
+    ok(same, "twirl 0° is identity");
+    var sp0 = run(grid, "spherize", { amount: 0 }, null, 8, 8), same2 = true; for (i = 0; i < 64; i++) if (get(sp0, i)[0] !== grid[i][0]) same2 = false;
+    ok(same2, "spherize 0% is identity");
+    var shr = run(grid, "shear", { top: 0, middle: 0, bottom: 0 }, null, 8, 8); ok(get(shr, 13)[0] === grid[13][0], "shear 0 is identity");
+    var flat = new Uint8Array(8 * 8 * 2).fill(128), bs = ""; for (i = 0; i < flat.length; i++) bs += String.fromCharCode(flat[i]);
+    var dsp = run(grid, "displace", { map: { w: 8, h: 8, b64: btoa(bs) }, hScale: 50, vScale: 50 }, null, 8, 8); ok(get(dsp, 20)[0] === grid[20][0], "displace with a grey map does nothing");
+    var pol = run(gray(16, 16, function (x, y) { return y < 8 ? 0 : 250; }), "polar", { mode: "toPolar" }, null, 16, 16);
+    ok(get(pol, 8 * 16 + 8)[0] < 20 && pol.data[35] === 255 && get(pol, 8 * 16 + 1)[0] > 200, "polar: top row becomes the centre");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };
