@@ -252,3 +252,23 @@
     ok(err < 3, "rigid mode rotates the rest of the shape with the pins (error " + err.toFixed(2) + " px)");
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, VX = PE.VX, ED = PE.ed;
+  VX.test("perspective warp", function (ok) {
+    var d = PE.newDoc(300, 200, "pw"), c = PE.mk(200, 100); PE.cx2(c).fillRect(0, 0, 200, 100); PE.touch(c);
+    var L = PE.rasterFromCanvas(c, "x", 50, 50); d.layers = [L]; d.active = L.id;
+    ED.doc = d; ED.hist = new PE.History(50e6, 20); ED.testing = true;
+    VX.startPerspectiveWarp();
+    var P = VX.pwSession();
+    P.quads.push({ src: [{ x: 60, y: 60 }, { x: 240, y: 60 }, { x: 240, y: 140 }, { x: 60, y: 140 }] });
+    VX.pwPhase("warp");
+    var f = VX.pwMapper(), a = f(0.5, 0.5); ok(VX.near(a.x, 150, 1e-6) && VX.near(a.y, 100, 1e-6), "untouched planes map to themselves");
+    P.quads[0].dst = [{ x: 60, y: 60 }, { x: 240, y: 60 }, { x: 260, y: 160 }, { x: 40, y: 160 }];
+    f = VX.pwMapper(); var b = f((240 - 50) / 200, (140 - 50) / 100);
+    ok(VX.near(b.x, 260, 1e-6) && VX.near(b.y, 160, 1e-6), "a plane corner lands where it was dragged");
+    VX.pwStraighten("both"); ok(P.quads[0].dst[0].y === P.quads[0].dst[1].y && P.quads[0].dst[1].x === P.quads[0].dst[2].x, "straighten makes edges level and plumb");
+    VX.cancelPerspectiveWarp();
+    ok(!VX.pwSession(), "cancel ends the session");
+  });
+})();

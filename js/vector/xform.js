@@ -56,8 +56,11 @@
       ED.meta(label(q), function () { VX.setDocComps(L, mapComps(q.comps0, q.r, f)); });
       return;
     }
-    // pixel layers: dense mesh, resampled in the worker
-    var r = q.r, n = Math.max(16, Math.min(256, Math.ceil(Math.max(r.w, r.h) / 10))), pts = [], x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    VX.meshApply(L, q.r, f, label(q));
+  };
+  // full-size resample of a pixel layer (and its mask) through f, one undo step
+  VX.meshApply = function (L, r, f, lab) {
+    var n = Math.max(16, Math.min(256, Math.ceil(Math.max(r.w, r.h) / 10))), pts = [], x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (var j = 0; j < n; j++) for (var i = 0; i < n; i++) { var p = f(i / (n - 1), j / (n - 1)); pts.push(p); x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); }
     var lim = { x: -ED.doc.w, y: -ED.doc.h, w: ED.doc.w * 3, h: ED.doc.h * 3 }, ob = PE.inter(PE.rectI({ x: x0 - 1, y: y0 - 1, w: x1 - x0 + 2, h: y1 - y0 + 2 }), lim);
     if (!ob) { S3.toast("The result would be off the canvas", "error"); ED.changed(); return; }
@@ -65,8 +68,8 @@
     var dst = new Float32Array(n * n * 2); pts.forEach(function (p, k) { dst[k * 2] = p.x - ob.x; dst[k * 2 + 1] = p.y - ob.y; });
     var img = PE.getData(L.canvas), jobs = [VX.work("meshWarp", [{ data: img.data, width: img.width, height: img.height }, r.x - L.x, r.y - L.y, r.w, r.h, n, n, dst, ob.w, ob.h])];
     if (L.mask) { var mi = PE.getData(L.mask.canvas); jobs.push(VX.work("meshWarp", [{ data: mi.data, width: mi.width, height: mi.height }, r.x - L.mask.x, r.y - L.mask.y, r.w, r.h, n, n, new Float32Array(dst), ob.w, ob.h])); }
-    ED.working(Promise.all(jobs), label(q) + "…").then(function (res) {
-      ED.meta(label(q), function () {
+    return ED.working(Promise.all(jobs), lab + "…").then(function (res) {
+      ED.meta(lab, function () {
         L.canvas = toCanvas(res[0]); L.x = ob.x; L.y = ob.y;
         if (res[1]) L.mask = { canvas: toCanvas(res[1]), x: ob.x, y: ob.y };
       });
@@ -85,13 +88,17 @@
     if (!Q) return;
     var q = Q, L = q.L, f = mapper(q);
     if (L.kind === "shape") { VX.setDocComps(L, mapComps(q.comps0, q.r, f)); ED.render(); ED.renderOvl(); return; }
-    var n = q.mode === "warp" ? 20 : 12, G = [], x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, i, j;
+    VX.meshPreview(L, q.prev, f, q.mode === "warp" ? 20 : 12);
+  }
+  // live preview of any mapping f (unit square of the layer's rect -> document) drawn from a reduced copy src
+  VX.meshPreview = function (L, src, f, n) {
+    var G = [], x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, i, j;
     for (j = 0; j <= n; j++) for (i = 0; i <= n; i++) { var p = f(i / n, j / n); G.push(p); x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); }
     var lim = { x: -ED.doc.w, y: -ED.doc.h, w: ED.doc.w * 3, h: ED.doc.h * 3 }, ob = PE.inter(PE.rectI({ x: x0 - 2, y: y0 - 2, w: x1 - x0 + 4, h: y1 - y0 + 4 }), lim);
     if (!ob) return;
     var k = Math.min(1, 1400 / Math.max(ob.w, ob.h)), W = Math.max(1, Math.ceil(ob.w * k)), H = Math.max(1, Math.ceil(ob.h * k));
     if (!pv || pv.width !== W || pv.height !== H) pv = PE.mk(W, H);
-    var c = PE.cx2(pv), src = q.prev, sw = src.width, sh = src.height;
+    var c = PE.cx2(pv), sw = src.width, sh = src.height;
     c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H);
     function T(a, b, cc, sa, sb, sc) {      // draw source triangle (sa, sb, sc) onto dest triangle (a, b, cc), dest in preview px
       var den = (sb.x - sa.x) * (sc.y - sa.y) - (sc.x - sa.x) * (sb.y - sa.y); if (Math.abs(den) < 1e-9) return;
@@ -114,7 +121,7 @@
     ED.live.over[L.id] = { canvas: pv, x: ob.x * k, y: ob.y * k, m: [1 / k, 0, 0, 1 / k, 0, 0] };
     if (L.mask) ED.live.maskOver[L.id] = L.mask;
     ED.render(); ED.renderOvl();
-  }
+  };
   VX.qxPreview = preview;
   var pvSoon = (function () { var raf = 0; return function () { if (!raf) raf = requestAnimationFrame(function () { raf = 0; preview(); }); }; })();
 
