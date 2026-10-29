@@ -133,4 +133,26 @@
     var mid = px(s.L.canvas, 45, 20)[0]; ED.cancelDrag();
     ok(mid < 128 && px(s.L.canvas, 45, 20)[0] === 128 && ED.hist.pos === 0, "Esc mid-stroke puts the pixels back");
   });
+  PP.test("blur / sharpen / smudge", function (ok) {
+    var s = PP.scratch(80, 40, "#ffffff"), c = PE.cx2(s.L.canvas), px = PP.px;
+    c.fillStyle = "#000"; c.fillRect(39, 0, 2, 40); PE.touch(s.L.canvas);
+    Object.assign(ED.o.blurtool, { size: 20, hard: 1, op: 1 });
+    PP.drive("blurtool", [{ x: 40, y: 10 }, { x: 40, y: 14 }]);
+    var b = px(s.L.canvas, 39, 12)[0], b2 = px(s.L.canvas, 37, 12)[0];
+    ok(b > 40 && b2 < 250 && px(s.L.canvas, 39, 35)[0] === 0, "blur spreads the line where painted only (" + b + ", " + b2 + ")");
+    ED.undo();
+    Object.assign(ED.o.sharpentool, { size: 20, hard: 1, op: 1 });
+    c.fillStyle = "#808080"; c.fillRect(0, 0, 80, 40); c.fillStyle = "#a0a0a0"; c.fillRect(40, 0, 40, 40); PE.touch(s.L.canvas);
+    PP.drive("sharpentool", [{ x: 40, y: 20 }]);
+    ok(px(s.L.canvas, 38, 20)[0] < 128 && px(s.L.canvas, 41, 20)[0] > 160, "sharpen increases edge contrast");
+    ED.undo();
+    c.fillStyle = "#fff"; c.fillRect(0, 0, 80, 40); c.fillStyle = "#000"; c.fillRect(0, 0, 20, 40); PE.touch(s.L.canvas);
+    Object.assign(ED.o.smudge, { size: 12, hard: 1, op: 0.9, spacing: 6, finger: false });
+    PP.drive("smudge", [{ x: 10, y: 20 }, { x: 20, y: 20 }, { x: 30, y: 20 }, { x: 40, y: 20 }]);
+    ok(px(s.L.canvas, 30, 20)[0] < 140 && px(s.L.canvas, 30, 5)[0] === 255, "smudge drags black into the white (" + px(s.L.canvas, 30, 20)[0] + ")");
+    // transparent pixels do not darken the colour that is smudged into them
+    var s2 = PP.scratch(60, 20, "#ff0000"), c2 = PE.cx2(s2.L.canvas); c2.clearRect(30, 0, 30, 20); PE.touch(s2.L.canvas);
+    PP.drive("smudge", [{ x: 22, y: 10 }, { x: 30, y: 10 }, { x: 38, y: 10 }]);
+    var q = px(s2.L.canvas, 34, 10); ok(q[3] > 0 && q[0] > 240 && q[1] < 15, "smudge into transparency keeps the colour (" + q + ")");
+  });
 })();

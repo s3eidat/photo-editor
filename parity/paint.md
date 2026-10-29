@@ -22,3 +22,4 @@ Known-answer checks: `js/paint/tests.js` (run by `S3_SELFTEST` after the core ch
 | Fill with surroundings | done | Edit › Fill with surroundings… (Shift+Alt+Backspace): multi-scale PatchMatch + voting in a worker (`pworker.js`), expand, quality, edge colour blending, output to a new layer; big holes are solved at a lower resolution |
 | Spot healing brush | done | J (grouped with the healing brush): content-aware (fill engine + tone blend) or proximity match (best nearby patch judged on the stroke's ring, then healed) |
 | Dodge / burn / sponge | done | O group; shadows / midtones / highlights, protect tones, exposure; sponge saturate / desaturate with vibrance; Alt swaps dodge ⇄ burn; one stroke does not compound (coverage model); dodge / burn also work on masks |
+| Blur / sharpen / smudge tools | done | R group; strength; smudge with finger painting; premultiplied maths so transparent edges keep their colour; work on masks too |

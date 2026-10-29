@@ -171,5 +171,88 @@
     spec.begin = function (st, p, e) { if (e && e.altKey) st.spec = PP.spec[t === "dodge" ? "burn" : "dodge"]; return inner(st, p, e); };
   });
 
-  PP.shortcut("Retouch tools", "O dodge / burn / sponge · J spot healing / healing (Shift+key cycles)");
+  // ---------- blur / sharpen / smudge ----------
+  // premultiplied float copy of a rect of the working image
+  function grab(st, R) {
+    ensure(st, R);
+    var s = st.img.data, W = st.w, out = new Float32Array(R.w * R.h * 4);
+    for (var y = 0; y < R.h; y++) for (var x = 0; x < R.w; x++) {
+      var q = ((y + R.y) * W + x + R.x) * 4, o = (y * R.w + x) * 4, a = s[q + 3] / 255;
+      out[o] = s[q] * a; out[o + 1] = s[q + 1] * a; out[o + 2] = s[q + 2] * a; out[o + 3] = s[q + 3];
+    }
+    return out;
+  }
+  function boxPass(src, dst, w, hh, r, horiz) {
+    var n = horiz ? w : hh, m = horiz ? hh : w, k = 1 / (2 * r + 1);
+    for (var j = 0; j < m; j++) for (var c = 0; c < 4; c++) {
+      var acc = 0, i;
+      function at(t) { t = t < 0 ? 0 : t >= n ? n - 1 : t; return horiz ? src[(j * w + t) * 4 + c] : src[(t * w + j) * 4 + c]; }
+      for (i = -r; i <= r; i++) acc += at(i);
+      for (i = 0; i < n; i++) {
+        if (horiz) dst[(j * w + i) * 4 + c] = acc * k; else dst[(i * w + j) * 4 + c] = acc * k;
+        acc += at(i + r + 1) - at(i - r);
+      }
+    }
+  }
+  function blurred(src, w, hh, r) { var t = new Float32Array(src.length), o = new Float32Array(src.length); boxPass(src, t, w, hh, r, true); boxPass(t, o, w, hh, r, false); boxPass(o, t, w, hh, r, true); boxPass(t, o, w, hh, r, false); return o; }
+  function put(st, i, pr, pg, pb, pa) {
+    var s = st.img.data, q = i * 4;
+    if (pa <= 0.5) { s[q + 3] = 0; return; }
+    s[q] = pr / pa * 255; s[q + 1] = pg / pa * 255; s[q + 2] = pb / pa * 255; s[q + 3] = pa;
+  }
+  function filterDab(sharpen) {
+    return function (st, x, y, d, ang, rnd, flip, col, a) {
+      var kr = Math.max(1, Math.min(6, Math.round(d / 18))), r = d / 2 + kr * 2 + 1;
+      var R = PE.inter(PE.rectI({ x: x - r, y: y - r, w: 2 * r, h: 2 * r }), { x: 0, y: 0, w: st.w, h: st.h }); if (!R) return;
+      var src = grab(st, R), b = blurred(src, R.w, R.h, kr), k = st.strength * (sharpen ? 0.45 : 1), W = st.w;
+      dabEach(st, x, y, d, ang, rnd, a, function (i, w) {
+        var px = i % W, py = (i - px) / W, j = ((py - R.y) * R.w + px - R.x) * 4, t = w * k;
+        var v0 = src[j], v1 = src[j + 1], v2 = src[j + 2], v3 = src[j + 3], b0 = b[j], b1 = b[j + 1], b2 = b[j + 2], b3 = b[j + 3];
+        if (sharpen) { b0 = v0 + (v0 - b0) * 1.6; b1 = v1 + (v1 - b1) * 1.6; b2 = v2 + (v2 - b2) * 1.6; b3 = v3; var lim = b3; b0 = PE.clamp(b0, 0, lim); b1 = PE.clamp(b1, 0, lim); b2 = PE.clamp(b2, 0, lim); }
+        put(st, i, v0 + (b0 - v0) * t, v1 + (b1 - v1) * t, v2 + (b2 - v2) * t, v3 + (b3 - v3) * t);
+      });
+    };
+  }
+  runTool("blurtool", { label: "Blur", fill: "color", stamp: filterDab(false), sym: false }, { op: 0.5, hard: 0.4, size: 50, spacing: 25 });
+  runTool("sharpentool", { label: "Sharpen", fill: "color", stamp: filterDab(true), sym: false }, { op: 0.5, hard: 0.4, size: 50, spacing: 25 });
+  // Smudge: a "finger" picks up the colour under it and drags it along.
+  runTool("smudge", {
+    label: "Smudge", fill: "color", sym: false,
+    begin: function (st) { st.F = null; return true; },
+    stamp: function (st, x, y, d, ang, rnd, flip, col, a) {
+      var S = Math.ceil(st.o.size) + 3, half = S >> 1, ix = Math.round(x), iy = Math.round(y), W = st.w, s = st.img.data, k = st.strength;
+      if (!st.F) {       // load the finger: the pixels under the first dab (or the foreground colour)
+        ensure(st, { x: ix - half, y: iy - half, w: S, h: S });
+        st.F = new Float32Array(S * S * 4); st.FS = S;
+        var fg = st.fg;
+        for (var j = 0; j < S; j++) for (var i2 = 0; i2 < S; i2++) {
+          var px = PE.clamp(ix - half + i2, 0, W - 1), py = PE.clamp(iy - half + j, 0, st.h - 1), q = (py * W + px) * 4, f = (j * S + i2) * 4, al = s[q + 3] / 255;
+          if (st.o.finger && !st.mask) { st.F[f] = fg[0]; st.F[f + 1] = fg[1]; st.F[f + 2] = fg[2]; st.F[f + 3] = 255; }
+          else { st.F[f] = s[q] * al; st.F[f + 1] = s[q + 1] * al; st.F[f + 2] = s[q + 2] * al; st.F[f + 3] = s[q + 3]; }
+        }
+      }
+      var F = st.F, FS = st.FS, fh = FS >> 1;
+      dabEach(st, x, y, d, ang, rnd, a, function (i, w) {
+        var px2 = i % W, py2 = (i - px2) / W, fx = px2 - ix + fh, fy = py2 - iy + fh; if (fx < 0 || fy < 0 || fx >= FS || fy >= FS) return;
+        var f2 = (fy * FS + fx) * 4, q2 = i * 4, al2 = s[q2 + 3] / 255;
+        var c0 = s[q2] * al2, c1 = s[q2 + 1] * al2, c2 = s[q2 + 2] * al2, c3 = s[q2 + 3];
+        var o0 = c0 + (F[f2] - c0) * w, o1 = c1 + (F[f2 + 1] - c1) * w, o2 = c2 + (F[f2 + 2] - c2) * w, o3 = c3 + (F[f2 + 3] - c3) * w;
+        put(st, i, o0, o1, o2, o3);
+        var pick = 1 - k;      // strength 100% keeps the finger's paint; lower values pick up what is under it
+        F[f2] += (o0 - F[f2]) * pick; F[f2 + 1] += (o1 - F[f2 + 1]) * pick; F[f2 + 2] += (o2 - F[f2 + 2]) * pick; F[f2 + 3] += (o3 - F[f2 + 3]) * pick;
+      });
+    }
+  }, { op: 0.6, hard: 0.5, size: 40, spacing: 6, finger: false });
+  PP.addTool("blurtool", "Blur", "R", "sponge", ED.TOOLS.blurtool);
+  PP.addTool("sharpentool", "Sharpen", "R", "blurtool", ED.TOOLS.sharpentool);
+  PP.addTool("smudge", "Smudge", "R", "sharpentool", ED.TOOLS.smudge);
+  PP.group("R", ["blurtool", "sharpentool", "smudge"]);
+  ["blurtool", "sharpentool"].forEach(function (t) {
+    PP.optsFor[t] = function (items) { return PP.brushBar(t, items, [], t === "blurtool" ? "Softens detail where you paint; go over it again for more." : "Crisps up detail where you paint. A little goes a long way.", { opLabel: "Strength", noFlow: true, noSym: true }); };
+  });
+  PP.optsFor.smudge = function (items) {
+    var o = ED.o.smudge;
+    return PP.brushBar("smudge", items, [K.check("Finger painting", o.finger, function (v) { o.finger = v; ED.saveOpts(); })], "Drags the colour under the tip along the stroke. Finger painting starts with the foreground colour.", { opLabel: "Strength", noFlow: true, noSym: true });
+  };
+  PP.shortcut("Retouch tools", "O dodge / burn / sponge · R blur / sharpen / smudge · J spot healing / healing (Shift+key cycles)");
 })();
