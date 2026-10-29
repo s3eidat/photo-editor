@@ -69,7 +69,7 @@ maths files, `openAdjust` calls `spec.ui`, `ED.adjKit` exposes the UI widgets, `
 
 ## Skipped (and why)
 - Camera lens profiles (automatic lens correction): needs a profile database; the manual controls are there.
-- Vanishing-point planes (perspective clone / paste on drawn planes): not started.
+- Connected perspective planes, cloning / painting in perspective: not started (single-plane placement is done).
 | On-canvas handles | done | Tilt-shift (centre, angle, sharp band, fade), iris blur (centre, width, height, rotation, sharp area), field blur (drag pins, click to add, double-click to remove), radial blur / lens flare centre, spin blur and lighting centre + size ring — dragging updates the sliders and the preview |
 | Apply image | done | Image › Apply image…: source = merged or any layer, channel (RGB / R / G / B / grey / transparency), invert, 20 blend modes, opacity, scale / offset for add / subtract, preserve transparency, inside the selection |
 | Calculations | done | Image › Calculations…: two sources × channel × invert, blend mode, opacity → new selection or a new grey layer; live grey preview over the document |
@@ -78,3 +78,4 @@ maths files, `openAdjust` calls `spec.ui`, `ED.adjKit` exposes the UI widgets, `
 | Wide-angle correction | done | Filter › Wide-angle correction… (Ctrl+Alt+Shift+A): fisheye → flat (lens and view field of view, scale), wide shot → Pannini-style view (keeps verticals, squeezes edges), 360° equirectangular panorama → flat view (yaw, pitch, roll, field of view); constraint lines: trace lines that should be straight and Solve finds the lens field of view (one global lens model, not per-line warping) |
 | Elapsed time while rendering | done | Full-size renders show "… 12 s" in the busy chip |
 | Faster editor panels | done | Exposure, Vibrance, Threshold, Colour balance (Ctrl+B), Gaussian blur, Unsharp mask, Add noise, Pixelate / Mosaic and Vignette now open in this lane's engine (reduced-size preview on big layers, exact full-size result); the editor's own specs are unchanged |
+| Place in perspective (vanishing-point style) | partial | Filter › Place in perspective… (Ctrl+Alt+V): drag four corners onto a surface, a layer or the merged image is mapped onto it (inverse homography), tiling, opacity, blend mode, take on the surface's shading; perspective grid on the canvas. Not done: several connected planes, cloning / painting in perspective |

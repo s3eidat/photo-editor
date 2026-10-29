@@ -298,6 +298,12 @@
     var Wd = 400, Hd = 300, cxd = 200, cyd = 150, Dd = Math.hypot(cxd, cyd), fIn0 = Dd / (Math.PI / 2), fOut0 = Dd / Math.tan(50 * Math.PI / 180), lineF = [];
     for (var u0 = -150; u0 <= 150; u0 += 30) { var ox = u0, oy = -80, ro = Math.hypot(ox, oy), th0 = Math.atan(ro / fOut0), ri = fIn0 * th0; lineF.push([cxd + ox / ro * ri, cyd + oy / ro * ri]); }
     var solved = PIX.A.solveFisheye([lineF], Wd, Hd, 100 * Math.PI / 180, 1); ok(near(solved, 180, 6), "wide-angle constraint solve (" + solved + "°)");
+
+    // place in perspective: homography maps the square's corners onto the quad, and back
+    var QQ = [[10, 20], [90, 10], [80, 70], [20, 90]], HQ = PIX.A.squareToQuad(QQ), c2 = PIX.A.applyH(HQ.m, 1, 1), back2 = PIX.A.applyH(HQ.inv, c2[0], c2[1]);
+    ok(near(c2[0], 80, 1e-6) && near(c2[1], 70, 1e-6) && near(back2[0], 1, 1e-6) && near(back2[1], 1, 1e-6), "perspective plane homography");
+    var tg = im(gray(10, 10, function () { return 0; }), 10, 10), srcP = im(gray(2, 2, function () { return 200; }), 2, 2); PIX.A.placeOnPlane(tg, srcP, [[2, 2], [8, 2], [8, 8], [2, 8]], { opacity: 1, mode: "normal" });
+    ok(tg.data[(5 * 10 + 5) * 4] === 200 && tg.data[0] === 0, "picture placed inside the plane only");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };
