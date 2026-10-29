@@ -111,7 +111,7 @@
     if (L0) { $("#layerOp").value = Math.round(L0.opacity * 100); $("#layerOpOut").textContent = Math.round(L0.opacity * 100) + "%"; }
     SX.syncPanel();
     var G = SX.groupsApi, t = G.tree();
-    G.topFirst(t, true).forEach(function (r) { if (r.L.kind !== "qmask") list.appendChild(row(r.L, r.depth, L0, t)); });
+    G.topFirst(t, true).forEach(function (r) { if (r.L.kind !== "qmask" && r.L.kind !== "channel") list.appendChild(row(r.L, r.depth, L0, t)); });
   }
   function meta(L) {
     var parts = [];

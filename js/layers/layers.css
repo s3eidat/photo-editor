@@ -48,3 +48,7 @@
 .pe-qmbtn.on { color: #fff; background: #e5484d; box-shadow: none; }
 .pe-algroup { display: inline-flex; align-items: center; gap: 0; padding: 0 4px; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
 .pe-algroup .btn.icon { width: 30px; padding: 0; }
+.pe-chlist { max-height: 260px; min-height: 0; }
+.pe-chrow { cursor: pointer; }
+.pe-chkey { font: 700 11px var(--mono); letter-spacing: .04em; }
+.pe-ch-r { color: #e5484d; } .pe-ch-g { color: #30a46c; } .pe-ch-b { color: #3e63dd; }
