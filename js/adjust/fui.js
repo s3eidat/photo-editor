@@ -284,6 +284,24 @@
   F.other.push(["Custom…", "", function () { AUI.open("customKernel"); }, has]);
   AUI.filter("other", "HSB / HSL…", "hsbhsl", { t: "HSB / HSL", sel: [["direction", "", [["toHsx", "RGB to H, S, B/L"], ["fromHsx", "H, S, B/L to RGB"]], "toHsx"], ["model", "Model", [["hsb", "HSB"], ["hsl", "HSL"]], "hsb"]] });
 
+  // picture frame, tree
+  function seedBtn(el, st) { st.p.seed = 1; el.appendChild(ED.adjKit.btn("Randomise", function () { st.p.seed = (st.p.seed || 1) + 1; st.schedule(); }, "ghost")); }
+  AUI.filter("render", "Picture frame…", "pictureFrame", { t: "Picture frame", c: [sl("margin", "Width", 1, 40, 1, 8, pc)],
+    sel: [["style", "Style", [["mat", "Frame and mat"], ["wood", "Wood"], ["plain", "Plain border"], ["film", "Film strip"], ["instant", "Instant photo"], ["vine", "Vine"], ["scallop", "Scalloped edge"], ["rounded", "Rounded corners"]], "mat"]],
+    ui: function (el, st) {
+      st.p.color = "#3a2a1c"; st.p.color2 = "#f4efe4";
+      el.appendChild(h("div", { "class": "row pe-arow" }, [AUI.colorInput("Frame", st.p.color, function (v) { st.p.color = v; st.schedule(); }), AUI.colorInput("Mat / paper", st.p.color2, function (v) { st.p.color2 = v; st.schedule(); })]));
+      seedBtn(el, st);
+    } });
+  AUI.filter("render", "Tree…", "tree", { t: "Tree", handles: AUI.H.point("x", "y"), c: [sl("x", "Base X", 0, 100, 1, 50, pc), sl("y", "Base Y", 0, 100, 1, 96, pc), sl("size", "Size", 5, 100, 1, 45, pc),
+    sl("spread", "Branch angle", 5, 70, 1, 28, deg), sl("depth", "Branching", 3, 11, 1, 8), sl("bend", "Bend", 0, 60, 1, 15), sl("leaves", "Leaf amount", 0, 100, 1, 60, pc), sl("leafSize", "Leaf size", 5, 100, 1, 50, pc)],
+    ui: function (el, st) {
+      st.p.trunk = "#4a3424"; st.p.leaf = "#4c8c3c";
+      el.appendChild(h("div", { "class": "row pe-arow" }, [AUI.colorInput("Trunk", st.p.trunk, function (v) { st.p.trunk = v; st.schedule(); }), AUI.colorInput("Leaves", st.p.leaf, function (v) { st.p.leaf = v; st.schedule(); })]));
+      seedBtn(el, st);
+      el.appendChild(h("p", { "class": "faint pe-p", text: "Tip: draw it on a new empty layer, then move or transform it." }));
+    } });
+
   // stylize
   AUI.filter("stylize", "Emboss…", "emboss", { t: "Emboss", c: [sl("angle", "Angle", -180, 180, 1, 135, deg), sl("height", "Height", 1, 100, 1, 3, pxf), sl("amount", "Amount", 1, 500, 1, 100, pc)], chk: [["color", "Keep colours", false]] });
   AUI.filter("stylize", "Extrude…", "extrude", { t: "Extrude", c: [sl("size", "Size", 2, 255, 1, 30, pxf), sl("depth", "Depth", 1, 255, 1, 30)],

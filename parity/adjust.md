@@ -69,7 +69,8 @@ maths files, `openAdjust` calls `spec.ui`, `ED.adjKit` exposes the UI widgets, `
 ## Skipped (and why)
 - Camera lens profiles (automatic lens correction): needs a profile database; the manual controls are there.
 - Adaptive wide angle, vanishing point: need interactive constraint/plane editing on the canvas (not started).
-- Path blur, flame / tree / picture frame render filters: need drawn paths (vector lane) — not started.
+- Path blur, flame render filter: need drawn paths (vector lane) — not started.
 | On-canvas handles | done | Tilt-shift (centre, angle, sharp band, fade), iris blur (centre, width, height, rotation, sharp area), field blur (drag pins, click to add, double-click to remove), radial blur / lens flare centre, spin blur and lighting centre + size ring — dragging updates the sliders and the preview |
 | Apply image | done | Image › Apply image…: source = merged or any layer, channel (RGB / R / G / B / grey / transparency), invert, 20 blend modes, opacity, scale / offset for add / subtract, preserve transparency, inside the selection |
 | Calculations | done | Image › Calculations…: two sources × channel × invert, blend mode, opacity → new selection or a new grey layer; live grey preview over the document |
+| Picture frame, tree | done | Filter › Render; 8 frame styles (frame and mat, wood, plain, film strip, instant photo, vine, scalloped, rounded) with colours and width; procedural tree (base point with handle, size, branch angle, branching depth, bend, leaves, colours, randomise) |

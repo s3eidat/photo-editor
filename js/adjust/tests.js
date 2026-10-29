@@ -273,6 +273,13 @@
 
     var gs = get(run([[200, 100, 50]], "gallery", { effect: "grain", intensity: 0, contrast: 50, stack: [{ effect: "chrome", on: false }, { effect: "grain", intensity: 0, contrast: 50 }], cur: 1 }), 0);
     ok(gs.join() === "200,100,50", "gallery effect layers: hidden layers are skipped (" + gs + ")");
+
+    // picture frame / tree
+    var pf3 = run(gray(40, 30, function () { return 128; }), "pictureFrame", { style: "plain", margin: 10, color: "#ff0000" }, null, 40, 30);
+    ok(get(pf3, 0).join() === "255,0,0" && get(pf3, 15 * 40 + 20).join() === "128,128,128", "picture frame: border outside, image inside");
+    var tr = run(gray(60, 60, function () { return 255; }), "tree", { x: 50, y: 95, size: 80, leaves: 0, trunk: "#000000" }, null, 60, 60), dark = 0;
+    for (i = 0; i < 3600; i++) if (get(tr, i)[0] < 128) dark++;
+    ok(dark > 20 && get(tr, 0)[0] === 255, "tree draws branches (" + dark + " px)");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };
