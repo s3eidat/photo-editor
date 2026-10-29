@@ -92,6 +92,24 @@
     }
   });
 
+  // Ctrl+click RGB / Red / Green / Blue: the picture's brightness (or one colour) as a selection (luminosity masks).
+  SX.channelMask = function (doc, which) {
+    var f = PE.flatten(doc), p = PE.getData(f).data, n = doc.w * doc.h, m = new Uint8Array(n), ci = { r: 0, g: 1, b: 2 }[which];
+    for (var i = 0, j = 0; i < n; i++, j += 4) { var v = ci == null ? p[j] * 0.299 + p[j + 1] * 0.587 + p[j + 2] * 0.114 : p[j + ci]; m[i] = Math.round(v * p[j + 3] / 255); }
+    return m;
+  };
+  SX.loadChannelSel = function (which, op) {
+    if (!SX.need()) return;
+    var d = ED.doc, m = SX.channelMask(d, which);
+    if (!PE.makeSel(d, m)) { S3.toast("That channel is black everywhere: nothing to select", "error"); return; }
+    ED.setSelection(m, d.sel ? (op || "new") : "new", which ? "Load channel" : "Load luminosity");
+  };
+  function opOf(e) { return e.shiftKey && e.altKey ? "intersect" : e.shiftKey ? "add" : e.altKey ? "subtract" : "new"; }
+  (ED.ui.keys = ED.ui.keys || []).push(function (e) {
+    if (!(e.ctrlKey || e.metaKey) || !e.altKey || e.shiftKey || e.code !== "Digit2" || !ED.doc) return false;
+    e.preventDefault(); SX.loadChannelSel(null, "new"); return true;
+  });
+
   // ---------- panel ----------
   var box = null;
   function render() {
@@ -106,9 +124,9 @@
       return r;
     }
     var comp = L0 && L0.kind === "channel" ? null : view;
-    box.appendChild(row("RGB", h("span", { "class": "pe-kthumb pe-chkey", text: "RGB" }), !comp && !(L0 && L0.kind === "channel"), function () { view = null; if (L0 && L0.kind === "channel") { var top = d.layers.filter(function (o) { return o.kind !== "channel" && o.kind !== "qmask"; }).pop(); if (top) ED.setActive(top.id); } render(); ED.renderOvl(); }));
+    box.appendChild(row("RGB", h("span", { "class": "pe-kthumb pe-chkey", text: "RGB", title: "Ctrl+click: brightness as a selection" }), !comp && !(L0 && L0.kind === "channel"), function (e) { if (e && (e.ctrlKey || e.metaKey)) { SX.loadChannelSel(null, opOf(e)); return; } view = null; if (L0 && L0.kind === "channel") { var top = d.layers.filter(function (o) { return o.kind !== "channel" && o.kind !== "qmask"; }).pop(); if (top) ED.setActive(top.id); } render(); ED.renderOvl(); }));
     [["r", "Red"], ["g", "Green"], ["b", "Blue"]].forEach(function (c) {
-      box.appendChild(row(c[1], h("span", { "class": "pe-kthumb pe-chkey pe-ch-" + c[0], text: c[0].toUpperCase() }), comp === c[0], function () { view = view === c[0] ? null : c[0]; if (L0 && L0.kind === "channel") { var top = d.layers.filter(function (o) { return o.kind !== "channel" && o.kind !== "qmask"; }).pop(); if (top) ED.setActive(top.id); } render(); ED.renderOvl(); }));
+      box.appendChild(row(c[1], h("span", { "class": "pe-kthumb pe-chkey pe-ch-" + c[0], text: c[0].toUpperCase(), title: "Ctrl+click: this colour as a selection" }), comp === c[0], function (e) { if (e && (e.ctrlKey || e.metaKey)) { SX.loadChannelSel(c[0], opOf(e)); return; } view = view === c[0] ? null : c[0]; if (L0 && L0.kind === "channel") { var top = d.layers.filter(function (o) { return o.kind !== "channel" && o.kind !== "qmask"; }).pop(); if (top) ED.setActive(top.id); } render(); ED.renderOvl(); }));
     });
     chans(d).forEach(function (L) {
       var th = h("button", { type: "button", "class": "pe-tb", title: "Ctrl+click: load as selection (Shift adds, Alt subtracts)", "aria-label": "Channel thumbnail",
@@ -161,6 +179,11 @@
   }
   SX.menu("Select", ["-", ["Save selection…", "", saveDialog, SX.hasSel], ["Load selection…", "", loadDialog, function () { return chans().length > 0; }]]);
 
+  SX.tests.push(async function (ok, near) {
+    var c = PE.mk(3, 1), x = PE.cx2(c); x.fillStyle = "#ffffff"; x.fillRect(0, 0, 1, 1); x.fillStyle = "#808080"; x.fillRect(1, 0, 1, 1); x.fillStyle = "#ff0000"; x.fillRect(2, 0, 1, 1);
+    var d = SX.scratch(3, 1, [PE.rasterFromCanvas(PE.touch(c), "px")]), lum = SX.channelMask(d, null), red = SX.channelMask(d, "r");
+    ok(lum[0] === 255 && near(lum[1], 128, 1) && near(lum[2], 76, 1) && red[2] === 255 && near(red[1], 128, 1), "brightness / colour channel as a selection");
+  });
   SX.tests.push(async function (ok) {
     var d = SX.scratch(20, 10, [PE.rasterFromCanvas(SX.solid(20, 10, "#fff"), "bg")]);
     d.sel = PE.makeSel(d, PIX.rectMask(20, 10, 0, 0, 5, 10));
