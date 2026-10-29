@@ -11,6 +11,7 @@
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function sx() { return PE.sx || null; }
   function WS() { return PE.ws || {}; }                       // selection lane (groups, clipping, fill opacity, 27 blend modes)
+  function locksOn() { var S = sx(); return !!(S && S.KEYS && S.KEYS.indexOf("lockA") >= 0); }     // the selection lane's partial locks
   function groupsOn() { var S = sx(); return !!(S && S.tree && (PE.kindsExt || []).indexOf("group") >= 0); }
 
   // ---------- running ag-psd ----------
@@ -361,6 +362,7 @@
       var L = PE.newLayer(kind, o);
       if (S && c.fillOpacity != null && c.fillOpacity < 1) L.fillOp = clamp(c.fillOpacity, 0, 1);
       if (S && c.clipping) L.clip = true;
+      var pr = c.protected; if (pr && !L.locked && locksOn()) { if (pr.transparency) L.lockA = true; if (pr.composite) L.lockP = true; if (pr.position) L.lockM = true; }
       return L;
     }
     function kindOn(k) { return (PE.kindsExt || []).indexOf(k) >= 0; }
@@ -481,6 +483,7 @@
     function one(L) {
       var c = { id: nextId++, name: L.name, hidden: !L.visible, opacity: clamp(L.opacity, 0, 1), blendMode: blendOut(L.blend) };
       if (L.locked) c.protected = { transparency: true, composite: true, position: true };
+      else if (L.lockA || L.lockP || L.lockM) c.protected = { transparency: !!L.lockA, composite: !!L.lockP, position: !!L.lockM };
       if (L.fillOp != null && L.fillOp < 1) c.fillOpacity = L.fillOp;
       if (L.clip) c.clipping = true;
       if (L.kind === "group") { c.opened = L.open !== false; c.children = (kids[L.id] || []).map(one); if (c.blendMode === "normal" && L.blend === "pass") c.blendMode = "pass through"; decorate(L, c); remember(L, c); return c; }
@@ -573,6 +576,11 @@
     var c16 = to8({ data: new Uint16Array([0, 65535, 32896, 65535]), width: 1, height: 1 }); ok(c16.data[0] === 0 && c16.data[1] === 255 && c16.data[2] === 128, "psd 16-bit -> 8-bit");
     // blend names
     ok(blendOut("color-burn") === "color burn" && blendIn("multiply") === "multiply" && blendIn("bogus mode") === "normal", "psd blend names");
+    if (locksOn()) {      // partial locks <-> PSD's per-flag protection (checked without the XMP copy)
+      var ld = PE.newDoc(4, 4, "l"), lL = PE.rasterFromCanvas(solid(4, 4, "#ff0000"), "a"); lL.lockA = true; lL.lockM = true; ld.layers = [lL];
+      var lp = P.fromDoc(ld).children[0].protected, lb = P.toDoc({ width: 4, height: 4, children: [{ name: "a", left: 0, top: 0, imageData: FX.imageData(solid(4, 4, "#ff0000")), protected: { transparency: true, composite: false, position: true } }] }, "l").doc.layers[0];
+      ok(lp && lp.transparency && !lp.composite && lp.position && lb.lockA && !lb.lockP && lb.lockM && !lb.locked, "psd partial layer locks");
+    }
 
     // text geometry: settings -> point text -> settings
     var T0 = { text: "Hello\nWorld", font: "Inter", size: 40, weight: 700, italic: true, color: "#123456", align: "center", dir: "auto", lh: 1.3, ax: 120, ay: 60, rot: 25, flipX: false };
