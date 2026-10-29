@@ -85,6 +85,19 @@
     sel: [["light", "Light", [["spot", "Spot"], ["point", "Point"], ["infinite", "Infinite"]], "spot"]],
     ui: function (el, st) { st.p.color = "#ffffff"; el.insertBefore(AUI.colorInput("Light colour", "#ffffff", function (v) { st.p.color = v; st.schedule(); }), el.firstChild); placeBtn(el, st, "x", "y", "Place the light"); } });
 
+  // pixelate
+  AUI.filter("pixelate", "Colour halftone…", "colorHalftone", { t: "Colour halftone", c: [sl("radius", "Max. radius", 4, 127, 1, 8, pxf), sl("a1", "Screen angle: cyan", -360, 360, 1, 108, deg), sl("a2", "Screen angle: magenta", -360, 360, 1, 162, deg),
+    sl("a3", "Screen angle: yellow", -360, 360, 1, 90, deg), sl("a4", "Screen angle: black", -360, 360, 1, 45, deg)], chk: [["black", "Black screen (grey component)", true]] });
+  AUI.filter("pixelate", "Crystallize…", "crystallize", { t: "Crystallize", c: [sl("size", "Cell size", 3, 300, 1, 10, pxf)] });
+  AUI.filter("pixelate", "Facet", "facet", null);
+  AUI.filter("pixelate", "Fragment", "fragment", null);
+  AUI.filter("pixelate", "Halftone pattern…", "halftonePattern", { t: "Halftone pattern", c: [sl("size", "Size", 1, 12, 1, 4), sl("contrast", "Contrast", 0, 50, 1, 5)],
+    sel: [["pattern", "Pattern", [["dot", "Dots"], ["circle", "Circles"], ["line", "Lines"]], "dot"]], ui: function (el, st) { st.p.fg = ED.doc.fg; st.p.bg = ED.doc.bg; el.appendChild(h("p", { "class": "faint pe-p", text: "Uses the foreground and background colours." })); } });
+  AUI.filter("pixelate", "Mezzotint…", "mezzotint", { t: "Mezzotint", sel: [["type", "Type", [["fineDots", "Fine dots"], ["medDots", "Medium dots"], ["grainyDots", "Grainy dots"], ["coarseDots", "Coarse dots"],
+    ["shortLines", "Short lines"], ["medLines", "Medium lines"], ["longLines", "Long lines"], ["shortStrokes", "Short strokes"], ["medStrokes", "Medium strokes"], ["longStrokes", "Long strokes"]], "medDots"]] });
+  F.pixelate.push(["Mosaic…", "", function () { ED.ui.openAdjust("pixelate"); }, has]);
+  AUI.filter("pixelate", "Pointillize…", "pointillize", { t: "Pointillize", c: [sl("size", "Cell size", 3, 300, 1, 6, pxf)], ui: function (el, st) { st.p.bg = ED.doc.bg; el.appendChild(h("p", { "class": "faint pe-p", text: "Gaps show the background colour." })); } });
+
   // stylize
   AUI.filter("stylize", "Emboss…", "emboss", { t: "Emboss", c: [sl("angle", "Angle", -180, 180, 1, 135, deg), sl("height", "Height", 1, 100, 1, 3, pxf), sl("amount", "Amount", 1, 500, 1, 100, pc)], chk: [["color", "Keep colours", false]] });
   AUI.filter("stylize", "Find edges", "findEdges", null);

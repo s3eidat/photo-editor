@@ -171,6 +171,16 @@
     var dcl = run(gray(4, 4, function () { return 255; }), "differenceClouds", { fg: "#000000", bg: "#000000" }, null, 4, 4); ok(get(dcl, 5)[0] === 255, "difference clouds with black is a no-op");
     var lf = run(gray(20, 20, function () { return 40; }), "lensFlare", { x: 50, y: 50 }, null, 20, 20); ok(get(lf, 210)[0] > 200 && get(lf, 0)[0] >= 40, "lens flare brightens the centre, never darkens");
     var li = run(gray(10, 10, function () { return 200; }), "lighting", { light: "infinite", intensity: 0, ambient: 50, bump: 0 }, null, 10, 10); ok(near(get(li, 55)[0], 100, 1), "lighting: ambient only scales the colour");
+
+    // pixelate
+    var chw = run(gray(16, 16, function () { return 255; }), "colorHalftone", { radius: 4 }, null, 16, 16), chb = run(gray(16, 16, function () { return 0; }), "colorHalftone", { radius: 4 }, null, 16, 16);
+    ok(get(chw, 100).join() === "255,255,255" && get(chb, 100).join() === "0,0,0", "colour halftone: white stays white, black stays black");
+    var cry = run(gray(20, 20, function () { return 99; }), "crystallize", { size: 5 }, null, 20, 20); ok(get(cry, 210)[0] === 99, "crystallize keeps a flat colour");
+    var cry2 = run(gray(20, 20, function (x) { return x * 12; }), "crystallize", { size: 6 }, null, 20, 20), seen = {}; for (i = 0; i < 400; i++) seen[get(cry2, i)[0]] = 1;
+    ok(Object.keys(seen).length < 40, "crystallize makes flat cells");
+    var mz = run(gray(8, 8, function () { return 255; }), "mezzotint", {}, null, 8, 8), mz0 = run(gray(8, 8, function () { return 0; }), "mezzotint", {}, null, 8, 8);
+    ok(get(mz, 30)[0] === 255 && get(mz0, 30)[0] === 0, "mezzotint keeps white and black");
+    var fr = run(gray(12, 12, function () { return 40; }), "fragment", {}, null, 12, 12); ok(get(fr, 70)[0] === 40, "fragment keeps a flat colour");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };

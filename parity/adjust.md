@@ -33,3 +33,5 @@ maths files, `openAdjust` calls `spec.ui`, `ED.adjKit` exposes the UI widgets, `
 | Clouds, difference clouds, fibers | done | Filter › Render; fractal value noise between foreground and background colours, cloud size, randomise; laid out in full-size pixels so previews match |
 | Lens flare | done | Filter › Render; zoom / prime / wide movie lens, brightness, centre (sliders or click on the image) — glow, rays, halo, ghosts (own design) |
 | Lighting effects | done | Filter › Render; one spot / point / infinite light, colour, intensity, position (or click), height, spread, focus, ambience, gloss, metallic, bump from brightness (Phong). Several lights at once: not yet |
+| Colour halftone, halftone pattern (dots / circles / lines) | done | Filter › Pixelate; CMY + K screens at four angles, antialiased dots; pattern in foreground/background colours |
+| Mosaic, crystallize, pointillize, mezzotint (10 types), facet, fragment | done | Filter › Pixelate; mosaic = the editor's own Pixelate; crystallize/pointillize on a jittered-grid Voronoi |
