@@ -225,7 +225,7 @@
     if (hit && hit.sig === sig) return hit.s;
     var c = PE.mk(doc.w, doc.h), x = PE.cx2(c);
     SX.renderInto(x, doc, function () { return t.kids[G.id] || []; }, {});
-    if (G.mask && G.maskOn) { x.globalCompositeOperation = "destination-in"; x.drawImage(G.mask.canvas, G.mask.x, G.mask.y); x.globalCompositeOperation = "source-over"; }
+    if (G.mask && G.maskOn) { var gm = SX.effMask ? SX.effMask(G, G.mask) : G.mask; x.globalCompositeOperation = "destination-in"; x.drawImage(gm.canvas, gm.x, gm.y); x.globalCompositeOperation = "source-over"; }
     var s = { canvas: PE.touch(c), x: 0, y: 0 };
     GC.set(G, { sig: sig, s: s });
     return s;

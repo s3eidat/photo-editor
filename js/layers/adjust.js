@@ -67,7 +67,7 @@
     return WHITE.get(mask.canvas) === PE.ver(mask.canvas) && mask.x <= 0 && mask.y <= 0 && mask.x + mask.canvas.width >= doc.w && mask.y + mask.canvas.height >= doc.h;
   }
   function weights(R, L, reg) {      // mask x opacity at device resolution, or null when it is all 255
-    var mask = L.mask && L.maskOn ? (R.opts.maskOver && R.opts.maskOver[L.id]) || L.mask : null, op = PE.clamp(L.opacity, 0, 1), n = reg.w * reg.h;
+    var mask = L.mask && L.maskOn ? SX.effMask(L, (R.opts.maskOver && R.opts.maskOver[L.id]) || L.mask) : null, op = PE.clamp(L.opacity, 0, 1), n = reg.w * reg.h;
     if (mask && opaque(mask, R.doc)) mask = null;
     if (!mask && op >= 1) return null;
     var w = new Uint8Array(n);
@@ -124,10 +124,10 @@
 
   // ---------- Properties ----------
   var pBefore = null, pT = 0;
-  function edit(L, fn) {
+  function edit(L, fn, label) {     // live change; one history entry once the slider rests (label defaults to the adjustment's)
     if (!pBefore) pBefore = PE.snap(ED.doc);
     fn(); ED.render();
-    clearTimeout(pT); pT = setTimeout(function () { var b = pBefore; pBefore = null; ED.push(PE.metaEntry(L.adj.op === "fill" ? "Fill layer" : title(L.adj.op), ED.doc, b)); }, 450);
+    clearTimeout(pT); pT = setTimeout(function () { var b = pBefore; pBefore = null; ED.push(PE.metaEntry(label || (L.adj.op === "fill" ? "Fill layer" : title(L.adj.op)), ED.doc, b)); }, 450);
   }
   SX.liveEdit = edit;
   function histBelow(L) { var c = PE.flatten(ED.doc, { hide: L.id, scale: Math.min(1, 512 / Math.max(ED.doc.w, ED.doc.h)) }); return PIX.histogram(PE.getData(c)); }

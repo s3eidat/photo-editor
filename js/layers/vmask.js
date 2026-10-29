@@ -145,7 +145,7 @@
     P.appendChild(h("p", { "class": "faint pe-p", text: V.paths.length + " path" + (V.paths.length === 1 ? "" : "s") + ". Stays sharp at any size and moves / transforms with the layer." }));
     P.appendChild(h("div", { "class": "pe-prow" }, [w.check("Enabled", V.on !== false, function (v) { ED.meta(v ? "Enable vector mask" : "Disable vector mask", function () { L.vmask = Object.assign({}, L.vmask, { on: v }); }); }),
       w.check("Invert", !!V.invert, function (v) { ED.meta("Invert vector mask", function () { L.vmask = Object.assign({}, L.vmask, { invert: v }); }); })]));
-    P.appendChild(w.range("Feather", V.feather || 0, 0, 250, 0.5, function (v) { SX.liveEdit({ adj: { op: "fill" } }, function () { L.vmask = Object.assign({}, L.vmask, { feather: v }); }); }, function (v) { return v + " px"; }));
+    P.appendChild(w.range("Feather", V.feather || 0, 0, 250, 0.5, function (v) { SX.liveEdit(L, function () { L.vmask = Object.assign({}, L.vmask, { feather: v }); }, "Vector mask feather"); }, function (v) { return v + " px"; }));
     P.appendChild(h("div", { "class": "pe-prow" }, [w.btn("To pixel mask", function () { SX.vmaskToPixels(L); }, "ghost"), w.btn("Delete", function () { SX.deleteVmask(L); }, "ghost")]));
   }
   ED.ui.propsKind = function (P, L) { var r = props0 ? props0(P, L) : false; if (r && L.vmask) vmBlock(P, L); return r; };

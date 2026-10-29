@@ -11,6 +11,7 @@
     if (o) { SX.compositeDoc(R, buf, { img: o.canvas, x: o.x, y: o.y, m: o.m }, "normal", 1); return; }
     SX.renderList(R, buf, kids);
     var mask = G.mask && G.maskOn ? (R.opts.maskOver && R.opts.maskOver[G.id]) || G.mask : null;
+    if (mask && SX.effMask) mask = SX.effMask(G, mask);
     if (mask) { var c = buf.c; c.save(); SX.setT(c, buf, R.M); c.globalCompositeOperation = "destination-in"; c.drawImage(mask.canvas, mask.x, mask.y); c.restore(); }
   }
   SX.groupInto = groupInto;

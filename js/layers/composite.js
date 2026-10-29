@@ -16,7 +16,7 @@
     for (var i = 0; i < doc.layers.length; i++) {
       var L = doc.layers[i];
       if (L.clip || L.kind === "adjust" || L.blendIf || (!NATIVE[L.blend] && L.blend !== "pass") || (SX.pixelKinds && SX.pixelKinds[L.kind])) return 2;
-      if (!BASIC[L.kind] || L.parent || L.fx || L.vmask || (L.fillOp != null && L.fillOp < 1)) r = 1;
+      if (!BASIC[L.kind] || L.parent || L.fx || L.vmask || (L.fillOp != null && L.fillOp < 1) || (SX.maskTweaked && SX.maskTweaked(L))) r = 1;
     }
     return r;
   }
@@ -184,6 +184,7 @@
     var opts = R.opts, s = (opts.over && opts.over[L.id]) || PE.surface(L, R.doc);
     if (!s || !s.canvas) return null;
     var mask = L.mask && L.maskOn ? ((opts.maskOver && opts.maskOver[L.id]) || L.mask) : null;
+    if (mask && SX.effMask) mask = SX.effMask(L, mask);
     var P = { img: mask ? masked(L, s, mask) : s.canvas, x: s.x, y: s.y, m: s.m, alpha: SX.fillOf(L) };
     for (var i = 0; i < SX.prepExt.length; i++) P = SX.prepExt[i](R, L, P, o || {}) || P;
     return P;
