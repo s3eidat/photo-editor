@@ -27,6 +27,14 @@
     ok(get(bw, 0).join() === "0,0,0" && get(bw, 1)[0] > 250, "black stays black");
     var hi = run([[230, 230, 230]], "shadowsHighlights", { sAmt: 0, hAmt: 60, hTone: 60, hRad: 0 });
     ok(get(hi, 0)[0] < 222, "highlights recover a bright grey (" + get(hi, 0)[0] + ")");
+
+    // fade: half of an inverted grey, multiply mode, and the old selection limits it
+    function cv(px, w) { var c = PE.mk(w, 1), x = c.getContext("2d"), d = x.createImageData(w, 1); px.forEach(function (q, i) { d.data.set([q[0], q[1], q[2], 255], i * 4); }); x.putImageData(d, 0, 0); return c; }
+    function cpx(c, i) { return Array.prototype.slice.call(c.getContext("2d").getImageData(i, 0, 1, 1).data, 0, 3); }
+    var fb = cv([[200, 100, 0], [200, 100, 0]], 2), fa = cv([[55, 155, 255], [55, 155, 255]], 2);
+    var f1 = PE.adjUI.fadeMix(fb, fa, 0.5, "source-over", null), f2 = PE.adjUI.fadeMix(fb, fa, 1, "multiply", new Uint8Array([255, 0]));
+    ok(near(cpx(f1, 0)[0], 128, 1) && near(cpx(f1, 0)[2], 128, 1), "fade 50% normal");
+    ok(near(cpx(f2, 0)[0], 43, 1) && near(cpx(f2, 0)[1], 61, 1) && cpx(f2, 1).join() === "200,100,0", "fade multiply inside the old selection only");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };

@@ -5,8 +5,9 @@
   var PE = window.PE, PIX = window.PIX, ED = PE.ed, h = S3.h, $ = S3.$;
   var AUI = PE.adjUI = {};
   function kit() { return ED.adjKit; }
+  var pc = function (v) { return v + "%"; }, pxf = function (v) { return v + " px"; };
   function has() { return !!ED.doc; }
-  AUI.has = has;
+  AUI.has = has; AUI.pc = pc; AUI.pxf = pxf;
 
   // ---------- registering adjustments (shown in the floating live-preview panel) ----------
   AUI.adj = function (op, spec) { ED.ADJ[op] = spec; return spec; };
@@ -88,11 +89,103 @@
     }
   }, true);
 
+  // ---------- this lane's own floating panels (same look as the adjustment panel, for non-worker previews) ----------
+  var panel = null;
+  AUI.panel = function (title, build, onOk, onCancel) {
+    if (ED.ui.floatState()) ED.ui.closeFloat(false);
+    AUI.closePanel(false);
+    var box = $("#float"), body = h("div", { "class": "pe-fbody" });
+    box.textContent = ""; box.hidden = false; ED.modal = true; ED.cancelModes();
+    box.appendChild(h("div", { "class": "row between pe-fhead" }, [h("b", { text: title }), h("span", { "class": "faint pe-fbusy" })]));
+    box.appendChild(body);
+    var K = kit();
+    box.appendChild(h("div", { "class": "row pe-ffoot" }, [h("span", { "class": "grow" }), K.btn("Cancel", function () { AUI.closePanel(false); }, "ghost"), K.btn("OK", function () { AUI.closePanel(true); }, "primary")]));
+    panel = { onOk: onOk, onCancel: onCancel };
+    AUI.panelKeys = function (e) {
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); AUI.closePanel(false); return; }
+      if (e.key === "Enter" && !(e.target && (e.target.tagName === "BUTTON" || e.target.tagName === "SELECT"))) { e.preventDefault(); e.stopPropagation(); AUI.closePanel(true); return; }
+      if (!ED.isTyping(e) && e.key !== "Tab") e.stopPropagation();     // no tool shortcuts while the panel is open
+    };
+    build(body);
+  };
+  AUI.closePanel = function (ok) {
+    var pn = panel; if (!pn) return;
+    panel = null; AUI.panelKeys = null; ED.modal = false;
+    var box = $("#float"); box.hidden = true; box.textContent = "";
+    try { if (ok) pn.onOk(); else if (pn.onCancel) pn.onCancel(); } finally { ED.render(); }
+  };
+  document.addEventListener("click", function (e) { if (panel && e.target.closest && e.target.closest("#menus")) AUI.closePanel(false); }, true);
+
+  // ---------- fade the last adjustment or filter ----------
+  // Every adjustment / filter commit is recorded (which layer, its pixels before and after, the selection then);
+  // Fade mixes the two with an opacity and a blend mode as one more history step, while it is still the last step.
+  var last = null, meta0 = ED.meta;
+  ED.meta = function (label, fn) {
+    var d = ED.doc, refs = d ? d.layers.map(function (L) { return L.canvas; }) : [], sel = d && d.sel;
+    var r = meta0.apply(this, arguments);
+    if (d && ED.doc === d && AUI.isFilterLabel(label)) {
+      var ch = d.layers.filter(function (L, i) { return L.kind === "raster" && refs[i] && L.canvas !== refs[i] && L.canvas.width === refs[i].width && L.canvas.height === refs[i].height; });
+      var L = ch.length === 1 ? ch[0] : null, i0 = L ? d.layers.indexOf(L) : -1;
+      last = L ? { doc: d, L: L, before: refs[i0], after: L.canvas, label: label, entry: ED.hist.list[ED.hist.pos - 1],
+        sel: sel ? PE.selFor({ sel: sel }, { x: L.x, y: L.y, w: L.canvas.width, h: L.canvas.height }) : null } : null;
+    }
+    return r;
+  };
+  function canFade() { return !!(last && ED.doc === last.doc && ED.hist && ED.hist.pos > 0 && ED.hist.list[ED.hist.pos - 1] === last.entry && last.L.canvas === last.after && !ED.busy); }
+  AUI.canFade = canFade;
+  var FADE_MODES = [["source-over", "Normal"], ["multiply", "Multiply"], ["screen", "Screen"], ["overlay", "Overlay"], ["darken", "Darken"], ["lighten", "Lighten"],
+    ["color-dodge", "Colour dodge"], ["color-burn", "Colour burn"], ["hard-light", "Hard light"], ["soft-light", "Soft light"], ["difference", "Difference"],
+    ["exclusion", "Exclusion"], ["hue", "Hue"], ["saturation", "Saturation"], ["color", "Colour"], ["luminosity", "Luminosity"]];
+  // Mix: before, then after drawn over it with opacity + mode; outside the old selection the result goes back to before.
+  AUI.fadeMix = function (before, after, op, mode, sel, into) {
+    var w = before.width, hh = before.height, c = into || PE.mk(w, hh), x = c.getContext("2d");
+    op = PE.clamp(op, 0, 1);
+    if (!mode || mode === "source-over") {      // exact straight-alpha mix: before + (after - before) * opacity * selection
+      var B0 = PE.getData(before), A0 = PE.getData(after), bd = B0.data, ad = A0.data;
+      for (var j = 0, p0 = 0; j < bd.length; j += 4, p0++) {
+        var kk = sel ? op * sel[p0] / 255 : op; if (!kk) continue;
+        for (var q0 = 0; q0 < 4; q0++) bd[j + q0] = bd[j + q0] + (ad[j + q0] - bd[j + q0]) * kk;
+      }
+      x.putImageData(B0, 0, 0);
+      return PE.touch(c);
+    }
+    x.save(); x.globalCompositeOperation = "copy"; x.globalAlpha = 1; x.drawImage(before, 0, 0); x.restore();
+    x.save(); x.globalAlpha = op; x.globalCompositeOperation = mode; x.drawImage(after, 0, 0); x.restore();
+    if (sel) {
+      var o = PE.getData(before), m = x.getImageData(0, 0, w, hh), a = o.data, b = m.data;
+      for (var i = 0, p = 0; p < sel.length; p++, i += 4) {
+        var k = sel[p]; if (k === 255) continue;
+        if (!k) { b[i] = a[i]; b[i + 1] = a[i + 1]; b[i + 2] = a[i + 2]; b[i + 3] = a[i + 3]; continue; }
+        k /= 255; for (var q = 0; q < 4; q++) b[i + q] = a[i + q] + (b[i + q] - a[i + q]) * k;
+      }
+      x.putImageData(m, 0, 0);
+    }
+    return PE.touch(c);
+  };
+  function fadeDialog() {
+    if (!canFade()) { S3.toast("Nothing to fade: fade works right after an adjustment or filter", "error"); return; }
+    var f = last, st = { op: 1, mode: "source-over" }, prev = PE.mk(f.before.width, f.before.height), raf = 0, K = kit();
+    function show() { raf = 0; AUI.fadeMix(f.before, f.after, st.op, st.mode, f.sel, prev); ED.live.over[f.L.id] = { canvas: prev, x: f.L.x, y: f.L.y }; ED.render(); }
+    function soon() { if (!raf) raf = requestAnimationFrame(show); }
+    AUI.panel("Fade " + f.label, function (el) {
+      el.appendChild(K.range("Opacity", 100, 0, 100, 1, function (v) { st.op = v / 100; soon(); }, pc));
+      el.appendChild(K.select("Mode", FADE_MODES, st.mode, function (v) { st.mode = v; soon(); }));
+      show();
+    }, function () {
+      if (raf) cancelAnimationFrame(raf);
+      delete ED.live.over[f.L.id];
+      if (!canFade()) return;
+      var out = AUI.fadeMix(f.before, f.after, st.op, st.mode, f.sel);
+      ED.meta("Fade " + f.label, function () { f.L.canvas = out; });
+    }, function () { if (raf) cancelAnimationFrame(raf); delete ED.live.over[f.L.id]; });
+  }
+  AUI.fadeDialog = fadeDialog;
+  AUI.addMenu("Edit", [["Fade…", "Ctrl+Shift+F", fadeDialog, canFade], "-"], "Cut");
+  AUI.key("Ctrl+Shift+F", fadeDialog);
+
   // ---------- shadows / highlights ----------
   function sl(k, label, min, max, step, def, fmt) { return { k: k, label: label, min: min, max: max, step: step, def: def, fmt: fmt }; }
   AUI.sl = sl;
-  var pc = function (v) { return v + "%"; }, pxf = function (v) { return v + " px"; };
-  AUI.pc = pc; AUI.pxf = pxf;
   AUI.adj("shadowsHighlights", { t: "Shadows / highlights", c: [sl("sAmt", "Shadows: amount", 0, 100, 1, 35, pc), sl("sTone", "Shadows: tonal width", 0, 100, 1, 50, pc), sl("sRad", "Shadows: radius", 0, 500, 1, 30, pxf),
     sl("hAmt", "Highlights: amount", 0, 100, 1, 0, pc), sl("hTone", "Highlights: tonal width", 0, 100, 1, 50, pc), sl("hRad", "Highlights: radius", 0, 500, 1, 30, pxf),
     sl("color", "Colour", -100, 100, 1, 20), sl("mid", "Midtone contrast", -100, 100, 1, 0)] });
