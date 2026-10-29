@@ -13,8 +13,15 @@
   M.greyData = function (d, method) { var w = GW[method] || GW.lum; for (var i = 0; i < d.length; i += 4) { var v = d[i] * w[0] + d[i + 1] * w[1] + d[i + 2] * w[2]; d[i] = d[i + 1] = d[i + 2] = v; } return d; };
   function greyHex(hx, method) { var c = PE.rgbOf(hx), w = GW[method] || GW.lum, v = c[0] * w[0] + c[1] * w[1] + c[2] * w[2]; return PE.toHex(v, v, v); }
   // map every layer's pixels with fn(data) and colours with fc(hex); one history step
-  function convert(label, fn, fc, mode) {
+  // layers whose colours this conversion cannot reach (fill / adjustment / smart layers, layer styles)
+  M.special = function (d) { return (d || ED.doc).layers.filter(function (L) { return ["raster", "text", "shape", "group"].indexOf(L.kind) < 0 || (L.fx && L.fx.on !== false && Object.keys(L.fx).some(function (k) { return L.fx[k] && L.fx[k].on; })); }).length; };
+  function mergeBox(st) {
+    var n = M.special(); st.merge = n > 0;
+    return n ? W.check("Merge layers first (" + n + " layer" + (n === 1 ? " has" : "s have") + " fills, adjustments, styles or smart content)", true, function (v) { st.merge = v; }) : null;
+  }
+  function convert(label, fn, fc, mode, merge) {
     if (!FX.need()) return; ED.cancelModes();
+    if (merge) ED.LOPS.flatten();
     var d = ED.doc, out = new Map();
     d.layers.forEach(function (L) {
       if (L.kind === "raster" && L.canvas) { var c = PE.cloneCanvas(L.canvas), x = PE.cx2(c), im = x.getImageData(0, 0, c.width, c.height); fn(im.data); x.putImageData(im, 0, 0); out.set(L, PE.touch(c)); }
@@ -28,12 +35,12 @@
     });
     d.mode = mode; ED.emit("ws", "mode");
   }
-  M.toGrey = function (method) { convert("Mode: greyscale", function (dd) { M.greyData(dd, method); }, function (c) { return greyHex(c, method); }, "grey"); };
+  M.toGrey = function (method, merge) { convert("Mode: greyscale", function (dd) { M.greyData(dd, method); }, function (c) { return greyHex(c, method); }, "grey", merge); };
   M.greyDialog = function () {
-    if (!FX.need()) return; var m = "lum";
+    if (!FX.need()) return; var m = "lum", st = {};
     var dlg = W.modal("Convert to greyscale", h("div", { "class": "stack" }, [W.seg("From", [["lum", "Luminosity"], ["avg", "Average"], ["r", "Red"], ["g", "Green"], ["b", "Blue"]], m, function (v) { m = v; }),
-      h("p", { "class": "faint pe-p", text: "Every layer loses its colour (text and shape colours too). Masks, opacity and blending stay. For a softer mix of channels use Image › Black & white…" })]),
-      [h("span", { "class": "grow" }), W.btn("Convert", function () { dlg.close(); M.toGrey(m); }, "primary")]);
+      h("p", { "class": "faint pe-p", text: "Every layer loses its colour (text and shape colours too). Masks, opacity and blending stay. For a softer mix of channels use Image › Black & white…" }), mergeBox(st)]),
+      [h("span", { "class": "grow" }), W.btn("Convert", function () { dlg.close(); M.toGrey(m, st.merge); }, "primary")]);
   };
 
   // ---------- duotone ----------
@@ -55,7 +62,7 @@
     return lut;
   };
   M.duoData = function (d, lut) { for (var i = 0; i < d.length; i += 4) { var v = Math.round(d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) * 3; d[i] = lut[v]; d[i + 1] = lut[v + 1]; d[i + 2] = lut[v + 2]; } return d; };
-  M.toDuotone = function (inks) { var lut = M.duoLut(inks); convert("Mode: duotone", function (dd) { M.duoData(dd, lut); }, function (c) { var q = PE.rgbOf(c), v = Math.round(q[0] * 0.299 + q[1] * 0.587 + q[2] * 0.114) * 3; return PE.toHex(lut[v], lut[v + 1], lut[v + 2]); }, "duotone"); };
+  M.toDuotone = function (inks, merge) { var lut = M.duoLut(inks); convert("Mode: duotone", function (dd) { M.duoData(dd, lut); }, function (c) { var q = PE.rgbOf(c), v = Math.round(q[0] * 0.299 + q[1] * 0.587 + q[2] * 0.114) * 3; return PE.toHex(lut[v], lut[v + 1], lut[v + 2]); }, "duotone", merge); };
   function thumb(maxS) { var d = ED.doc, k = Math.min(1, maxS / Math.max(d.w, d.h)); return PE.flatten(d, { scale: k, bg: "#ffffff" }); }
   M.duoDialog = function () {
     if (!FX.need()) return;
@@ -79,9 +86,9 @@
     var pre = h("select", { "class": "select", "aria-label": "Preset" }); pre.appendChild(h("option", { value: "", text: "Presets…" }));
     Object.keys(PRESETS).forEach(function (k) { pre.appendChild(h("option", { value: k, text: k })); });
     pre.addEventListener("change", function () { if (PRESETS[pre.value]) { inks = PE.clone(PRESETS[pre.value]); build(); draw(); } });
-    var body = h("div", { "class": "ws-mode" }, [h("div", { "class": "ws-mbox" }, [prev, ramp]), h("div", { "class": "stack" }, [pre, rows])]);
+    var mst = {}, body = h("div", { "class": "ws-mode" }, [h("div", { "class": "ws-mbox" }, [prev, ramp]), h("div", { "class": "stack" }, [pre, rows, mergeBox(mst)])]);
     var dlg = W.modal("Duotone", body, [h("span", { "class": "faint", text: "1 ink = monotone, 2 = duotone, 3 = tritone, 4 = quadtone" }), h("span", { "class": "grow" }), W.btn("Cancel", function () { dlg.close(); }, "ghost"),
-      W.btn("Convert", function () { S3.store("pe-duo", inks); dlg.close(); M.toDuotone(inks); }, "primary")], true);
+      W.btn("Convert", function () { S3.store("pe-duo", inks); dlg.close(); M.toDuotone(inks, mst.merge); }, "primary")], true);
     build(); draw();
   };
 

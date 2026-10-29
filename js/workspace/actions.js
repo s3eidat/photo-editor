@@ -111,7 +111,11 @@
   }
   // adjustment settings are read when OK is pressed in the floating panel
   var pendingAdj = null;
-  function grabAdj() { var st = ED.ui.floatState && ED.ui.floatState(); if (st) pendingAdj = { op: st.op, p: PE.clone(st.p) }; }
+  function grabAdj() {
+    var st = ED.ui.floatState && ED.ui.floatState(), lv = PE.adjUI && PE.adjUI.liveState;      // the app's panel, or the adjust lane's live panel
+    if (!st && lv && !lv.closed) st = lv;
+    if (st) { var p = PE.clone(st.p); delete p._scale; pendingAdj = { op: st.op, p: p }; }
+  }
   document.addEventListener("click", function (e) { if (A.recording && e.target.closest && e.target.closest("#float .pe-ffoot .btn.primary")) grabAdj(); }, true);
   document.addEventListener("keydown", function (e) { if (A.recording && e.key === "Enter") grabAdj(); }, true);
 
