@@ -271,3 +271,21 @@
     var o2 = PP.clampBrush({ count: 1e8, size: 1e6, sizeC: "evil", spacing: -5 }); ok(o2.count === 16 && o2.size === 1000 && o2.sizeC === "pressure" && o2.spacing === 1, "brush options are clamped");
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, ED = PE.ed, PP = PE.paint;
+  PP.test("sample all layers", async function (ok) {
+    var s = PP.scratch(80, 40, "#3366cc"), c = PE.cx2(s.L.canvas); c.fillStyle = "#ff0000"; c.fillRect(50, 15, 8, 8); PE.touch(s.L.canvas);
+    var top = PE.rasterFromCanvas(PE.touch(PE.mk(80, 40)), "Retouch"); s.d.layers.push(top); s.d.active = top.id;
+    ED.cloneSrc = { x: 20, y: 20 }; ED.cloneOff = null; Object.assign(ED.o.clone, PP.BDEF, { size: 10, hard: 1, op: 1, flow: 1, aligned: true, sample: "all", sizeC: "off" });
+    PP.drive("clone", [{ x: 54, y: 19 }]);
+    var q = PP.px(top.canvas, 54, 19); ok(q[3] === 255 && q[2] > 190 && q[0] < 70, "clone on an empty layer copies the photo below (" + q + ")");
+    ok(PP.px(s.L.canvas, 54, 19)[0] === 255, "the photo itself is untouched");
+    ED.undo(); ED.o.spot.sample = "all"; Object.assign(ED.o.spot, { size: 14, hard: 1 });
+    PP.drive("spot", [{ x: 54, y: 19 }]);
+    for (var k = 0; k < 100 && ED.busy; k++) await new Promise(function (r) { setTimeout(r, 30); });
+    q = PP.px(top.canvas, 54, 19); ok(q[3] === 255 && q[2] > 150, "spot healing on an empty layer covers the spot (" + q + ")");
+    ok(PP.px(top.canvas, 10, 10)[3] === 0, "and leaves the rest of the layer empty");
+    ED.o.spot.sample = "current"; ED.o.clone.sample = "current";
+  });
+})();

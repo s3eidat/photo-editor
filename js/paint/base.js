@@ -231,6 +231,23 @@
     var grew = mask ? PE.ensureMaskCovers(L, r) : PE.ensureCovers(L, r), holder = mask ? L.mask : L;
     return { L: L, mask: mask, holder: holder, grow: grew ? PE.metaEntry("Grow", ED.doc, before) : null };
   };
+  // What a retouch tool samples, as a canvas the size of the layer L (holder coords):
+  // which = "current" (the layer itself), "below" (this layer and the ones under it) or "all" (every visible layer).
+  PP.sampleCanvas = function (L, holder, which) {
+    var d = ED.doc, c = PE.mk(holder.canvas.width, holder.canvas.height), x = PE.cx2(c), i = d.layers.indexOf(L);
+    var ids = d.layers.filter(function (l, k) { return which === "all" || k <= i; }).map(function (l) { return l.id; });
+    x.translate(-holder.x, -holder.y); PE.drawLayers(x, d, { only: ids }); return c;
+  };
+  // Put img (rect R of the layer) over the layer only where m (R-sized weights 0..255) says, for "sample all layers"
+  // results that are meant to sit on top of an empty or partial layer.
+  PP.overLayer = function (c, img, R, m) {
+    var t = PE.mk(R.w, R.h), x = PE.cx2(t), d = new ImageData(new Uint8ClampedArray(img.data), R.w, R.h);
+    for (var i = 0; i < m.length; i++) d.data[i * 4 + 3] = d.data[i * 4 + 3] * m[i] / 255;
+    x.putImageData(d, 0, 0);
+    c.save(); c.globalCompositeOperation = "destination-out"; c.globalAlpha = 1;
+    var t2 = PE.mk(R.w, R.h), x2 = PE.cx2(t2), md = x2.createImageData(R.w, R.h); for (i = 0; i < m.length; i++) md.data[i * 4 + 3] = m[i]; x2.putImageData(md, 0, 0);
+    c.drawImage(t2, R.x, R.y); c.globalCompositeOperation = "source-over"; c.drawImage(t, R.x, R.y); c.restore();
+  };
   // Flattened document pixels (or one layer's pixels) for sampling, in doc coordinates.
   PP.sample = function (all, L) {
     var d = ED.doc;

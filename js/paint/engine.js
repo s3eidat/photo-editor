@@ -98,7 +98,8 @@
       if (st.o.dual) { st.dualBuf = pooled("dual", cv.width, cv.height); st.dctx = PE.cx2(st.dualBuf); st.dualTip = st.o.dual === "round" ? null : PP.tipOf(st.o.dual); }
     }
     if (tool === "clone" || tool === "heal") {
-      st.src = st.mask ? grayOf(cv) : PE.cloneCanvas(cv);
+      st.allSrc = !st.mask && st.o.sample && st.o.sample !== "current";
+      st.src = st.mask ? grayOf(cv) : st.allSrc ? PP.sampleCanvas(st.L, st.holder, st.o.sample) : PE.cloneCanvas(cv);
       if (!o.aligned || !ED.cloneOff) ED.cloneOff = { x: ED.cloneSrc.x - p.x, y: ED.cloneSrc.y - p.y };
       st.off = ED.cloneOff; st.srcOff = st.off;
     }
@@ -440,14 +441,16 @@
     restoreRect(st, bb);      // the preview goes; the healed pixels replace it
     // healing: texture from the source, colour / brightness matched to the surroundings (worker)
     var pad = 6, R = PE.inter({ x: bb.x - pad, y: bb.y - pad, w: bb.w + 2 * pad, h: bb.h + 2 * pad }, { x: 0, y: 0, w: st.w, h: st.h });
-    var cv = st.holder.canvas, dst = PE.getData(cv, R), srcC = PE.mk(R.w, R.h);
+    var cv = st.holder.canvas, dst = PE.getData(st.allSrc ? st.src : cv, R), srcC = PE.mk(R.w, R.h);
     PE.cx2(srcC).drawImage(st.src, -(R.x + st.off.x), -(R.y + st.off.y));
     var I = strokeImage(st), mc = PE.mk(R.w, R.h); PE.cx2(mc).drawImage(I.img, I.w ? I.x - R.x : -R.x, I.w ? I.y - R.y : -R.y);
     var src = PE.getData(srcC), md = PE.getData(mc).data, m = new Uint8Array(R.w * R.h), op = PE.clamp(st.o.op, 0, 1);
     for (var i = 0; i < m.length; i++) m[i] = Math.round(md[i * 4 + 3] * op);
     var grow = st.grow; PP.endStroke(st);
     PP.commitAsync(PE.work("heal", [{ data: dst.data, width: R.w, height: R.h }, { data: src.data, width: R.w, height: R.h }, m]), "Healing…", function (res) {
-      var d = ED.doc, e2 = PE.editPixels(d, label, st.holder, "canvas", R, function (c) { c.putImageData(new ImageData(new Uint8ClampedArray(res.data), R.w, R.h), R.x, R.y); });
+      var d = ED.doc, e2 = PE.editPixels(d, label, st.holder, "canvas", R, function (c) {
+        if (st.allSrc) PP.overLayer(c, res, R, m); else c.putImageData(new ImageData(new Uint8ClampedArray(res.data), R.w, R.h), R.x, R.y);
+      });
       PP.pushJoined(grow, e2, label);
     });
   }
@@ -464,8 +467,8 @@
   // ---------- the core's painting tools now run on this engine ----------
   PP.engineTool("brush", { label: "Brush", fill: "color" });
   PP.engineTool("eraser", { label: "Eraser", fill: "erase" }, { mode: "brush" });
-  PP.engineTool("clone", { label: "Clone stamp", fill: "clone", sym: false }, { aligned: true });
-  PP.engineTool("heal", { label: "Healing brush", fill: "clone", sym: false, mask: false, noBuildup: true }, { aligned: true });
+  PP.engineTool("clone", { label: "Clone stamp", fill: "clone", sym: false }, { aligned: true, sample: "current" });
+  PP.engineTool("heal", { label: "Healing brush", fill: "clone", sym: false, mask: false, noBuildup: true }, { aligned: true, sample: "current" });
 
   // ---------- overlay: symmetry guides and the tip outline ----------
   PP.overlay(function (c, docPath, cur, dpr) {

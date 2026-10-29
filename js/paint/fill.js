@@ -117,17 +117,24 @@
       if (!bb) { ED.stroke = null; ED.push(st.grow); ED.changed(); return; }
       var md = PE.getData(st.buf, bb).data, m = new Uint8Array(st.w * st.h);
       for (var y = 0; y < bb.h; y++) for (var x = 0; x < bb.w; x++) { var a = md[(y * bb.w + x) * 4 + 3]; if (a) m[(y + bb.y) * st.w + x + bb.x] = Math.min(255, a * 2); }
-      var job = st.o.type === "proximity" ? proximity(st.holder.canvas, m, bb) : PP.fillHole(st.holder.canvas, m, { bbox: bb, expand: 1, adapt: true, quality: 2 });
+      var all = st.o.sample && st.o.sample !== "current", srcC = all ? PP.sampleCanvas(st.L, st.holder, st.o.sample) : st.holder.canvas;
+      var job = st.o.type === "proximity" ? proximity(srcC, m, bb) : PP.fillHole(srcC, m, { bbox: bb, expand: 1, adapt: true, quality: 2 });
       var grow = st.grow; PP.endStroke(st);
       PP.commitAsync(job, "Healing…", function (res) {
-        PP.pushJoined(grow, PE.editPixels(ED.doc, label, st.holder, "canvas", res.rect, function (c) { c.putImageData(res.img, res.rect.x, res.rect.y); }), label);
+        var R = res.rect;
+        PP.pushJoined(grow, PE.editPixels(ED.doc, label, st.holder, "canvas", R, function (c) {
+          if (!all) { c.putImageData(res.img, R.x, R.y); return; }
+          var mm = new Uint8Array(R.w * R.h), g = PIX.grow(m, st.w, st.h, 1);       // only the healed spot goes on the layer
+          for (var y2 = 0; y2 < R.h; y2++) for (var x2 = 0; x2 < R.w; x2++) mm[y2 * R.w + x2] = g[(y2 + R.y) * st.w + x2 + R.x];
+          PP.overLayer(c, res.img, R, mm);
+        }), label);
       });
     }
-  }, { size: 30, hard: 0.6, type: "content", sizeC: "off" });
+  }, { size: 30, hard: 0.6, type: "content", sizeC: "off", sample: "current" });
   PP.group("J", ["spot", "heal"]);
   PP.optsFor.spot = function (items) {
     var o = ED.o.spot;
-    return PP.brushBar("spot", items, [K.seg("Type", [["content", "Content-aware"], ["proximity", "Proximity match"]], o.type, function (v) { o.type = v; ED.saveOpts(); })],
+    return PP.brushBar("spot", items, [K.seg("Type", [["content", "Content-aware"], ["proximity", "Proximity match"]], o.type, function (v) { o.type = v; ED.saveOpts(); }), PP.sampleSelect("spot")],
       "Paint over a spot or a small object, a little larger than it. It is replaced from the texture around it.", { noOp: true, noFlow: true, noSym: true });
   };
   // Proximity match: copy the best-matching nearby patch (judged on the ring around the stroke), then heal.

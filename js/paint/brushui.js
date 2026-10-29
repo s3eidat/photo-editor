@@ -77,10 +77,12 @@
   ["clone", "heal"].forEach(function (t) {
     PP.optsFor[t] = function (items) {
       var o = ED.o[t];
-      return PP.brushBar(t, items, [K.check("Aligned", o.aligned, function (v) { o.aligned = v; ED.saveOpts(); })],
+      return PP.brushBar(t, items, [K.check("Aligned", o.aligned, function (v) { o.aligned = v; ED.saveOpts(); }), PP.sampleSelect(t)],
         ED.cloneSrc ? "Paint to " + (t === "heal" ? "heal (texture from the source, colour from around the stroke)" : "copy from the source") + ". Alt+click sets a new source." : "Alt+click a clean area to set the source first.", { noSym: true });
     };
   });
+
+  PP.sampleSelect = function (t) { var o = ED.o[t]; return K.select("Sample", [["current", "Current layer"], ["below", "Current and below"], ["all", "All layers"]], o.sample || "current", function (v) { o.sample = v; ED.saveOpts(); }); };
 
   // ---------- Brush settings dialog ----------
   var CTL = [["off", "Off"], ["pressure", "Pen pressure"], ["tilt", "Pen tilt"], ["fade", "Fade"]];

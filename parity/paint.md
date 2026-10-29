@@ -20,7 +20,7 @@ Known-answer checks: `js/paint/tests.js` (run by `S3_SELFTEST` after the core ch
 | Full colour picker | done | field + slider on any of H, S, B, R, G, B, L, a, b; HSB / RGB / Lab / CMYK / hex fields, only web colours, new vs current; opens from the tool bar's colour chips |
 | Swatches panel | done | Paint panel › Swatches: recent colours, click / Ctrl+click / Alt+click, add, import .aco (RGB, HSB, CMYK, Lab, grey) and .gpl, export .gpl / .aco |
 | Fill with surroundings | done | Edit › Fill with surroundings… (Shift+Alt+Backspace): multi-scale PatchMatch + voting in a worker (`pworker.js`), expand, quality, edge colour blending, output to a new layer; big holes are solved at a lower resolution |
-| Spot healing brush | done | J (grouped with the healing brush): content-aware (fill engine + tone blend) or proximity match (best nearby patch judged on the stroke's ring, then healed) |
+| Spot healing brush | done | J (grouped with the healing brush); sample current / current and below / all layers (heal onto an empty layer): content-aware (fill engine + tone blend) or proximity match (best nearby patch judged on the stroke's ring, then healed) |
 | Dodge / burn / sponge | done | O group; shadows / midtones / highlights, protect tones, exposure; sponge saturate / desaturate with vibrance; Alt swaps dodge ⇄ burn; one stroke does not compound (coverage model); dodge / burn also work on masks |
 | Blur / sharpen / smudge tools | done | R group; strength; smudge with finger painting; premultiplied maths so transparent edges keep their colour; work on masks too |
 | Pencil | done | B group with the brush; aliased tips on whole pixels (round or sampled, thresholded), auto erase; eraser has a pencil mode too |
@@ -31,6 +31,7 @@ Known-answer checks: `js/paint/tests.js` (run by `S3_SELFTEST` after the core ch
 | Red eye | done | J group; click the pupil or drag a box; pupil size + darken; the red region grows from the reddest pixel near the click, soft edge, highlight included; respects the selection |
 | Magic eraser | done | E group; tolerance, contiguous, anti-alias, sample all layers, opacity; respects the selection |
 | Background eraser | done | E group; sampling continuous / once / background colour, contiguous or discontiguous, tolerance, protect foreground colour; edge fringe clean-up (decontamination) not done |
+| Clone stamp / healing brush: sample all layers | done | Sample: current, current and below, all layers; results go onto an empty retouch layer without copying the rest |
 | Patch tool | done | J group; freehand outline (Shift add / Alt subtract) or any selection, then drag it; source / destination, transparent; healed to the surrounding tone in the worker |
 | Move with fill (content-aware-style move) | done | J group; move / extend; the hole is filled from the surroundings (never from the drop area), the object is healed into its new place, the selection follows; one undo step |
 | Patterns panel | done | Paint panel › Patterns: 12 built-in tiles drawn in code, define from selection (Edit › Define pattern…), import an image, Alt+click deletes; Edit › Fill with pattern… (scale, opacity, blend mode) |
