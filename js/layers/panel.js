@@ -220,6 +220,8 @@
     }
     SX.picked = {}; ED.setActive(L.id, mask);
   }
+  SX.renameLayer = function (L) { var el = document.querySelector('#layerList .pe-layer[data-id="' + L.id + '"] .pe-lname'); if (el) rename(L, el); };
+  SX.pickLayer = pick;
   function rename(L, el) {
     var i = h("input", { "class": "input pe-rename", value: L.name, maxlength: "100", dir: "auto", "aria-label": "Layer name" });
     el.replaceWith(i); i.focus(); i.select();
