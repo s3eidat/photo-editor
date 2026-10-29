@@ -419,6 +419,33 @@
   } });
   AUI.more("Selective colour…", "selectiveColor");
 
+  // ---------- colour lookup (.cube files and built-in looks) ----------
+  var LUTS = [];         // loaded this session: {id, name, packed}
+  AUI.loadCube = function (file) {
+    if (file.size > 25e6) return Promise.reject(new Error("That LUT file is too large (over 25 MB)"));
+    return file.text().then(function (txt) {
+      var L = PIX.A.parseCube(txt), name = (L.title || file.name.replace(/\.cube$/i, "")).slice(0, 60) || "LUT";
+      var it = { id: "f" + (LUTS.length + 1), name: name, packed: PIX.A.packLut(L) }; LUTS.push(it); return it;
+    });
+  };
+  AUI.adj("colorLookup", { t: "Colour lookup", c: [sl("amount", "Amount", 0, 100, 1, 100, pc)], ui: function (el, st) {
+    var p = st.p, K = kit(), box = h("div", { "class": "stack pe-asecin" });
+    p.look = "tealOrange"; p.lut = null;
+    function opts() { return Object.keys(PIX.A.LOOKS).map(function (k) { return ["b:" + k, PIX.A.LOOKS[k][0]]; }).concat(LUTS.map(function (l) { return ["f:" + l.id, "File: " + l.name]; })); }
+    function pick(v) { if (v.charAt(0) === "b") { p.look = v.slice(2); p.lut = null; } else { var l = LUTS.filter(function (x) { return "f:" + x.id === v; })[0]; if (l) { p.lut = l.packed; p.look = null; } } st.schedule(); }
+    function draw(cur) { box.textContent = ""; box.appendChild(K.select("Look", opts(), cur, pick)); }
+    var file = h("input", { type: "file", accept: ".cube,text/plain", hidden: true });
+    file.addEventListener("change", function () {
+      var f = file.files[0]; file.value = ""; if (!f) return;
+      AUI.loadCube(f).then(function (it) { draw("f:" + it.id); pick("f:" + it.id); S3.toast("Loaded “" + it.name + "” (" + it.packed.n + (it.packed.kind === "3d" ? "³" : "") + " points)"); })
+        .catch(function (e) { S3.toast("Could not read that LUT: " + e.message, "error"); });
+    });
+    el.insertBefore(box, el.firstChild);
+    el.insertBefore(h("div", { "class": "row pe-arow" }, [K.btn("Load .cube file…", function () { file.click(); }, "ghost", "i-upload", "Load a 3D or 1D colour lookup table (.cube); it stays on this device"), file]), box.nextSibling);
+    draw("b:tealOrange");
+  } });
+  AUI.more("Colour lookup…", "colorLookup");
+
   // ---------- auto tone / contrast / colour ----------
   var AUTO = [["autoTone", "Auto tone", "Ctrl+Shift+L"], ["autoContrast", "Auto contrast", "Ctrl+Alt+Shift+L"], ["autoColor", "Auto colour", "Ctrl+Shift+B"]];
   AUI.addMenu("Image", AUTO.map(function (a) { return [a[1], a[2], function () { AUI.quick(a[0], a[1]); }, has]; }).concat(["-"]), "Vibrance");

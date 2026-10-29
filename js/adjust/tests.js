@@ -109,6 +109,17 @@
     ok(get(rb, 40)[0] === 77 && get(rb, 0)[0] === 77, "radial blur of a flat image is unchanged");
     var rn = run(gray(6, 6, function () { return 120; }), "reduceNoise", {}, null, 6, 6);
     ok(near(get(rn, 14)[0], 120, 1), "reduce noise keeps flat areas");
+
+    // colour lookup: .cube parsing, identity, channel swap, 1D invert, packing round trip
+    var idc = "TITLE \"id\"\nLUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n1 1 1\n";
+    var swp = "LUT_3D_SIZE 2\n0 0 0\n0 0 1\n0 1 0\n0 1 1\n1 0 0\n1 0 1\n1 1 0\n1 1 1\n";
+    var L1 = PIX.A.parseCube(idc), L2 = PIX.A.parseCube(swp), L3 = PIX.A.parseCube("# inv\nLUT_1D_SIZE 2\n1 1 1\n0 0 0\n");
+    ok(L1.title === "id" && L1.n === 2 && L1.kind === "3d" && L3.kind === "1d", "parse .cube");
+    function lk(L, px) { return get(run([px], "colorLookup", { lut: PIX.A.packLut(L), amount: 100 }), 0); }
+    ok(lk(L1, [10, 128, 250]).join() === "10,128,250" && lk(L2, [10, 128, 250]).join() === "250,128,10" && lk(L3, [10, 128, 250]).join() === "245,127,5", "apply 3D / 1D LUTs");
+    var bad = 0; ["LUT_3D_SIZE 2\n0 0 0\n", "hello", "LUT_3D_SIZE 999\n", "LUT_3D_SIZE 2\nDOMAIN_MIN 1 1 1\nDOMAIN_MAX 0 0 0\n" + "0 0 0\n".repeat(8)].forEach(function (t) { try { PIX.A.parseCube(t); } catch (e) { bad++; } });
+    ok(bad === 4, "bad .cube files are rejected");
+    var lkb = get(run([[60, 120, 200]], "colorLookup", { look: "tealOrange", amount: 0 }), 0); ok(lkb.join() === "60,120,200", "look amount 0 is a no-op");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };
