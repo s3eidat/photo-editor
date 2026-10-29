@@ -32,9 +32,11 @@
       box.textContent = "";
       G[id].params.forEach(function (q) { box.appendChild(K.range(q[1], p[q[0]], q[2], q[3], q[4], function (v) { p[q[0]] = v; st.schedule(); })); });
       if (id === "neon") box.appendChild(AUI.colorInput("Glow colour", p.color, function (v) { p.color = v; st.schedule(); }));
-      if (["charcoal", "graphicPen"].indexOf(id) >= 0) box.appendChild(h("p", { "class": "faint pe-p", text: "Uses the foreground and background colours." }));
+      if (G[id].cat === "sketch" || id === "diffuseGlow") box.appendChild(h("p", { "class": "faint pe-p", text: "Uses the foreground and background colours." }));
       st.schedule();
     }
+    var CATS = [["all", "All effects"], ["artistic", "Artistic"], ["brush", "Brush strokes"], ["distort", "Distort"], ["sketch", "Sketch"], ["texture", "Texture"]];
+    var catSel = K.select("Show", CATS, "all", function (v) { S3.$$("button", grid).forEach(function (b) { b.hidden = v !== "all" && G[b.getAttribute("data-id")].cat !== v; }); });
     var src = st.t.img, tw = 84, th = Math.max(24, Math.min(84, Math.round(tw * src.height / src.width))), small = AUI.downImg(src, tw, th), k = tw / src.width;
     ids.forEach(function (id, n) {
       var c = h("canvas", { "class": "pe-acv", width: String(tw), height: String(th), "aria-hidden": "true" }), b = h("button", { type: "button", "class": "pe-agalbtn", role: "option", "data-id": id, "aria-selected": "false", title: G[id].name }, [c, h("span", { text: G[id].name })]);
@@ -47,7 +49,7 @@
       }, 30 + n * 15);
     });
     AUI.wide();
-    el.insertBefore(box, el.firstChild); el.insertBefore(grid, box);
+    el.insertBefore(box, el.firstChild); el.insertBefore(grid, box); el.insertBefore(catSel, grid);
     choose("watercolor");
   } });
   AUI.addMenu("Filter", [["Filter gallery…", "", function () { AUI.open("gallery"); }, has]], "Gaussian blur");
