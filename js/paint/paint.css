@@ -77,3 +77,9 @@
 .pp-bpre span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pp-bpre:hover, .pp-bpre.on { border-color: var(--accent); color: var(--text); }
 .pp-bpre.on { box-shadow: 0 0 0 1px var(--accent); }
+/* patterns */
+.pp-patgrid { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.pp-pat { padding: 1px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); cursor: pointer; line-height: 0; }
+.pp-pat canvas { width: 34px; height: 34px; border-radius: 4px; }
+.pe-opts .pp-pat canvas { width: 26px; height: 26px; }
+.pp-pat:hover, .pp-pat.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }

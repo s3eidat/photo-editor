@@ -28,6 +28,7 @@
       st.dir = Math.atan2(dy, dx) / RAD; if (st.dir0 == null) st.dir0 = st.dir;
       while (dist >= step) { var q = { x: st.last.x + dx / dist * step, y: st.last.y + dy / dist * step }; PP.dab(st, q.x, q.y, { pr: pr, tilt: pr, tiltA: 0, twist: 0 }); st.last = q; dx = x - q.x; dy = y - q.y; dist = Math.hypot(dx, dy); }
     }
+    if (st.tex && !st.o.texEach) PP.texStroke(st.bctx, st.tex, 0, 0, w, hh);
     var x2 = PE.cx2(c); x2.globalAlpha = PE.clamp(o.op == null ? 1 : o.op, 0.05, 1); x2.drawImage(buf, 0, 0);
     return c;
   };
@@ -106,7 +107,7 @@
       sec("Shape dynamics", [R("Size jitter", "sizeJ", 0, 100, 1, pc), S("Size control", "sizeC", CTL), R("Minimum size", "sizeMin", 0, 100, 1, pc), R("Fade steps", "fade", 1, 500, 1),
         R("Angle jitter", "angleJ", 0, 100, 1, pc), S("Angle control", "angleC", ACTL), R("Roundness jitter", "roundJ", 0, 100, 1, pc), S("Roundness control", "roundC", CTL), R("Minimum roundness", "roundMin", 1, 100, 1, pc)]),
       sec("Scattering", [R("Scatter", "scatter", 0, 1000, 1, pc), C("Both axes", "scatterBoth"), R("Count", "count", 1, 16, 1), R("Count jitter", "countJ", 0, 100, 1, pc)]),
-      sec("Texture", [S("Pattern", "tex", pats), R("Depth", "texDepth", 0, 100, 1, pc), R("Scale", "texScale", 1, 1000, 1, pc), C("Invert", "texInvert")]),
+      sec("Texture", [S("Pattern", "tex", pats), R("Depth", "texDepth", 0, 100, 1, pc), R("Scale", "texScale", 1, 1000, 1, pc), C("Invert", "texInvert"), C("Texture each tip", "texEach")]),
       sec("Dual tip", [S("Second tip", "dual", duals), R("Size", "dualSize", 1, 300, 1, pc), R("Scatter", "dualScatter", 0, 300, 1, pc), R("Count", "dualCount", 1, 16, 1)]),
       sec("Colour dynamics", [R("Foreground / background jitter", "fgbgJ", 0, 100, 1, pc), S("Mix control", "fgbgC", CTL), R("Hue jitter", "hueJ", 0, 100, 1, pc), R("Saturation jitter", "satJ", 0, 100, 1, pc),
         R("Brightness jitter", "briJ", 0, 100, 1, pc), R("Purity", "purity", -100, 100, 1), C("Apply per tip", "perTip")]),

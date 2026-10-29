@@ -16,7 +16,7 @@
     scatter: 0, scatterBoth: false, count: 1, countJ: 0,
     fgbgJ: 0, fgbgC: "off", hueJ: 0, satJ: 0, briJ: 0, purity: 0, perTip: true,
     opJ: 0, opC: "off", flowJ: 0, flowC: "off",
-    tex: "", texDepth: 60, texScale: 100, texInvert: false,
+    tex: "", texDepth: 60, texScale: 100, texInvert: false, texEach: false,
     dual: "", dualSize: 20, dualSpacing: 30, dualScatter: 0, dualCount: 1,
     buildup: false, sym: "off", symN: 6, symX: 50, symY: 50
   };
@@ -256,14 +256,14 @@
     if (fill === "clone" || fill === "history") dc.drawImage(st.src, -(ix + st.srcOff.x), -(iy + st.srcOff.y));
     else if (fill === "pattern" && st.pat) { st.pat.setTransform(new DOMMatrix([st.patK, 0, 0, st.patK, -(ix + st.ox - st.patX), -(iy + st.oy - st.patY)])); dc.fillStyle = st.pat; dc.fillRect(0, 0, s, s); }
     else { dc.fillStyle = PP.rgba(col, 1); dc.fillRect(0, 0, s, s); }
-    if (st.tex) { dc.globalCompositeOperation = "destination-out"; dc.globalAlpha = st.tex.depth; st.tex.pat.setTransform(new DOMMatrix([st.tex.k, 0, 0, st.tex.k, -(ix + st.ox), -(iy + st.oy)])); dc.fillStyle = st.tex.pat; dc.fillRect(0, 0, s, s); dc.globalAlpha = 1; }
+    if (st.tex && st.o.texEach) { dc.globalCompositeOperation = "destination-out"; dc.globalAlpha = st.tex.depth; st.tex.pat.setTransform(new DOMMatrix([st.tex.k, 0, 0, st.tex.k, -(ix + st.ox), -(iy + st.oy)])); dc.fillStyle = st.tex.pat; dc.fillRect(0, 0, s, s); dc.globalAlpha = 1; }
     dc.globalCompositeOperation = "source-over";
     return { s: s, x: ix, y: iy, c: dabC };
   }
   PP.renderDab = renderDab;
   function stamp(st, x, y, d, ang, rnd, flip, col, a) {
     var c = st.bctx, b;
-    if (!st.tip && !st.pencil && !st.tex && (st.spec.fill === "color" || st.spec.fill === "erase")) {
+    if (!st.tip && !st.pencil && !(st.tex && st.o.texEach) && (st.spec.fill === "color" || st.spec.fill === "erase")) {
       var r = Math.max(0.5, d / 2);
       c.save(); c.globalAlpha = a; c.translate(x, y); if (ang) c.rotate(ang * RAD); if (rnd < 1) c.scale(1, rnd);
       ED.tipFill(c, 0, 0, r, st.o.hard, PE.toHex(col[0], col[1], col[2])); c.restore();
@@ -293,6 +293,11 @@
       c.restore();
     }
   }
+  // Texture over a whole stroke image: the pattern's dark parts take paint away (by depth). (dx, dy) = doc position of the image.
+  PP.texStroke = function (c, tex, dx, dy, w, hh) {
+    c.save(); c.globalCompositeOperation = "destination-out"; c.globalAlpha = tex.depth;
+    tex.pat.setTransform(new DOMMatrix([tex.k, 0, 0, tex.k, -dx, -dy])); c.fillStyle = tex.pat; c.fillRect(0, 0, w, hh); c.restore();
+  };
   function texSetup(st) {
     var P = PP.patternOf(st.o.tex), m = PP.texMask(P, st.o.texInvert);
     return { pat: st.bctx ? st.bctx.createPattern(m, "repeat") : PE.cx2(PE.mk(1, 1)).createPattern(m, "repeat"), k: PE.clamp(st.o.texScale, 1, 1000) / 100, depth: PE.clamp(st.o.texDepth, 0, 100) / 100, mask: m };
@@ -301,11 +306,13 @@
   // ---------- compositing the stroke ----------
   var scratch = null;
   function strokeImage(st) {
-    if (!st.dualBuf) return { img: st.buf, x: 0, y: 0 };
+    if (!st.dualBuf && !(st.tex && !st.o.texEach)) return { img: st.buf, x: 0, y: 0 };
     var bb = PE.inter(PE.rectI(st.bbox || { x: 0, y: 0, w: 1, h: 1 }), { x: 0, y: 0, w: st.w, h: st.h }) || { x: 0, y: 0, w: 1, h: 1 };
     if (!scratch || scratch.width < bb.w || scratch.height < bb.h) scratch = PE.mk(Math.max(bb.w, scratch ? scratch.width : 0), Math.max(bb.h, scratch ? scratch.height : 0));
     var c = PE.cx2(scratch); c.globalCompositeOperation = "copy"; c.drawImage(st.buf, bb.x, bb.y, bb.w, bb.h, 0, 0, bb.w, bb.h);
-    c.globalCompositeOperation = "destination-in"; c.drawImage(st.dualBuf, bb.x, bb.y, bb.w, bb.h, 0, 0, bb.w, bb.h); c.globalCompositeOperation = "source-over";
+    if (st.dualBuf) { c.globalCompositeOperation = "destination-in"; c.drawImage(st.dualBuf, bb.x, bb.y, bb.w, bb.h, 0, 0, bb.w, bb.h); }
+    if (st.tex && !st.o.texEach) PP.texStroke(c, st.tex, bb.x + st.ox, bb.y + st.oy, bb.w, bb.h);
+    c.globalCompositeOperation = "source-over";
     return { img: scratch, x: bb.x, y: bb.y, w: bb.w, h: bb.h };
   }
   function drawImg(c, I) { if (I.w) c.drawImage(I.img, 0, 0, I.w, I.h, I.x, I.y, I.w, I.h); else c.drawImage(I.img, 0, 0); }

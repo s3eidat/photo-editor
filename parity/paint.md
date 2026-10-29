@@ -13,7 +13,7 @@ Known-answer checks: `js/paint/tests.js` (run by `S3_SELFTEST` after the core ch
 | Transfer (opacity / flow jitter + controls) | done | per-dab alpha under the stroke opacity cap |
 | Pen pressure and tilt (Pointer Events, coalesced events) | done | pressure → size on by default for pens; mouse and touch paint at full size |
 | Build-up (airbrush) | done | |
-| Texture, dual tip | done | texture needs a pattern (patterns panel); per-tip texture |
+| Texture, dual tip | done | texture from any pattern over the whole stroke (or each tip), depth / scale / invert, mask stretched to full contrast |
 | Symmetry painting | done | vertical, horizontal, dual axis, diagonal, radial, mandala; adjustable centre |
 | Masks take the foreground's grey | done | grey paints a partial mask (was black/white only) |
 | Brush settings dialog (F5) | done | live preview stroke drawn by the engine |
@@ -33,3 +33,5 @@ Known-answer checks: `js/paint/tests.js` (run by `S3_SELFTEST` after the core ch
 | Background eraser | done | E group; sampling continuous / once / background colour, contiguous or discontiguous, tolerance, protect foreground colour; edge fringe clean-up (decontamination) not done |
 | Patch tool | done | J group; freehand outline (Shift add / Alt subtract) or any selection, then drag it; source / destination, transparent; healed to the surrounding tone in the worker |
 | Move with fill (content-aware-style move) | done | J group; move / extend; the hole is filled from the surroundings (never from the drop area), the object is healed into its new place, the selection follows; one undo step |
+| Patterns panel | done | Paint panel › Patterns: 12 built-in tiles drawn in code, define from selection (Edit › Define pattern…), import an image, Alt+click deletes; Edit › Fill with pattern… (scale, opacity, blend mode) |
+| Pattern stamp | done | S group with the clone stamp; aligned / not aligned, scale; full brush dynamics |
