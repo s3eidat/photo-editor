@@ -257,8 +257,9 @@
       if (s < 1) el.appendChild(h("p", { "class": "faint pe-p", text: "Preview at " + Math.round(s * 100) + "% size for speed; OK applies it at full size." }));
     }, function () {
       st.closed = true; delete ED.live.over[L.id];
-      var params = JSON.parse(JSON.stringify(p));
-      if (s === 1 && st.shown === JSON.stringify(params) && !st.busy) { var c = small; ED.meta(spec.t, function () { L.canvas = PE.touch(c); }); return; }
+      var params = JSON.parse(JSON.stringify(p)), viewOnly = false;
+      (spec.previewOnly || []).forEach(function (k) { if (params[k] != null && params[k] !== false) { viewOnly = true; params[k] = k === "localShow" ? null : false; } });     // e.g. mask views are not applied
+      if (s === 1 && !viewOnly && st.shown === JSON.stringify(params) && !st.busy) { var c = small; ED.meta(spec.t, function () { L.canvas = PE.touch(c); }); return; }
       params._scale = 1;
       ED.working(PE.work("adjust", [t.img, op, params, t.sel]), spec.t + "…").then(function (res) { K.commitAdjusted(t, res, spec.t); }).catch(function (e) { S3.toast(e.message, "error"); });
     }, function () { st.closed = true; delete ED.live.over[L.id]; }, {
@@ -521,7 +522,7 @@
   };
 
   // ---------- replace colour ----------
-  AUI.adj("replaceColor", { t: "Replace colour", c: [sl("fuzz", "Fuzziness", 0, 200, 1, 40), sl("hue", "Hue", -180, 180, 1, 0), sl("sat", "Saturation", -100, 100, 1, 0), sl("light", "Lightness", -100, 100, 1, 0)],
+  AUI.adj("replaceColor", { t: "Replace colour", previewOnly: ["showMask"], c: [sl("fuzz", "Fuzziness", 0, 200, 1, 40), sl("hue", "Hue", -180, 180, 1, 0), sl("sat", "Saturation", -100, 100, 1, 0), sl("light", "Lightness", -100, 100, 1, 0)],
     chk: [["showMask", "Show the selected area (white)", false]], ui: function (el, st) {
       var p = st.p, K = kit(), sw = h("div", { "class": "pe-aswatches", role: "list", "aria-label": "Sampled colours" });
       p.colors = [ED.doc.fg];

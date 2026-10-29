@@ -45,7 +45,24 @@
       cgShadow: [0, 0, 0], cgMid: [0, 0, 0], cgHigh: [0, 0, 0], cgGlobal: [0, 0, 0], cgBlend: 50, cgBalance: 0,
       sharpen: 0, sharpRadius: 1, sharpDetail: 25, sharpMask: 0, nrLum: 0, nrColor: 0,
       distort: 0, caRed: 0, caBlue: 0, vignette: 0, vigMid: 50, vigRound: 0, vigFeather: 50,
-      grain: 0, grainSize: 25, grainRough: 50 };
+      grain: 0, grainSize: 25, grainRough: 50, locals: [], localShow: null };
+  };
+
+  // Weight plane (0..1) of one local adjustment. Positions are % of the layer. linear: full at (x0, y0), none at
+  // (x1, y1); radial: ellipse (cx, cy, rx, ry % of width / height, rotation), feather %, invert = effect outside.
+  A.localMask = function (L, w, h) {
+    var W = new Float32Array(w * h), x, y, q = 0, inv = !!L.invert;
+    if (L.type === "linear") {
+      var ax = num(L.x0, 50) / 100 * w, ay = num(L.y0, 30) / 100 * h, bx = num(L.x1, 50) / 100 * w, by = num(L.y1, 60) / 100 * h, dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1;
+      for (y = 0; y < h; y++) for (x = 0; x < w; x++, q++) { var t = ((x + 0.5 - ax) * dx + (y + 0.5 - ay) * dy) / l2, v = 1 - smooth(0, 1, t); W[q] = inv ? 1 - v : v; }
+      return W;
+    }
+    var cx = num(L.cx, 50) / 100 * w, cy = num(L.cy, 50) / 100 * h, rx = Math.max(1, num(L.rx, 25) / 100 * w), ry = Math.max(1, num(L.ry, 25) / 100 * h), rot = num(L.rotation, 0) * Math.PI / 180, cr = Math.cos(rot), sr = Math.sin(rot), fe = clamp(num(L.feather, 50), 0, 100) / 100;
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++, q++) {
+      var ex = x + 0.5 - cx, ey = y + 0.5 - cy, u = (ex * cr + ey * sr) / rx, v2 = (-ex * sr + ey * cr) / ry, e = Math.sqrt(u * u + v2 * v2), m = 1 - smooth(1 - fe * 0.999 - 0.001, 1, e);
+      W[q] = inv ? 1 - m : m;
+    }
+    return W;
   };
 
   // White balance that makes a sampled colour (0..255 sRGB) neutral: inverse of the temp / tint gains above.
@@ -242,6 +259,35 @@
       applyY(Ys);
     }
 
+    // local adjustments: linear / radial gradient masks, each with its own small set of settings
+    var LOC = Array.isArray(p.locals) ? p.locals.slice(0, 12) : [], showM = p.localShow != null ? +p.localShow : -1, maskShown = null;
+    if (LOC.length) {
+      var Yl = null, Bl = null, Bc = null;
+      LOC.forEach(function (L0, li) {
+        var W = A.localMask(L0, w, h);
+        if (li === showM) maskShown = W;
+        var ev = clamp(num(L0.exposure, 0), -4, 4), ctl = n100(L0.contrast), hil = n100(L0.highlights), shl = n100(L0.shadows), tmp = n100(L0.temp), tnt = n100(L0.tint);
+        var sat0 = n100(L0.saturation), clr = n100(L0.clarity), shp = clamp(num(L0.sharpness, 0), -100, 100) / 100;
+        if (!(ev || ctl || hil || shl || tmp || tnt || sat0 || clr || shp)) return;
+        if ((clr || shp) && !Yl) { lum(); Yl = new Float32Array(Y); }
+        if (clr && !Bc) Bc = A.guided(Yl, Yl, w, h, Math.max(4, Math.round(diag * 0.012)), 0.02);
+        if (shp && !Bl) Bl = A.blur(new Float32Array(Yl), w, h, Math.max(0.6, 1 * PS));
+        var ek = Math.pow(2, ev / 2.2), gR = Math.pow(2, tmp * 0.35), gB = Math.pow(2, -tmp * 0.35), gG = Math.pow(2, -tnt * 0.25);
+        for (q = 0; q < n; q++) {
+          var wq = W[q]; if (!wq) continue;
+          var r = R[q] * ek * gR, g = Gc[q] * ek * gG, bb = B[q] * ek * gB, yy = 0.2126 * r + 0.7152 * g + 0.0722 * bb, y2 = yy;
+          if (ctl && y2 > 0 && y2 < 1) y2 += ctl * (y2 * y2 * (3 - 2 * y2) - y2);
+          if (hil) y2 += hil * 0.35 * smooth(0.45, 1, y2) * Math.min(y2, 1.2);
+          if (shl) y2 += shl * 0.3 * (1 - smooth(0, 0.55, y2)) * (1 - Math.min(1, y2));
+          if (clr) y2 += clr * 0.9 * (Yl[q] - Bc[q]);
+          if (shp) y2 += shp * 1.4 * (Yl[q] - Bl[q]);
+          var ck = 1 + sat0;
+          r = y2 + (r - yy) * ck; g = y2 + (g - yy) * ck; bb = y2 + (bb - yy) * ck;
+          R[q] += (r - R[q]) * wq; Gc[q] += (g - Gc[q]) * wq; B[q] += (bb - B[q]) * wq;
+        }
+      });
+    }
+
     // vignette (midpoint, roundness, feather) and grain
     var va = n100(p.vignette), ga = clamp(num(p.grain, 0), 0, 100) / 100, gn = null;
     if (ga) {
@@ -270,6 +316,7 @@
       }
     }
 
+    if (maskShown) for (q = 0; q < n; q++) { var mw = maskShown[q] * 0.6; R[q] += (1 - R[q]) * mw; Gc[q] *= 1 - mw; B[q] *= 1 - mw; }     // red overlay
     for (q = 0, i = 0; q < n; q++, i += 4) { d[i] = R[q] * 255; d[i + 1] = Gc[q] * 255; d[i + 2] = B[q] * 255; }
     return before ? PIX.mixSel(before, img, sel) : img;
   });

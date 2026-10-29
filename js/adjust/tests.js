@@ -241,6 +241,12 @@
     var di = run(gray(1, 3, function (x, y) { return y * 100; }), "deinterlace", { field: "odd", mode: "interp" }, null, 1, 3); ok(get(di, 1)[0] === 100 && get(di, 0)[0] === 0, "de-interlace interpolates the odd line");
     var bs = get(run([[255, 0, 255]], "broadcastSafe", { limit: 100 }), 0); ok(bs[0] < 255 || bs[2] < 255, "broadcast-safe pulls in a hot magenta");
     var ex = run(gray(16, 16, function () { return 120; }), "extrude", { size: 8, depth: 20, solid: true }, null, 16, 16); ok(ex.data.length === 16 * 16 * 4 && ex.data[3] === 255, "extrude runs");
+
+    // develop local adjustments: a radial +1 EV brightens the centre only; a linear mask fades from start to end
+    var lmR = PIX.A.localMask({ type: "radial", cx: 50, cy: 50, rx: 20, ry: 20, feather: 10 }, 21, 21), lmL = PIX.A.localMask({ type: "linear", x0: 0, y0: 0, x1: 0, y1: 100 }, 1, 11);
+    ok(lmR[10 * 21 + 10] === 1 && lmR[0] === 0 && lmL[0] > 0.99 && lmL[10] < 0.01 && near(lmL[5], 0.5, 0.1), "local adjustment masks");
+    var dl = run(gray(9, 9, function () { return 100; }), "develop", Object.assign(PIX.A.devDefaults(), { locals: [{ type: "radial", cx: 50, cy: 50, rx: 20, ry: 20, feather: 5, exposure: 1 }] }), null, 9, 9);
+    ok(get(dl, 40)[0] > 125 && get(dl, 0)[0] === 100, "develop local exposure only inside its mask");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };
