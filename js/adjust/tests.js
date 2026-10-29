@@ -54,6 +54,16 @@
     ok(get(eq, 0)[0] === 0 && near(get(eq, 1)[0], 85) && near(get(eq, 2)[0], 170) && get(eq, 3)[0] === 255, "equalize spreads a narrow range");
     var eq2 = run([[10, 10, 10], [20, 20, 20], [200, 200, 200]], "equalize", { basis: "image" }, new Uint8Array([255, 255, 0]));
     ok(get(eq2, 0)[0] === 0 && get(eq2, 1)[0] === 255 && get(eq2, 2)[0] === 255, "equalize whole layer from the selection");
+
+    // gradient map and channel mixer
+    var gm = run([[0, 0, 0], [255, 255, 255], [128, 128, 128]], "gradientMap", { stops: [[0, "#ff0000"], [1, "#0000ff"]] });
+    ok(get(gm, 0).join() === "255,0,0" && get(gm, 1).join() === "0,0,255" && near(get(gm, 2)[0], 127) && near(get(gm, 2)[2], 128), "gradient map by luminance");
+    var gm2 = get(run([[255, 255, 255]], "gradientMap", { stops: [[0, "#000000"], [0.5, "#00ff00"], [1, "#ffffff"]], reverse: true }), 0);
+    ok(gm2.join() === "0,0,0", "gradient map reverse");
+    var cm = get(run([[100, 50, 200]], "channelMixer", { r: [0, 0, 100, 0], g: [50, 50, 0, 10], b: [100, 0, 0, 0] }), 0);
+    ok(cm[0] === 200 && near(cm[1], 100.5, 0.6) && cm[2] === 100, "channel mixer rows + constant (" + cm + ")");
+    var cm2 = get(run([[100, 50, 200]], "channelMixer", { mono: true, gray: [50, 50, 0, 0] }), 0);
+    ok(cm2.join() === "75,75,75", "channel mixer monochrome");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };
