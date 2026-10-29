@@ -30,3 +30,4 @@ Known-answer checks: `js/paint/tests.js` (run by `S3_SELFTEST` after the core ch
 | Import .abr sampled brushes | done | versions 1, 2 (with names, raw + PackBits) and 6–10 (`samp` section, 8/16-bit), checked lengths, 2500 px / 500 brushes limits; parsed in the worker. Computed (round) .abr entries are skipped |
 | Red eye | done | J group; click the pupil or drag a box; pupil size + darken; the red region grows from the reddest pixel near the click, soft edge, highlight included; respects the selection |
 | Magic eraser | done | E group; tolerance, contiguous, anti-alias, sample all layers, opacity; respects the selection |
+| Background eraser | done | E group; sampling continuous / once / background colour, contiguous or discontiguous, tolerance, protect foreground colour; edge fringe clean-up (decontamination) not done |

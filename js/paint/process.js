@@ -106,7 +106,7 @@
     })(spec.begin);
     spec.stamp = function (st, x, y, d, ang, rnd, flip, col, a) {
       var cond = spec.weight;
-      if (spec.perDab) spec.perDab(st, x, y);
+      if (spec.perDab) spec.perDab(st, x, y, d);
       dabEach(st, x, y, d, ang, rnd, a, function (i, w) {
         if (cond) { w *= cond(st, i); if (w <= 0) return; }
         var c = covTile(st, i, true); c.t[c.j] += w * (1 - c.t[c.j]);
