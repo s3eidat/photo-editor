@@ -216,24 +216,28 @@
       return out;
     }
     if (ver >= 6 && ver <= 10) {
-      var sub = u16();
+      var sub = u16(), presets = null;
       while (p + 12 <= u8.length) {
         var sig = String.fromCharCode(u8[p], u8[p + 1], u8[p + 2], u8[p + 3]), key = String.fromCharCode(u8[p + 4], u8[p + 5], u8[p + 6], u8[p + 7]); p += 8;
         var len = u32();
         if (sig !== "8BIM") throw new Error("This brush file is damaged");
-        if (key !== "samp") { need(len); p += len; continue; }
-        var stop = p + len; need(len);
+        need(len);
+        var stop = p + len;
+        if (key === "desc") { try { presets = PPX.readDescriptor(u8, p + 4).d; } catch (e) { presets = null; } p = stop; continue; }       // names and settings (optional)
+        if (key !== "samp") { p = stop; continue; }
         while (p < stop - 4 && out.length < 500) {
           var bl = u32(), bend = bl; while (bend % 4) bend++;
           var nb = p + bend; need(bend);
-          p += sub === 1 ? 47 : 301;
+          var hs = p, il = Math.min(u8[p], 36), uid = ""; for (var c = 0; c < il; c++) uid += String.fromCharCode(u8[p + 1 + c]);
+          p = hs + (sub === 1 ? 47 : 301);
           var t = i32(), l = i32(), bo = i32(), r = i32(), dp = u16(), cp = u8r();
-          out.push({ name: "Brush " + (out.length + 1), w: r - l, h: bo - t, data: pixels(r - l, bo - t, dp, cp), spacing: 25 });
+          out.push({ name: "Brush " + (out.length + 1), uid: uid, w: r - l, h: bo - t, data: pixels(r - l, bo - t, dp, cp), spacing: 25 });
           p = nb;
         }
-        break;
+        p = stop;
       }
       if (!out.length) throw new Error("No sampled brushes found in this file");
+      if (presets) PPX.abrSettings(presets, out);
       return out;
     }
     throw new Error("Not a supported .abr brush file (version " + ver + ")");
@@ -381,6 +385,31 @@
     });
     if (!out.length) throw new Error("No gradients found in this file");
     return out;
+  };
+
+  // Brush names and the basic settings from an .abr "desc" section, matched to the sampled tips by their id.
+  PPX.abrSettings = function (d, tips) {
+    var list = Array.isArray(d.Brsh) ? d.Brsh : [], by = {};
+    tips.forEach(function (t) { if (t.uid) by[t.uid] = t; });
+    function n(v) { return typeof v === "number" ? v : v && typeof v.v === "number" ? v.v : NaN; }
+    var CTL = { 1: "fade", 2: "pressure", 3: "tilt" };
+    list.slice(0, 2000).forEach(function (b) {
+      var tip = b && b.Brsh; if (!tip || typeof tip !== "object" || typeof tip.sampledData !== "string") return;
+      var t = by[tip.sampledData]; if (!t || t.s) return;
+      if (typeof b["Nm  "] === "string" && b["Nm  "].trim()) t.name = b["Nm  "].replace(/[\u0000-\u001f]/g, " ").trim().slice(0, 60);
+      var s = {}, v;
+      if (isFinite(v = n(tip.Dmtr))) s.size = clamp(Math.round(v), 1, 1000);
+      if (isFinite(v = n(tip.Spcn))) s.spacing = clamp(Math.round(v), 1, 1000);
+      if (isFinite(v = n(tip.Angl))) s.angle = clamp(Math.round(v), -360, 360);
+      if (isFinite(v = n(tip.Rndn))) s.round = clamp(Math.round(v), 1, 100);
+      if (tip.flipX === true) s.flipX = true;
+      if (b.useTipDynamics && b.szVr) { s.sizeC = CTL[n(b.szVr.bVTy)] || "off"; if (isFinite(v = n(b.szVr.jitter))) s.sizeJ = clamp(v, 0, 100); if (isFinite(v = n(b.minimumDiameter))) s.sizeMin = clamp(v, 0, 100); }
+      else s.sizeC = "off";
+      if (b.useTipDynamics && b.angleDynamics && isFinite(v = n(b.angleDynamics.jitter))) s.angleJ = clamp(v, 0, 100);
+      if (b.useScatter) { if (b.scatterDynamics && isFinite(v = n(b.scatterDynamics.jitter))) s.scatter = clamp(v, 0, 1000); if (isFinite(v = n(b["Cnt "]))) s.count = clamp(Math.round(v), 1, 16); s.scatterBoth = b.bothAxes === true; }
+      if (b.usePaintDynamics && b.opVr && CTL[n(b.opVr.bVTy)] === "pressure") s.opC = "pressure";
+      t.s = s;
+    });
   };
 
   // ---------- fill a hole from its surroundings (multi-scale PatchMatch + voting) ----------

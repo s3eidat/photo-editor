@@ -486,3 +486,34 @@
     Object.assign(ED.o.dodge, { tip: "", flipX: false }); delete PP.tips["t:half2"];
   });
 })();
+(function () {
+  "use strict";
+  var PPX = window.PPX, PP = window.PE.paint;
+  // version 6 .abr: a "samp" section with one tip and a "desc" section naming it and setting it up
+  function abr6() {
+    var b = [];
+    function u8(v) { b.push(v & 255); } function u16(v) { u8(v >> 8); u8(v); } function u32(v) { u8(v >>> 24); u8(v >>> 16); u8(v >>> 8); u8(v); }
+    function f64(v) { var d = new DataView(new ArrayBuffer(8)); d.setFloat64(0, v); for (var i = 0; i < 8; i++) u8(d.getUint8(i)); }
+    function s4(s) { for (var i = 0; i < 4; i++) u8(s.charCodeAt(i)); }
+    function key(s) { if (s.length === 4) { u32(0); s4(s); } else { u32(s.length); for (var i = 0; i < s.length; i++) u8(s.charCodeAt(i)); } }
+    function ustr(s) { u32(s.length + 1); for (var i = 0; i < s.length; i++) u16(s.charCodeAt(i)); u16(0); }
+    function desc(cls, items) { ustr(""); key(cls); u32(items.length); items.forEach(function (it) { key(it[0]); s4(it[1]); it[2](); }); }
+    function patch(at) { var len = b.length - at - 4; b[at] = len >>> 24 & 255; b[at + 1] = len >>> 16 & 255; b[at + 2] = len >>> 8 & 255; b[at + 3] = len & 255; }
+    var uid = "12345678-aaaa-bbbb-cccc-1234567890ab";
+    u16(6); u16(2);
+    s4("8BIM"); s4("samp"); var sl = b.length; u32(0);
+    var bl = b.length; u32(0); var hs = b.length; u8(uid.length); for (var i = 0; i < uid.length; i++) u8(uid.charCodeAt(i)); while (b.length < hs + 301) u8(0);
+    u32(0); u32(0); u32(2); u32(3); u16(8); u8(0); [10, 20, 30, 40, 50, 60].forEach(u8); patch(bl); while ((b.length - hs) % 4) u8(0); patch(sl);
+    s4("8BIM"); s4("desc"); var dl = b.length; u32(0); u32(16);
+    desc("null", [["Brsh", "VlLs", function () { u32(1); s4("Objc"); desc("brushPreset", [["Nm  ", "TEXT", function () { ustr("Soft charcoal"); }],
+      ["Brsh", "Objc", function () { desc("sampledBrush", [["sampledData", "TEXT", function () { ustr(uid); }], ["Dmtr", "UntF", function () { s4("#Pxl"); f64(45); }], ["Spcn", "UntF", function () { s4("#Prc"); f64(30); }]]); }],
+      ["useTipDynamics", "bool", function () { u8(1); }], ["szVr", "Objc", function () { desc("brVr", [["bVTy", "long", function () { u32(2); }], ["jitter", "UntF", function () { s4("#Prc"); f64(20); }]]); }]]); }]]);
+    patch(dl);
+    return new Uint8Array(b);
+  }
+  PP.test(".abr version 6 names and settings", function (ok) {
+    var list = PPX.readAbr(abr6());
+    ok(list.length === 1 && list[0].w === 3 && list[0].h === 2 && list[0].data.join() === "10,20,30,40,50,60", "v6 sampled tip");
+    ok(list[0].name === "Soft charcoal" && list[0].s && list[0].s.size === 45 && list[0].s.spacing === 30 && list[0].s.sizeC === "pressure" && list[0].s.sizeJ === 20, "name and settings from the desc section");
+  });
+})();

@@ -95,10 +95,11 @@
   }
   PP.deletePreset = deletePreset;
   // Save a new sampled tip + a preset using it
-  function addTip(name, w, hh, gray, spacing) {
+  function addTip(name, w, hh, gray, spacing, extra) {
     var id = PE.uid("tip"); tipFromGray(id, name, w, hh, gray);
     PP.lib.put({ id: id, kind: "tip", name: name, w: w, h: hh, data: gray }).catch(function () {});
-    var pr = { id: PE.uid("p"), name: name, s: { tip: id, size: Math.min(1000, Math.max(w, hh)), spacing: PE.clamp(spacing || 25, 1, 300), sizeC: "off", hard: 1 } };
+    var s = PP.clampBrush(Object.assign({ tip: id, size: Math.min(1000, Math.max(w, hh)), spacing: PE.clamp(spacing || 25, 1, 300), sizeC: "off", hard: 1 }, extra || {}, { tip: id }));
+    var pr = { id: PE.uid("p"), name: name, s: s };
     USER.push(pr); PP.lib.put({ id: pr.id, kind: "brush", name: name, s: pr.s, order: Date.now() }).catch(function () {});
     return pr;
   }
@@ -155,7 +156,7 @@
     return PP.work("readAbr", [u8]).then(function (list) {
       if (!list.length) throw new Error("No sampled brushes in " + fname);
       var base = String(fname || "Brushes").replace(/\.abr$/i, "").slice(0, 40);
-      list.forEach(function (b, i) { addTip(b.name && !/^Brush \d+$/.test(b.name) ? b.name : base + " " + (i + 1), b.w, b.h, b.data, b.spacing); });
+      list.forEach(function (b, i) { addTip(b.name && !/^Brush \d+$/.test(b.name) ? b.name : base + " " + (i + 1), b.w, b.h, b.data, b.spacing, b.s); });
       PP.refreshPanel("brushes"); S3.toast("Imported " + list.length + " brush" + (list.length > 1 ? "es" : ""));
       return list.length;
     });
