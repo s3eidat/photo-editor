@@ -46,3 +46,5 @@
 .pe-crthumb { display: block; max-width: 100%; margin: 4px auto 0; border-radius: 6px; border: 1px solid var(--line); background: #000; }
 .pe-qmbtn { width: 100%; margin-top: 2px; }
 .pe-qmbtn.on { color: #fff; background: #e5484d; box-shadow: none; }
+.pe-algroup { display: inline-flex; align-items: center; gap: 0; padding: 0 4px; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+.pe-algroup .btn.icon { width: 30px; padding: 0; }
