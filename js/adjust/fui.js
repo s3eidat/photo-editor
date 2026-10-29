@@ -284,6 +284,21 @@
   F.other.push(["Custom…", "", function () { AUI.open("customKernel"); }, has]);
   AUI.filter("other", "HSB / HSL…", "hsbhsl", { t: "HSB / HSL", sel: [["direction", "", [["toHsx", "RGB to H, S, B/L"], ["fromHsx", "H, S, B/L to RGB"]], "toHsx"], ["model", "Model", [["hsb", "HSB"], ["hsl", "HSL"]], "hsb"]] });
 
+  // path blur, flame: paths drawn on the canvas
+  function pathUI(el, st, start) {
+    st.p.paths = [start.slice()]; st.pathCur = 0;
+    var info = h("p", { "class": "faint pe-p" });
+    st.onPaths = function () { var n = st.p.paths.filter(function (P) { return P.length >= 4; }).length; info.textContent = "Click the image to add points to the path; drag a point to move it, double-click to remove it. Paths: " + n + "."; };
+    el.appendChild(h("div", { "class": "row pe-arow" }, [ED.adjKit.btn("New path", function () { st.p.paths.push([]); st.pathCur = st.p.paths.length - 1; st.onPaths(); }, "ghost", "i-plus"),
+      ED.adjKit.btn("Clear", function () { st.p.paths = [[]]; st.pathCur = 0; st.onPaths(); st.schedule(); }, "ghost")]));
+    el.appendChild(info); st.onPaths();
+  }
+  AUI.filter("blur", "Path blur…", "pathBlur", { t: "Path blur", mp: 8e5, handles: AUI.H.paths(true), c: [sl("speed", "Speed", 0, 500, 1, 50, pxf), sl("taper", "Taper", 0, 100, 1, 0, pc)], chk: [["centred", "Centred blur", true]],
+    ui: function (el, st) { pathUI(el, st, [20, 60, 50, 45, 80, 60]); } });
+  AUI.filter("render", "Flame…", "flame", { t: "Flame", mp: 1.2e6, handles: AUI.H.paths(false), c: [sl("length", "Flame length", 1, 60, 1, 12, pc), sl("width", "Width", 5, 100, 1, 30, pc), sl("turbulence", "Turbulence", 0, 100, 1, 40, pc), sl("density", "Density", 5, 100, 1, 50, pc)],
+    sel: [["colors", "Colours", [["fire", "Fire"], ["blue", "Blue gas"], ["green", "Green"], ["violet", "Violet"]], "fire"]],
+    ui: function (el, st) { st.p.seed = 1; pathUI(el, st, [15, 85, 50, 80, 85, 85]); el.appendChild(ED.adjKit.btn("Randomise", function () { st.p.seed++; st.schedule(); }, "ghost")); el.appendChild(h("p", { "class": "faint pe-p", text: "Tip: draw it on a new empty layer to move it later." })); } });
+
   // picture frame, tree
   function seedBtn(el, st) { st.p.seed = 1; el.appendChild(ED.adjKit.btn("Randomise", function () { st.p.seed = (st.p.seed || 1) + 1; st.schedule(); }, "ghost")); }
   AUI.filter("render", "Picture frame…", "pictureFrame", { t: "Picture frame", c: [sl("margin", "Width", 1, 40, 1, 8, pc)],

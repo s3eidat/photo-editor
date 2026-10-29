@@ -145,6 +145,36 @@
     sync();
     return model;
   };
+
+  // paths: click empty space to add a point to the current path, drag points, double-click a point to remove it.
+  // st.p.paths = [[x%, y%, ...], ...]; st.pathCur = index of the path being drawn. arrows: show the motion direction.
+  H.paths = function (arrows) {
+    return function (st) {
+      var model = { handles: [] };
+      function cur() { var P = st.p.paths; if (!P.length) P.push([]); if (st.pathCur == null || st.pathCur >= P.length) st.pathCur = P.length - 1; return P[st.pathCur]; }
+      model.click = function (a, d) { var P = cur(); if (P.length >= 400) return false; var q = a.toPct(d.x, d.y); P.push(Math.round(q.x * 10) / 10, Math.round(q.y * 10) / 10); st.schedule(); if (st.onPaths) st.onPaths(); };
+      model.draw = function (ctx, a) {
+        model.handles = [];
+        st.p.paths.forEach(function (P, pi) {
+          var pts = PIX.A.pathPoints([P], a.r.w, a.r.h, true)[0];
+          ctx.lineWidth = pi === st.pathCur ? 2 : 1.3;
+          if (pts) {
+            ctx.beginPath(); pts.forEach(function (q, i) { var s0 = a.scr(a.r.x + q[0], a.r.y + q[1]); if (i) ctx.lineTo(s0.x, s0.y); else ctx.moveTo(s0.x, s0.y); }); ctx.stroke();
+            if (arrows && pts.length > 1) {
+              var e1 = pts[pts.length - 1], e0 = pts[Math.max(0, pts.length - 4)], s1 = a.scr(a.r.x + e1[0], a.r.y + e1[1]), s0b = a.scr(a.r.x + e0[0], a.r.y + e0[1]), an = Math.atan2(s1.y - s0b.y, s1.x - s0b.x);
+              ctx.beginPath(); ctx.moveTo(s1.x, s1.y); ctx.lineTo(s1.x - 12 * Math.cos(an - 0.45), s1.y - 12 * Math.sin(an - 0.45)); ctx.moveTo(s1.x, s1.y); ctx.lineTo(s1.x - 12 * Math.cos(an + 0.45), s1.y - 12 * Math.sin(an + 0.45)); ctx.stroke();
+            }
+          }
+          for (var i = 0; i + 1 < P.length; i += 2) (function (i) {
+            model.handles.push({ at: function (a2) { var d = a2.toDoc(P[i], P[i + 1]); return a2.scr(d.x, d.y); },
+              move: function (a2, d) { var q = a2.toPct(d.x, d.y); P[i] = Math.round(q.x * 10) / 10; P[i + 1] = Math.round(q.y * 10) / 10; st.pathCur = pi; st.schedule(); },
+              dbl: function () { P.splice(i, 2); st.schedule(); if (st.onPaths) st.onPaths(); } });
+          })(i);
+        });
+      };
+      return model;
+    };
+  };
   // a centre plus a radius ring (spin blur: size as % of width; lighting: spread).
   H.ring = function (kx, ky, kr, ofW) {
     return function () {

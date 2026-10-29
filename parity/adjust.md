@@ -59,6 +59,7 @@ maths files, `openAdjust` calls `spec.ui`, `ED.adjKit` exposes the UI widgets, `
 - `ED.meta` is wrapped (in `js/adjust/ui.js`) to remember the last adjustment/filter for Fade.
 
 ## Integration notes
+- 40 MP (the app's limit) final renders run in the worker without running out of memory in desktop Chrome: 4 s (shadows/highlights) to 50 s (lens blur); there is no progress bar, only "Working…".
 - 29 Oct: merged all five lane branches in a scratch worktree (conflicts only between neighbouring hook lines of other lanes; kept both sides).
   Self-test passes except the files lane's "custom key…" check (files × paint, not this lane); this lane's panels, Fade and menus work.
 - This lane's own panels (`PE.adjUI.openLive`) preview big layers at reduced size and render full size on OK; specs keep the editor's
@@ -69,8 +70,8 @@ maths files, `openAdjust` calls `spec.ui`, `ED.adjKit` exposes the UI widgets, `
 ## Skipped (and why)
 - Camera lens profiles (automatic lens correction): needs a profile database; the manual controls are there.
 - Adaptive wide angle, vanishing point: need interactive constraint/plane editing on the canvas (not started).
-- Path blur, flame render filter: need drawn paths (vector lane) — not started.
 | On-canvas handles | done | Tilt-shift (centre, angle, sharp band, fade), iris blur (centre, width, height, rotation, sharp area), field blur (drag pins, click to add, double-click to remove), radial blur / lens flare centre, spin blur and lighting centre + size ring — dragging updates the sliders and the preview |
 | Apply image | done | Image › Apply image…: source = merged or any layer, channel (RGB / R / G / B / grey / transparency), invert, 20 blend modes, opacity, scale / offset for add / subtract, preserve transparency, inside the selection |
 | Calculations | done | Image › Calculations…: two sources × channel × invert, blend mode, opacity → new selection or a new grey layer; live grey preview over the document |
 | Picture frame, tree | done | Filter › Render; 8 frame styles (frame and mat, wood, plain, film strip, instant photo, vine, scalloped, rounded) with colours and width; procedural tree (base point with handle, size, branch angle, branching depth, bend, leaves, colours, randomise) |
+| Path blur, flame | done | Filter › Blur › Path blur… (speed, taper, centred; pixels follow the nearest drawn path, curved) and Filter › Render › Flame… (length, width, turbulence, density, 4 colour sets, randomise); paths drawn on the canvas: click to add points, drag to move, double-click to remove, several paths |

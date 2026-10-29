@@ -4,7 +4,7 @@
    many settings against the same source without sending the pixels each time. Nothing leaves this device. */
 "use strict";
 importScripts("pix.js");
-importScripts("adjust/amath.js", "adjust/tone.js", "adjust/develop.js", "adjust/blur.js", "adjust/lut.js", "adjust/color2.js", "adjust/stylize.js", "adjust/distort.js", "adjust/render.js", "adjust/render2.js", "adjust/pixelate.js", "adjust/lens.js", "adjust/gallery.js", "adjust/gallery2.js", "adjust/more.js");   // lane:adjust
+importScripts("adjust/amath.js", "adjust/tone.js", "adjust/develop.js", "adjust/blur.js", "adjust/lut.js", "adjust/color2.js", "adjust/stylize.js", "adjust/distort.js", "adjust/render.js", "adjust/render2.js", "adjust/paths.js", "adjust/pixelate.js", "adjust/lens.js", "adjust/gallery.js", "adjust/gallery2.js", "adjust/more.js");   // lane:adjust
 var held = {};
 function transfers(v, out) {
   if (!v || typeof v !== "object") return out;

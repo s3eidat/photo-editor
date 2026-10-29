@@ -280,6 +280,12 @@
     var tr = run(gray(60, 60, function () { return 255; }), "tree", { x: 50, y: 95, size: 80, leaves: 0, trunk: "#000000" }, null, 60, 60), dark = 0;
     for (i = 0; i < 3600; i++) if (get(tr, i)[0] < 128) dark++;
     ok(dark > 20 && get(tr, 0)[0] === 255, "tree draws branches (" + dark + " px)");
+
+    // path blur / flame
+    var pbA = run(gray(21, 21, function (x, y) { return x === 10 && y === 10 ? 255 : 0; }), "pathBlur", { paths: [[0, 50, 100, 50]], speed: 8 }, null, 21, 21);
+    ok(get(pbA, 10 * 21 + 12)[0] > 0 && get(pbA, 12 * 21 + 10)[0] === 0, "path blur smears along a horizontal path only");
+    var fl = run(gray(30, 30, function () { return 0; }), "flame", { paths: [[10, 90, 90, 90]], length: 40 }, null, 30, 30), lit = 0; for (i = 0; i < 900; i++) if (get(fl, i)[0] > 60) lit++;
+    ok(lit > 20 && get(fl, 0)[0] < 40, "flame burns along the path (" + lit + " px)");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };
