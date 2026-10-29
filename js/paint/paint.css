@@ -1,0 +1,18 @@
+/* Photo Editor paint lane: tool flyouts, brush options, paint panels and dialogs. Uses the kit's colour variables (light + dark). */
+.pe-tool.pp-grp { position: relative; }
+.pe-tool.pp-grp::after { content: ""; position: absolute; right: 3px; bottom: 3px; border: 3px solid transparent; border-right-color: currentColor; border-bottom-color: currentColor; opacity: .55; }
+.pe-tool[hidden] { display: none; }
+.pp-fly { position: fixed; z-index: 70; min-width: 220px; padding: 5px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: var(--shadow-pop); }
+.pp-fly .pe-mi .i { width: 18px; height: 18px; flex: none; }
+.pp-fly .pe-mi.on { color: var(--accent); }
+.pp-tipbtn { display: inline-grid; place-items: center; height: 30px; padding: 1px 4px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); cursor: pointer; }
+.pp-tipbtn canvas { width: 56px; height: 26px; }
+.pp-tipbtn:hover { border-color: var(--accent); }
+.pp-tog[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.pp-bs .pp-pv { width: 100%; height: auto; aspect-ratio: 560 / 120; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
+.pp-sec { border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; }
+.pp-sec > summary { cursor: pointer; padding: 8px 0; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.pp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px 16px; padding: 2px 0 10px; }
+.pp-grid .pe-of { justify-content: space-between; white-space: normal; }
+.pp-grid .pe-rng input[type="range"] { flex: 1; min-width: 80px; }
+@media (max-width: 520px) { .pp-grid { grid-template-columns: 1fr; } }

@@ -1,4 +1,19 @@
 # Lane: paint
 
+Code: `js/paint/*.js` (+ `js/paint/paint.css`). Hooks in shared files are marked `lane:paint`
+(`index.html` script/style tags, `js/ui.js` tool/menu/options/kit exposure, `js/editor.js` overlay + cursor hooks).
+Known-answer checks: `js/paint/tests.js` (run by `S3_SELFTEST` after the core checks).
+
 | Feature | Status | Notes |
 |---|---|---|
+| Brush engine: spacing, flow, smoothing (pulled string + catch-up) | done | `engine.js`; brush, eraser, clone and healing run on it |
+| Shape dynamics: size / angle / roundness jitter and controls | done | controls: pen pressure, tilt, fade, direction, initial direction, pen rotation |
+| Scattering (count, count jitter, both axes) | done | |
+| Colour dynamics (fg/bg mix, hue / saturation / brightness jitter, purity, per tip) | done | |
+| Transfer (opacity / flow jitter + controls) | done | per-dab alpha under the stroke opacity cap |
+| Pen pressure and tilt (Pointer Events, coalesced events) | done | pressure → size on by default for pens; mouse and touch paint at full size |
+| Build-up (airbrush) | done | |
+| Texture, dual tip | done | texture needs a pattern (patterns panel); per-tip texture |
+| Symmetry painting | done | vertical, horizontal, dual axis, diagonal, radial, mandala; adjustable centre |
+| Masks take the foreground's grey | done | grey paints a partial mask (was black/white only) |
+| Brush settings dialog (F5) | done | live preview stroke drawn by the engine |

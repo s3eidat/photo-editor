@@ -17,6 +17,7 @@
     ["gradient", "Gradient", "G"], ["bucket", "Paint bucket", "G"], ["text", "Text", "T"], ["shape", "Shape", "U"], ["hand", "Hand", "H"], ["zoom", "Zoom", "Z"]
   ];
   var CYCLE = { M: ["marquee", "ellipse"], L: ["lasso", "polygon"], G: ["gradient", "bucket"] };
+  ED.uiTOOLS = TOOLS; ED.uiCYCLE = CYCLE; // lane:paint
   function buildTools() {
     var box = $("#tools"); box.textContent = "";
     var grid = h("div", { "class": "pe-tgrid" });
@@ -167,6 +168,7 @@
       items.push(btn("Fit", function () { ED.fit(true); }, "ghost"), btn("100%", function () { ED.zoomAt(1); }, "ghost"));
       items.push(h("span", { "class": "pe-hint", text: "Click to zoom in, Alt+click to zoom out. " + K("Alt+wheel or Ctrl+wheel zooms anywhere.") }));
     } else if (t === "hand") items.push(h("span", { "class": "pe-hint", text: "Drag to pan. Hold Space with any tool. Double-click fits the screen." }));
+    if (ED.paintOpts) items = ED.paintOpts(t, items) || items; // lane:paint
     items.forEach(function (x) { bar.appendChild(x); });
   }
   function textLive(fn) {
@@ -806,6 +808,7 @@
     ["View", [["Zoom in", "Ctrl+=", function () { ED.zoomStep(1); }, has], ["Zoom out", "Ctrl+-", function () { ED.zoomStep(-1); }, has], ["Fit on screen", "Ctrl+0", function () { ED.fit(true); }, has], ["Actual pixels (100%)", "Ctrl+1", function () { ED.zoomAt(1); }, has], "-",
       ["Keyboard shortcuts", "?", shortcutsDialog]]]
   ];
+  ED.uiMENUS = MENUS; ED.uiSHORTCUTS = SHORTCUTS; // lane:paint
   var openMenu = null;
   function buildMenus() {
     var bar = $("#menus"); bar.textContent = "";
@@ -985,5 +988,6 @@
     ED.ready = restoreLast().then(function (ok) { if (!ok) renderEmpty(); return ok; });
   }
   ED.ui = { openAdjust: openAdjust, closeFloat: closeFloat, quick: quick, exportDialog: exportDialog, newDialog: newDialog, renderLayers: renderLayers, buildOpts: buildOpts, buildProps: buildProps, colors: colors, saveFile: saveFile, openFiles: openFiles, floatState: function () { return floatState; } };
+  ED.ui.kit = { svg: svg, K: K, field: field, range: range, check: check, seg: seg, select: select, btn: btn, numInput: numInput, modal: modal, need: need }; // lane:paint
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
