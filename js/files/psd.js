@@ -368,9 +368,11 @@
     // styles, vector mask, pixel mask and the other exact settings, for any layer or group
     function decorate(c, L, saved, same, r) {
       if (c.effects) {
-        if (stylesOn) { var f = same && saved.ext.fx ? { fx: saved.ext.fx } : X.fxIn(c.effects); if (f && f.fx) L.fx = f.fx; if (!f || f.partial || (!f.fx && !c.effects.disabled)) note("styles"); }
-        else if (!c.effects.disabled) note("styles");
+        var f = X ? X.fxIn(c.effects) : null;
+        if (stylesOn) { if (same && saved.ext.fx) f = { fx: saved.ext.fx }; if (f && f.fx) L.fx = f.fx; if (f && f.partial) note("styles"); }
+        else if (f && f.fx && f.fx.on !== false) note("styles");
       }
+      if (c.blendingRanges && S && S.blendIfDraw && X) { var bf = X.blendIfIn(c.blendingRanges); if (bf) L.blendIf = bf; }
       var live = false;
       if (c.vectorMask && !c.vectorFill && vmOn) { var vm = same && saved.ext.vmask ? saved.ext.vmask : X.vmaskIn(c.vectorMask); if (vm) { L.vmask = vm; live = true; } }
       var mk = maskIn(c, L.kind === "raster" ? { x: L.x, y: L.y, w: L.canvas.width, h: L.canvas.height } : r, doc, live);
@@ -467,6 +469,7 @@
       if (L.fx && X) { var ef = X.fxOut(L.fx); if (ef) c.effects = ef; if (L.fx.patternOverlay && L.fx.patternOverlay.on) note("pattern"); }
       if (L.vmask && X && L.kind !== "shape") { var vm = X.vmaskOut(L.vmask); if (vm) c.vectorMask = vm; }
       if (L.mask) { c.mask = maskOut(L.mask); c.mask.disabled = !L.maskOn; }
+      if (L.blendIf && X) { var br = X.blendIfOut(L.blendIf); if (br) c.blendingRanges = br; }
     }
     function remember(L, c) {
       var e = extOf(L), keep = L.kind === "text" || L.kind === "shape" || L.kind === "adjust" || L.kind === "fill" || Object.keys(e).length;

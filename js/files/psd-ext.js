@@ -72,7 +72,9 @@
       case "threshold": o = { op: "threshold", p: { level: clamp(a.level || 128, 1, 255) } }; break;
       case "invert": o = { op: "invert", p: {} }; break;
       case "posterize": o = { op: "posterize", p: { levels: clamp(a.levels || 4, 2, 255) } }; break;
-      case "photo filter": if (!a.color || a.color.r == null) return null; o = { op: "photoFilter", p: { color: hex(a.color, "#ec8a00"), density: clamp((a.density || 0) * 100, 0, 100), keepLum: a.preserveLuminosity !== false } }; break;
+      case "photo filter": var pc = a.color, C = PE.ws && PE.ws.color;
+        if (pc && pc.l != null && C) { var q = C.lab2rgb(pc.l * 100, pc.a * 128, pc.b * 128); pc = { r: q[0], g: q[1], b: q[2] }; }
+        if (!pc || pc.r == null) return null; o = { op: "photoFilter", p: { color: hex(pc, "#ec8a00"), density: clamp((a.density || 0) * 100, 0, 100), keepLum: a.preserveLuminosity !== false } }; break;
       case "channel mixer": var mv = function (v) { v = v || {}; return [v.red || 0, v.green || 0, v.blue || 0, v.constant || 0]; };
         o = { op: "channelMixer", p: { mono: !!a.monochrome, r: mv(a.red || { red: 100 }), g: mv(a.green || { green: 100 }), b: mv(a.blue || { blue: 100 }), gray: mv(a.gray || { red: 40, green: 40, blue: 20 }) } }; break;
       case "gradient map": if (a.gradientType !== "solid" || !Array.isArray(a.colorStops) || a.colorStops.length < 2) return null;
@@ -82,6 +84,18 @@
       default: return null;
     }
     return has(o.op) ? o : null;
+  };
+
+  // ---------- blend if (blending ranges, grey channel) ----------
+  X.blendIfOut = function (b) {
+    if (!b || !b.self || !b.under) return null; var full = { sourceRange: [0, 0, 255, 255], destRange: [0, 0, 255, 255] };
+    return { compositeGrayBlendSource: b.self.map(Math.round), compositeGraphBlendDestinationRange: b.under.map(Math.round), ranges: [full, full, full, full] };
+  };
+  X.blendIfIn = function (r) {
+    if (!r || !Array.isArray(r.compositeGrayBlendSource) || !Array.isArray(r.compositeGraphBlendDestinationRange)) return null;
+    var s2 = r.compositeGrayBlendSource.slice(0, 4).map(function (v) { return clamp(v, 0, 255); }), u = r.compositeGraphBlendDestinationRange.slice(0, 4).map(function (v) { return clamp(v, 0, 255); });
+    if (s2.length !== 4 || u.length !== 4 || (s2.join() === "0,0,255,255" && u.join() === "0,0,255,255")) return null;
+    return { self: s2, under: u };
   };
 
   // ---------- layer styles ----------
