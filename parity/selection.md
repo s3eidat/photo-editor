@@ -49,3 +49,15 @@ All marked `// lane:selection` (or `<!-- lane:selection -->`).
 - `js/editor.js`: tools in `ED.TOOLS` flagged `brush: true` get the round brush cursor.
 - `js/ui.js`: `ED.ui.keys` — array of key handlers `f(e) -> true if handled`, run before the built-in shortcuts.
 - Self-test: `PE.sx.tests` (array of `async (ok, near) => {}`) runs after the app's own `S3_SELFTEST`; no change to `app.js`.
+
+## Integration notes (for merging the five lane branches into main)
+Tried on 29 Oct by merging every lane branch onto this one in a scratch worktree:
+- Conflicts are only neighbouring hook lines in `index.html`, `js/ui.js`, `js/editor.js`, `js/core.js`: keep both sides.
+  Script order that works: this lane's block right after `js/ui.js`, then paint, vector, files/workspace; the adjust lane loads after `app.js`.
+- With all lanes merged, the self-test passes except the files lane's "custom key runs the command and frees the old one":
+  it assumes nothing else defaults to `B`, but the paint lane adds pencil / colour replacement / mixer brush on `B` (files × paint, not this lane).
+- This lane renamed its Properties hook to `ED.ui.propsKind` because the vector lane uses `ED.ui.propsExt` as a list.
+- Adjustment layers accept any colour op in `ED.ADJ`: filters registered in the adjust lane's Filter menu (`PE.adjUI.FILTERS`), `proxy` specs and
+  anything that fails a pixel-shuffle test are left out; specs with their own `ui(el, st)` get a "More settings…" dialog (live, Cancel restores).
+- Locked transparency is enforced in `PE.editPixels` / `PE.tileEntry`, so the paint lane's engine respects it on commit (its live preview does not).
+- The files lane's PSD code reads `PE.sx.tree`, `L.parent`, `L.clip`, `L.fillOp` and group `open`: those names are stable.

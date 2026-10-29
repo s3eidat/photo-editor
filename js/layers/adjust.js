@@ -8,9 +8,39 @@
   // Filters (spatial) are not offered as adjustment layers. Other lanes can mark new specs with `filter: true`.
   var FILTERS = { blur: 1, unsharp: 1, sharpen: 1, noise: 1, pixelate: 1, vignette: 1 };
   var QUICK = { invert: "Invert", desaturate: "Desaturate" };
+  // State object for another lane's custom settings UI (spec.ui(el, st)): st.p params, st.schedule() after a change.
+  function uiState(p, L, schedule) {
+    var d = ED.doc, small = d ? PE.getData(PE.flatten(d, { hide: L ? L.id : null, scale: Math.min(1, 256 / Math.max(d.w, d.h)) })) : null;
+    return { p: p, op: null, schedule: schedule, run: schedule, previewOn: true, t: { img: small ? { data: small.data, width: small.width, height: small.height } : { data: new Uint8ClampedArray(4), width: 1, height: 1 }, L: L, r: { x: 0, y: 0, w: d ? d.w : 1, h: d ? d.h : 1 }, sel: null } };
+  }
+  // Filters registered by the adjust lane's Filter menu (labels "Motion blur…" etc.) never become adjustment layers.
+  function filterTitles() {
+    var F = PE.adjUI && PE.adjUI.FILTERS, out = {};
+    if (F) Object.keys(F).forEach(function (g) { (F[g] || []).forEach(function (it) { if (it && it[0]) out[String(it[0]).replace(/…$/, "")] = 1; }); });
+    return out;
+  }
+  // An adjustment layer must be a colour op: each output pixel depends only on that input pixel (shuffling the
+  // pixels and adjusting gives the shuffled result). Blurs, distortions and generators fail this and are left out.
+  var POINT = {};
+  function pointwise(op) {
+    if (POINT[op] != null) return POINT[op];
+    var W = 16, n = W * W, img = new Uint8ClampedArray(n * 4), r = PIX.rng(17), i;
+    for (i = 0; i < n * 4; i++) img[i] = i % 4 === 3 ? 255 : Math.floor(r() * 256);
+    var sh = new Uint8ClampedArray(n * 4);
+    for (i = 0; i < n; i++) { var x = i % W, y = (i - x) / W, j = y * W + (x + 5) % W; sh.set(img.subarray(i * 4, i * 4 + 4), j * 4); }
+    var ok = false;
+    try {
+      var p = defaults(op), o1 = { data: new Uint8ClampedArray(img), width: W, height: W }, o2 = { data: new Uint8ClampedArray(sh), width: W, height: W };
+      PIX.adjust(o1, op, PE.clone(p)); PIX.adjust(o2, op, PE.clone(p));
+      ok = true;
+      for (i = 0; i < n && ok; i++) { var x2 = i % W, y2 = (i - x2) / W, j2 = y2 * W + (x2 + 5) % W; for (var c = 0; c < 4; c++) if (Math.abs(o1.data[i * 4 + c] - o2.data[j2 * 4 + c]) > 2) { ok = false; break; } }
+    } catch (e) { ok = false; }
+    return (POINT[op] = ok);
+  }
+  SX.isColourOp = pointwise;
   function specs() {
-    var out = [], A = ED.ADJ || {};
-    Object.keys(A).forEach(function (k) { if (!FILTERS[k] && !A[k].filter) out.push([k, A[k].t]); });
+    var out = [], A = ED.ADJ || {}, FT = filterTitles();
+    Object.keys(A).forEach(function (k) { if (!FILTERS[k] && !A[k].filter && !A[k].proxy && !FT[A[k].t] && pointwise(k)) out.push([k, A[k].t]); });
     Object.keys(QUICK).forEach(function (k) { out.push([k, QUICK[k]]); });
     return out;
   }
@@ -20,7 +50,9 @@
     var s = ED.ADJ[op], p = {};
     if (!s) return p;
     (s.c || []).forEach(function (c) { p[c.k] = c.def; });
-    (s.chk || []).forEach(function (c) { p[c[0]] = false; });
+    (s.chk || []).forEach(function (c) { p[c[0]] = c[2] === true; });
+    (s.sel || []).forEach(function (c) { p[c[0]] = c[3]; });
+    if (typeof s.ui === "function") { try { s.ui(h("div"), uiState(p, null, function () {})); } catch (e) { /* their panel needs more context; keep the slider defaults */ } }
     if (s.custom === "levels") Object.assign(p, { inB: 0, inW: 255, gamma: 1, outB: 0, outW: 255 });
     if (s.custom === "curves") Object.assign(p, { rgb: [[0, 0], [255, 255]], r: [[0, 0], [255, 255]], g: [[0, 0], [255, 255]], b: [[0, 0], [255, 255]] });
     if (s.custom === "balance") Object.assign(p, { sh: [0, 0, 0], mid: [0, 0, 0], hi: [0, 0, 0], keepLum: true });
@@ -101,6 +133,8 @@
     else {
       (s.c || []).forEach(function (c) { box.appendChild(w.range(c.label, p[c.k] == null ? c.def : p[c.k], c.min, c.max, c.step, function (v) { edit(L, function () { p[c.k] = v; }); }, c.fmt)); });
       (s.chk || []).forEach(function (c) { box.appendChild(w.check(c[1], !!p[c[0]], function (v) { edit(L, function () { p[c[0]] = v; }); })); });
+      (s.sel || []).forEach(function (c) { box.appendChild(w.select(c[1], c[2], p[c[0]] == null ? c[3] : p[c[0]], function (v) { edit(L, function () { p[c[0]] = v; }); })); });
+      if (typeof s.ui === "function") box.appendChild(w.btn("More settings…", function () { moreSettings(L); }, "ghost", null, "Open the full settings for this adjustment (applies live to this layer)"));
       if (s.custom === "levels") levelsBox(box, L, p);
       if (s.custom === "curves") curvesBox(box, L, p);
       if (s.custom === "balance") balanceBox(box, L, p);
@@ -110,6 +144,22 @@
       w.btn("Merge down", function () { PE.mergeExt(L); }, "ghost", null, "Apply it to the layer below and remove it"), L.mask ? null : w.btn("Add mask", function () { ED.LOPS.addMask(!!ED.doc.sel); }, "ghost", "t-mask")]));
     SX.maskProps(P, L);
   };
+  // Host another lane's settings UI in a dialog; it edits a copy of the params, shown live; Cancel puts them back.
+  function moreSettings(L) {
+    var s = ED.ADJ[L.adj.op], w = ED.ui.w, before = PE.snap(ED.doc), orig = PE.clone(L.adj.p), draft = PE.clone(L.adj.p), body = h("div", { "class": "stack pe-adjbox" }), done = false;
+    function apply() { L.adj = { op: L.adj.op, p: PE.clone(draft) }; ED.render(); }
+    var st = uiState(draft, L, apply);
+    (s.c || []).forEach(function (c) { body.appendChild(w.range(c.label, draft[c.k] == null ? c.def : draft[c.k], c.min, c.max, c.step, function (v) { draft[c.k] = v; apply(); }, c.fmt)); });
+    try { s.ui(body, st); } catch (e) { body.appendChild(h("p", { "class": "faint pe-p", text: "These settings need the image panel: use Image › " + s.t + " on a layer instead." })); }
+    apply();
+    var dlg = w.modal(s.t + " (adjustment layer)", body, [h("span", { "class": "grow" }), w.btn("Cancel", function () { finish(false); }, "ghost"), w.btn("OK", function () { finish(true); }, "primary")]);
+    function finish(ok) {
+      if (done) return; done = true; dlg.close();
+      if (!ok) { L.adj = { op: L.adj.op, p: orig }; ED.changed(); return; }
+      ED.push(PE.metaEntry(s.t, ED.doc, before));
+    }
+    var obs = new MutationObserver(function () { if (!document.body.contains(dlg.el)) { obs.disconnect(); finish(false); } }); obs.observe(document.body, { childList: true });
+  }
   function levelsBox(el, L, p) {
     var w = ED.ui.w, rs = {};
     el.appendChild(histCanvas(histBelow(L).l));
@@ -216,5 +266,6 @@
     d.layers.pop(); ED.setActive(A.id); PE.mergeExt(A);
     ok(d.layers.length === 1 && SX.px(d.layers[0].canvas, 3, 0)[0] === 191 && SX.px(d.layers[0].canvas, 0, 0)[0] === 64, "merge down bakes it");
     ok(SX.cleanVal({ a: [1, "x<y>", { b: NaN }], "__proto__": 1, "bad key": 2 }, 0).a[1] === "xy", "settings from files are sanitised");
+    ok(SX.isColourOp("levels") && SX.isColourOp("hueSat") && !SX.isColourOp("blur") && !SX.isColourOp("pixelate"), "only colour ops become adjustment layers");
   });
 })();
