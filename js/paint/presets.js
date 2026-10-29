@@ -68,6 +68,7 @@
     PP.DYN_KEYS.forEach(function (k) { if (["sym", "symN", "symX", "symY"].indexOf(k) < 0) o[k] = PP.BDEF[k]; });
     Object.keys(pr.s).forEach(function (k) { if (SAFE.indexOf(k) >= 0 && typeof pr.s[k] === typeof PP.BDEF[k]) o[k] = pr.s[k]; });
     if (keepSize) o.size = keepSize;
+    PP.clampBrush(o);
     if (o.tip && !PP.tips[o.tip]) o.tip = "";
     o.preset = pr.id;
     ED.saveOpts(); if (ED.tool === tool) ED.ui.buildOpts(); ED.renderOvl(); PP.refreshPanel("brushes");

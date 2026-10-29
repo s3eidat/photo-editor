@@ -56,11 +56,11 @@
     var R = PE.inter(PE.rectI({ x: box.x - L.x - pad, y: box.y - L.y - pad, w: box.w + 2 * pad, h: box.h + 2 * pad }), { x: 0, y: 0, w: cv.width, h: cv.height });
     if (!R) { ED.push(t.grow); return Promise.resolve(false); }
     var mdoc = src ? sel.m : shifted(sel.m, d.w, d.h, off), soff = src ? off : { x: -off.x, y: -off.y };
-    return ED.working(PP.healFrom(cv, L, R, soff, mdoc, po.transp ? 0.5 : 1), "Patching…").then(function (img) {
-      var e = PE.editPixels(d, "Patch", L, "canvas", R, function (c) { c.putImageData(img, R.x, R.y); });
-      ED.push(PE.compound("Patch", [t.grow, e]));
+    ED.push(t.grow);
+    return PP.commitAsync(PP.healFrom(cv, L, R, soff, mdoc, po.transp ? 0.5 : 1), "Patching…", function (img) {
+      PP.pushJoined(t.grow, PE.editPixels(d, "Patch", L, "canvas", R, function (c) { c.putImageData(img, R.x, R.y); }), "Patch");
       return true;
-    }).catch(function (err) { ED.push(t.grow); S3.toast(err.message, "error"); return false; });
+    });
   };
   PP.addTool("patch", "Patch", "J", "heal", PP.selDragTool("patch", function (off) { PP.patch(off); }));
   PP.cursors.patch = function (p) { return ED.doc && ED.doc.sel && inSel(p) ? "move" : "crosshair"; };
@@ -104,15 +104,16 @@
         wx.putImageData(new ImageData(o, R.w, R.h), R.x, R.y); rects.push(R);
       });
     });
-    return ED.working(job, move ? "Moving and filling…" : "Extending…").then(function () {
+    ED.push(t.grow);
+    return PP.commitAsync(job, move ? "Moving and filling…" : "Extending…", function () {
       var U = rects.reduce(function (a, r) { return PE.union(a, r); }, null);
-      if (!U) { ED.push(t.grow); return false; }
+      if (!U) return false;
       U = PE.inter(PE.rectI(U), { x: 0, y: 0, w: W, h: H });
       var e = PE.editPixels(d, move ? "Move with fill" : "Extend with fill", L, "canvas", U, function (c) { c.putImageData(wx.getImageData(U.x, U.y, U.w, U.h), U.x, U.y); });
       before = PE.snap(d); d.sel = PE.makeSel(d, to);
-      ED.push(PE.compound(move ? "Move with fill" : "Extend with fill", [t.grow, e, PE.metaEntry("Move selection", d, before)]));
+      PP.pushJoined(t.grow, PE.compound(move ? "Move with fill" : "Extend with fill", [e, PE.metaEntry("Move selection", d, before)]));
       return true;
-    }).catch(function (err) { ED.push(t.grow); S3.toast(err.message, "error"); return false; });
+    });
   };
   PP.addTool("cmove", "Move with fill", "J", "patch", PP.selDragTool("cmove", function (off) { PP.contentMove(off); }));
   PP.cursors.cmove = function (p) { return ED.doc && ED.doc.sel && inSel(p) ? "move" : "crosshair"; };

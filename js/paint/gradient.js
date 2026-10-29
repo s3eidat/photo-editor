@@ -79,7 +79,8 @@
     if (!R) { ED.push(t.grow); return Promise.resolve(false); }
     var lut = PP.gradientLut(o.g, o.transp), op = PE.clamp(o.op, 0, 1);
     var job = PP.work("gradRender", [lut, R.w, R.h, R.x + hd.x, R.y + hd.y, { type: o.type, a: a, b: b, rev: o.rev, dither: o.dither }]);
-    return ED.working(job, "Gradient…").then(function (px) {
+    ED.push(t.grow);
+    return PP.commitAsync(job, "Gradient…", function (px) {
       var tc = PE.mk(R.w, R.h), tx = PE.cx2(tc); tx.putImageData(new ImageData(new Uint8ClampedArray(px), R.w, R.h), 0, 0);
       var e = PE.editPixels(d, "Gradient", hd, "canvas", R, function (c) {
         if (mask) {      // on a mask: the gradient's brightness becomes the mask value
@@ -93,9 +94,9 @@
         if (sel) { tx.globalCompositeOperation = "destination-in"; tx.drawImage(PE.selCanvas(sel), -(R.x + hd.x), -(R.y + hd.y)); }
         c.save(); c.globalAlpha = op; c.globalCompositeOperation = PE.gco(o.mode); c.drawImage(tc, R.x, R.y); c.restore();
       });
-      ED.push(PE.compound("Gradient", [t.grow, e]));
+      PP.pushJoined(t.grow, e, "Gradient");
       return true;
-    }).catch(function (err) { ED.push(t.grow); S3.toast(err.message, "error"); return false; });
+    });
   };
   ED.TOOLS.gradient = {
     down: function (p) { var L = ED.layer(); if (!ED.editable(L, "pixels")) return; ED.drag = { kind: "gradient", a: p, b: null }; },

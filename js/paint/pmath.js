@@ -169,7 +169,7 @@
   // Returns [{name, w, h, data: Uint8Array (255 = paint), spacing}]. Versions 1, 2 and 6+ ("samp" section).
   // Every length is checked against the file; tips are limited to 2500 x 2500 and 500 per file.
   PPX.readAbr = function (u8) {
-    var dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), p = 0, out = [], MAXS = 2500;
+    var dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), p = 0, out = [], MAXS = 2500, budget = 64e6;
     function need(n) { if (n < 0 || p + n > u8.length) throw new Error("This brush file is damaged or truncated"); }
     function u8r() { need(1); return u8[p++]; }
     function u16() { need(2); var v = dv.getUint16(p); p += 2; return v; }
@@ -179,12 +179,14 @@
     function ustr() { var n = u32(); if (n > 1024) throw new Error("This brush file is damaged"); var s = ""; for (var i = 0; i < n; i++) { var c = u16(); if (c) s += String.fromCharCode(c); } return s; }
     function pixels(w, h, depth, comp) {
       if (w < 1 || h < 1 || w > MAXS || h > MAXS) throw new Error("A brush in this file is too large (" + w + " × " + h + ")");
+      budget -= w * h; if (budget < 0) throw new Error("This brush file holds more brush pixels than can be imported at once");
       var bpp = depth === 16 ? 2 : 1, rowBytes = w * bpp, data = new Uint8Array(w * h), row = new Uint8Array(rowBytes), y, x;
       if (!comp) {
         for (y = 0; y < h; y++) { need(rowBytes); for (x = 0; x < w; x++) data[y * w + x] = u8[p + x * bpp]; p += rowBytes; }
         return data;
       }
-      var lens = []; for (y = 0; y < h; y++) lens.push(u16());
+      var lens = [], minRow = Math.ceil(rowBytes / 128) * 2;    // PackBits needs at least 2 bytes per 128 output bytes
+      for (y = 0; y < h; y++) { var ln = u16(); if (ln < minRow) throw new Error("This brush file is damaged"); lens.push(ln); }
       for (y = 0; y < h; y++) {        // PackBits
         var end = p + lens[y], k = 0; need(lens[y]);
         while (p < end && k < rowBytes) {
@@ -192,6 +194,7 @@
           if (n >= 0) { var cnt = n + 1; need(cnt); for (var i = 0; i < cnt && k < rowBytes; i++) row[k++] = u8[p + i]; p += cnt; }
           else if (n !== -128) { var rep = 1 - n, v = u8r(); for (var j = 0; j < rep && k < rowBytes; j++) row[k++] = v; }
         }
+        if (k < rowBytes) throw new Error("This brush file is damaged");
         p = end;
         for (x = 0; x < w; x++) data[y * w + x] = row[x * bpp];
       }
@@ -394,10 +397,7 @@
     }
     void nd;
     var out = new Uint8ClampedArray(img.data);
-    for (i = 0; i < n; i++) if (hole[i]) {
-      var kk = hole[i] / 255;
-      for (k = 0; k < 4; k++) out[i * 4 + k] = c255(img.data[i * 4 + k] + (L0.d[i * 4 + k] - img.data[i * 4 + k]) * kk);
-    }
+    for (i = 0; i < n; i++) if (hole[i]) for (k = 0; k < 4; k++) out[i * 4 + k] = c255(L0.d[i * 4 + k]);      // callers blend soft edges
     return { data: out, width: W, height: H };
   };
 

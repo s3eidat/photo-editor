@@ -6,6 +6,7 @@
   "use strict";
   var PE = window.PE, ED = PE.ed, PPX = window.PPX;
   var PP = PE.paint = PE.paint || {};
+  PP.ready = PP.ready || [];      // run once the page is built
   var saved = S3.store("pe-opts") || {};
 
   // ---------- icons: added to the page's symbol sheet ----------
@@ -68,7 +69,7 @@
     document.body.appendChild(fly);
     var r = btn.getBoundingClientRect(), fw = fly.offsetWidth, fh = fly.offsetHeight;
     var x = r.right + 4, y = r.top;
-    if (x + fw > innerWidth - 4) { x = Math.max(4, r.left); y = r.bottom + 4; }
+    if (x + fw > innerWidth - 4) { x = Math.max(4, Math.min(r.left, innerWidth - fw - 4)); y = r.bottom + 4; }
     if (y + fh > innerHeight - 4) y = Math.max(4, innerHeight - fh - 4);
     fly.style.left = x + "px"; fly.style.top = y + "px";
     var f = fly.querySelector(".pe-mi"); if (f) f.focus({ preventScroll: true });
@@ -186,6 +187,36 @@
     });
   };
 
+  // ---------- jobs that finish later (worker) ----------
+  // While one runs, the canvas takes no new input; its result is dropped if the document changed meanwhile.
+  PP.commitAsync = function (job, msg, apply, fail) {
+    var d = ED.doc, H = ED.hist;
+    return ED.working(job, msg).then(function (res) {
+      if (ED.doc !== d || ED.hist !== H) { S3.toast("The document changed before that finished, so it was not applied", "error"); if (fail) fail(); return false; }
+      return apply(res);
+    }, function (err) { if (ED.doc === d && fail) fail(err); S3.toast(err && err.message || String(err), "error"); return false; });
+  };
+  // Record e; if the last step is the grow recorded just before the job started, both become one step.
+  PP.pushJoined = function (grow, e, label) {
+    var H = ED.hist;
+    if (grow && e && H.pos > 0 && H.pos === H.list.length && H.list[H.pos - 1] === grow) { H.list.pop(); H.pos--; H.bytes -= grow.bytes; ED.push(PE.compound(label || e.label, [grow, e])); }
+    else ED.push(e);
+  };
+  window.addEventListener("pointerdown", function (e) {
+    if (!ED.busy || !ED.stage || !ED.stage.contains(e.target)) return;
+    e.stopImmediatePropagation(); e.preventDefault(); S3.toast("Still working on the last step…");
+  }, true);
+  // A stroke in progress is cancelled (pixels put back) before the tool changes, and pixel shortcuts wait for it.
+  PP.ready.push(function () {
+    var setTool = ED.setTool;
+    ED.setTool = function (t) { if (ED.drag && ED.drag.kind !== "pan" && t !== ED.tool) ED.cancelDrag(); return setTool.apply(this, arguments); };
+  });
+  document.addEventListener("keydown", function (e) {
+    if (!ED.drag || ED.drag.kind === "pan" || ED.isTyping(e)) return;
+    if (e.key === "Escape" || e.key === " " || e.key === "Shift" || e.key === "Alt" || e.key === "Control" || e.key === "Meta") return;
+    if (e.ctrlKey || e.metaKey || e.key === "Delete" || e.key === "Backspace" || e.key === "Enter") { e.preventDefault(); e.stopImmediatePropagation(); }
+  }, true);
+
   // ---------- small shared helpers ----------
   PP.lum = function (rgb) { return rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114; };
   PP.rgba = function (rgb, a) { return "rgba(" + Math.round(rgb[0]) + "," + Math.round(rgb[1]) + "," + Math.round(rgb[2]) + "," + a + ")"; };
@@ -253,7 +284,7 @@
     if (T.up && ED.drag) T.up(pts[pts.length - 1], e);
   };
 
-  PP.ready = [];
+  PP.ready = PP.ready || [];
   function boot() {
     wireGroups();
     startWorker();

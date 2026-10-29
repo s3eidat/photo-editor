@@ -15,7 +15,7 @@
   // ---------- preview stroke: an S-curve with a pressure taper, drawn by the real engine ----------
   PP.previewStroke = function (o, w, hh, color) {
     var c = PE.mk(w, hh), buf = PE.mk(w, hh);
-    var st = { o: Object.assign({}, o), spec: { fill: "color" }, bctx: PE.cx2(buf), buf: buf, ox: 0, oy: 0, mask: false, noSel: true, R: Math.random,
+    var st = { o: PP.clampBrush(Object.assign({}, o)), spec: { fill: "color" }, bctx: PE.cx2(buf), buf: buf, ox: 0, oy: 0, mask: false, noSel: true, R: Math.random,
       n: 0, tip: PP.tipOf(o.tip), pencil: !!o.pencil, fg: PE.rgbOf(color || "#111111"), bgc: PE.rgbOf(ED.doc ? ED.doc.bg : "#ffffff"), w: w, h: hh, bbox: null };
     var maxD = Math.min(hh * 0.62, o.size); st.o.size = maxD; st.o.sym = "off";
     if (st.o.tex && PP.patternOf && PP.patternOf(st.o.tex)) { var P = PP.patternOf(st.o.tex), m = PP.texMask(P, st.o.texInvert); st.tex = { pat: st.bctx.createPattern(m, "repeat"), k: st.o.texScale / 100, depth: st.o.texDepth / 100 }; }

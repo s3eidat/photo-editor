@@ -221,3 +221,53 @@
     ok(o.tip === "t:spatter" && o.scatter === 60 && o.preset === "p:spatter", "applying a preset sets tip and dynamics");
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, ED = PE.ed, PP = PE.paint, PPX = window.PPX;
+  // a small layer in a bigger document: strokes grow it, and that must undo / cancel cleanly
+  function small() {
+    var d = PE.newDoc(120, 80, "t"), c = PE.mk(40, 40), x = PE.cx2(c); x.fillStyle = "#ffffff"; x.fillRect(0, 0, 40, 40);
+    var L = PE.rasterFromCanvas(PE.touch(c), "Small", 10, 10); d.layers = [L]; d.active = L.id;
+    ED.doc = d; ED.hist = new PE.History(200e6, 60); ED.maskEdit = false; ED.live = { over: {}, maskOver: {}, hide: null };
+    return { d: d, L: L };
+  }
+  PP.test("review fixes", async function (ok) {
+    var s = small(), o = ED.o.brush; Object.assign(o, PP.BDEF, { size: 10, hard: 1, op: 1, flow: 1, sizeC: "off" }); s.d.fg = "#ff0000";
+    ED.tool = "brush"; ED.TOOLS.brush.down({ x: 80, y: 60 }, PP.ev()); ED.TOOLS.brush.move({ x: 90, y: 60 }, PP.ev()); ED.cancelDrag();
+    ok(s.L.canvas.width === 40 && s.L.x === 10 && ED.hist.pos === 0, "a cancelled stroke leaves the layer as it was");
+    PP.drive("brush", [{ x: 20, y: 20 }, { x: 30, y: 20 }]);
+    var f0 = PP.px(PE.flatten(s.d), 25, 20); ED.undo(); var f1 = PP.px(PE.flatten(s.d), 25, 20); ED.redo(); var f2 = PP.px(PE.flatten(s.d), 25, 20);
+    ok(f0[1] === 0 && f1[1] === 255 && f2[1] === 0, "undo / redo after a cancelled stroke keeps the next stroke (" + [f0, f1, f2].join(" | ") + ")");
+    // switching tools mid-stroke puts the pixels back instead of leaving them unrecorded
+    s = small(); ED.tool = "brush"; ED.TOOLS.brush.down({ x: 20, y: 20 }, PP.ev()); ED.TOOLS.brush.move({ x: 40, y: 20 }, PP.ev()); ED.stroke && PP.preview();
+    ED.setTool("move"); ED.tool = "brush";
+    ok(!ED.drag && !ED.stroke && PP.px(s.L.canvas, 20, 10)[1] === 255 && ED.hist.pos === 0, "changing tool mid-stroke cancels it cleanly");
+    // a job that finishes after the document changed is dropped
+    s = small(); s.d.sel = PE.makeSel(s.d, PIX.rectMask(120, 80, 20, 20, 10, 10));
+    var job = PP.fillSurroundings({ expand: 0, quality: 1 }), other = PP.scratch(30, 30); void other;
+    ok((await job) === false && ED.hist.list.length === 0, "a fill that finishes on another document is not applied there");
+    s = small(); s.d.sel = PE.makeSel(s.d, PIX.rectMask(120, 80, 20, 20, 10, 10));
+    ok((await PP.fillSurroundings({ expand: 0, quality: 1 })) && ED.hist.list.length === 1 && s.L.canvas.width === 120, "growing the layer and the fill are one history step");
+    ED.undo(); ok(s.L.canvas.width === 40, "and undo together");
+    // history brush keeps the active layer
+    s = PP.scratch(40, 20); var L2 = PE.rasterFromCanvas(PE.touch(PE.mk(40, 20)), "Top"); s.d.layers.push(L2);
+    ED.meta("add", function () {}); ED.setActive(s.L.id); Object.assign(ED.o.hbrush, { size: 6, hard: 1, op: 1, flow: 1 }); PP.historySource(0);
+    PP.drive("hbrush", [{ x: 10, y: 10 }]);
+    ok(ED.doc.active === s.L.id, "the history brush leaves the active layer alone");
+    // clone stamp on a mask copies mask values
+    s = PP.scratch(60, 20); s.L.mask = PE.whiteMask(s.d); PE.cx2(s.L.mask.canvas).clearRect(0, 0, 20, 20); PE.touch(s.L.mask.canvas); ED.maskEdit = true;
+    ED.cloneSrc = { x: 10, y: 10 }; ED.cloneOff = null; Object.assign(ED.o.clone, { size: 8, hard: 1, op: 1, flow: 1, aligned: true });
+    PP.drive("clone", [{ x: 45, y: 10 }]);
+    ok(PP.px(s.L.mask.canvas, 45, 10)[3] === 0 && PP.px(s.L.mask.canvas, 30, 10)[3] === 255, "clone stamp copies the hidden mask area");
+    ED.maskEdit = false;
+    // untrusted brush files cannot ask for huge memory
+    var b = [0, 2, 0, 1, 0, 2], hdr = function (arr) { return arr; };
+    void hdr; var big = [0, 2, 0, 1]; function u32(v) { big.push(v >>> 24 & 255, v >>> 16 & 255, v >>> 8 & 255, v & 255); }
+    big.push(0, 2); var at = big.length; u32(0); u32(0); big.push(0, 25); u32(1); big.push(0, 0); big.push(1); for (var i = 0; i < 8; i++) big.push(0); u32(0); u32(0); u32(2500); u32(2500); big.push(0, 8, 1);
+    for (i = 0; i < 2500; i++) big.push(0, 0);
+    var size = big.length - at - 4; big[at] = size >>> 24 & 255; big[at + 1] = size >>> 16 & 255; big[at + 2] = size >>> 8 & 255; big[at + 3] = size & 255;
+    var threw = false; try { PPX.readAbr(new Uint8Array(big)); } catch (e) { threw = true; } ok(threw, "rejects zero-length PackBits rows (memory bomb)");
+    void b;
+    var o2 = PP.clampBrush({ count: 1e8, size: 1e6, sizeC: "evil", spacing: -5 }); ok(o2.count === 16 && o2.size === 1000 && o2.sizeC === "pressure" && o2.spacing === 1, "brush options are clamped");
+  });
+})();

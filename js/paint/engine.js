@@ -27,7 +27,7 @@
   PP.engineTool = function (id, spec, defs) {
     SPEC[id] = spec; spec.defs = defs || null;
     if (["brush", "eraser", "clone", "heal"].indexOf(id) < 0 && !spec.noCursor) PP.cursors[id] = "none";
-    PP.opts(id, Object.assign({}, BDEF, defs || {}));
+    clampBrush(PP.opts(id, Object.assign({}, BDEF, defs || {})));
     ED.TOOLS[id] = { down: strokeStart, move: strokeMove, up: strokeEnd };
   };
   PP.resetForTest.push(function () {      // deterministic strokes while the self-test runs
@@ -58,6 +58,19 @@
     else { var x = PE.cx2(c); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.globalCompositeOperation = "source-over"; x.clearRect(0, 0, w, h); }
     return c;
   }
+  // Every option within the range the settings dialog offers (saved options and preset records are untrusted).
+  var RANGE = { size: [1, 1000], hard: [0, 1], op: [0, 1], flow: [0, 1], spacing: [1, 1000], angle: [-360, 360], round: [1, 100], smooth: [0, 100], sizeJ: [0, 100], sizeMin: [0, 100], fade: [1, 500],
+    angleJ: [0, 100], roundJ: [0, 100], roundMin: [1, 100], scatter: [0, 1000], count: [1, 16], countJ: [0, 100], fgbgJ: [0, 100], hueJ: [0, 100], satJ: [0, 100], briJ: [0, 100], purity: [-100, 100],
+    opJ: [0, 100], flowJ: [0, 100], texDepth: [0, 100], texScale: [1, 1000], dualSize: [1, 300], dualSpacing: [1, 300], dualScatter: [0, 300], dualCount: [1, 16], symN: [2, 32], symX: [0, 100], symY: [0, 100] };
+  var CHOICE = { sizeC: ["off", "pressure", "tilt", "fade"], roundC: ["off", "pressure", "tilt", "fade"], fgbgC: ["off", "pressure", "tilt", "fade"], opC: ["off", "pressure", "tilt", "fade"], flowC: ["off", "pressure", "tilt", "fade"],
+    angleC: ["off", "direction", "initial", "tilt", "rotation"], sym: ["off", "v", "h", "vh", "diag", "radial", "mandala"] };
+  function clampBrush(o) {
+    Object.keys(RANGE).forEach(function (k) { if (k in o) { var v = +o[k]; o[k] = isFinite(v) ? PE.clamp(v, RANGE[k][0], RANGE[k][1]) : BDEF[k]; } });
+    Object.keys(CHOICE).forEach(function (k) { if (k in o && CHOICE[k].indexOf(o[k]) < 0) o[k] = BDEF[k]; });
+    ["tip", "tex", "dual"].forEach(function (k) { if (k in o && typeof o[k] !== "string") o[k] = ""; });
+    return o;
+  }
+  PP.clampBrush = clampBrush;
   function strokeStart(p, e) {
     var tool = ED.tool, spec = SPEC[tool], o = ED.o[tool];
     if ((tool === "brush" || tool === "pencil") && e.altKey) { ED.pick(p, false); return; }
@@ -71,7 +84,7 @@
     if (spec.mask === false && ED.maskEdit && L.mask) { S3.toast(spec.label + " works on layer pixels: click the layer thumbnail (not the mask) first", "error"); return; }
     var t = PP.target(); if (!t) return;
     var cv = t.holder.canvas;
-    var st = ED.stroke = { L: t.L, mask: t.mask, holder: t.holder, tool: tool, spec: spec, o: Object.assign({}, o), ox: t.holder.x, oy: t.holder.y,
+    var st = ED.stroke = { L: t.L, mask: t.mask, holder: t.holder, tool: tool, spec: spec, o: clampBrush(Object.assign({}, o)), ox: t.holder.x, oy: t.holder.y,
       bbox: null, grow: t.grow, last: null, n: 0, dir: null, dir0: null, R: Math.random, inp: inputOf(e), w: cv.width, h: cv.height };
     st.tip = PP.tipOf(st.o.tip); st.pencil = !!(spec.pencil || (tool === "eraser" && st.o.mode === "pencil"));
     st.fg = PE.rgbOf(ED.doc.fg); st.bgc = PE.rgbOf(ED.doc.bg);
@@ -85,12 +98,16 @@
       if (st.o.dual) { st.dualBuf = pooled("dual", cv.width, cv.height); st.dctx = PE.cx2(st.dualBuf); st.dualTip = st.o.dual === "round" ? null : PP.tipOf(st.o.dual); }
     }
     if (tool === "clone" || tool === "heal") {
-      st.src = PE.cloneCanvas(cv);
+      st.src = st.mask ? grayOf(cv) : PE.cloneCanvas(cv);
       if (!o.aligned || !ED.cloneOff) ED.cloneOff = { x: ED.cloneSrc.x - p.x, y: ED.cloneSrc.y - p.y };
       st.off = ED.cloneOff; st.srcOff = st.off;
     }
     if (spec.begin && spec.begin(st, p, e) === false) { ED.stroke = null; ED.push(st.grow); return; }
-    ED.drag = { kind: "stroke", cancel: function () { if (st.timer) clearInterval(st.timer); if (spec.cancel) spec.cancel(st); else if (st.orig) restoreRect(st, st.bbox); } };
+    ED.drag = { kind: "stroke", cancel: function () {
+      if (st.timer) clearInterval(st.timer);
+      if (spec.cancel) spec.cancel(st); else if (st.orig) restoreRect(st, st.bbox);
+      if (st.grow) { st.grow.undo(); st.grow = null; ED.changed(); }      // the layer goes back to its size before the stroke
+    } };
     var lp = { x: p.x - st.ox, y: p.y - st.oy };
     if (e.shiftKey && ED.lastPt && ED.lastPt.L === st.L) { st.last = { x: ED.lastPt.x - st.ox, y: ED.lastPt.y - st.oy }; segment(st, lp, st.inp); }
     else { dab(st, lp.x, lp.y, st.inp); st.last = lp; }
@@ -341,6 +358,24 @@
   function restoreRect(st, r) { var R = clipR(st, r); if (!R) return; ensureTiles(st, R); st.cx.putImageData(st.orig, 0, 0, R.x, R.y, R.w, R.h); PE.touch(st.cv); ED.render(); }
   Object.assign(PP, { initTiles: initTiles, ensureTiles: ensureTiles, regionOf: regionOf, clipR: clipR, restoreRect: restoreRect });
 
+  // A mask as an opaque grey image (value in the colour), so clone / pattern / history fills carry mask values.
+  function grayOf(cv) {
+    var c = PE.mk(cv.width, cv.height), x = PE.cx2(c), d = PE.getData(cv);
+    for (var i = 0; i < d.data.length; i += 4) { var v = d.data[i + 3]; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; }
+    x.putImageData(d, 0, 0); return c;
+  }
+  // On a mask, sourced fills (clone, pattern) move each pixel towards the source's grey: m' = m (1 - a) + g a.
+  function maskSourced(st) { return st.mask && (st.spec.fill === "clone" || st.spec.fill === "pattern" || st.spec.fill === "history"); }
+  function maskSourceRect(st, R) {
+    var I = strokeImage(st, R), t = PE.mk(R.w, R.h), tx = PE.cx2(t); tx.drawImage(I.img, I.sx || 0, I.sy || 0, R.w, R.h, 0, 0, R.w, R.h);
+    var b = tx.getImageData(0, 0, R.w, R.h).data, o = st.orig.data, out = new ImageData(R.w, R.h), od = out.data, op = PE.clamp(st.o.op, 0, 1), W = st.w;
+    for (var y = 0; y < R.h; y++) for (var x = 0; x < R.w; x++) {
+      var j = (y * R.w + x) * 4, q = ((y + R.y) * W + x + R.x) * 4, a = b[j + 3] / 255 * op, g = b[j] * 0.299 + b[j + 1] * 0.587 + b[j + 2] * 0.114, m = o[q + 3];
+      od[j] = od[j + 1] = od[j + 2] = 255; od[j + 3] = m + (g - m) * a;
+    }
+    st.cx.putImageData(out, R.x, R.y);
+  }
+
   // ---------- compositing the stroke ----------
   var scratch = null;
   // The stroke as an image over rect R (default: its bounding box), with the dual tip and texture applied.
@@ -383,7 +418,9 @@
   // Write the changed rectangle: the original pixels, then the stroke over them.
   function flush(st) {
     var R = clipR(st, st.dirty); st.dirty = null; if (!R) return;
-    ensureTiles(st, R); st.cx.putImageData(st.orig, 0, 0, R.x, R.y, R.w, R.h);
+    ensureTiles(st, R);
+    if (maskSourced(st)) { maskSourceRect(st, R); PE.touch(st.cv); return; }
+    st.cx.putImageData(st.orig, 0, 0, R.x, R.y, R.w, R.h);
     applyStroke(st.cx, st, R); PE.touch(st.cv);
   }
   function strokeEnd(p) {
@@ -408,12 +445,20 @@
     var I = strokeImage(st), mc = PE.mk(R.w, R.h); PE.cx2(mc).drawImage(I.img, I.w ? I.x - R.x : -R.x, I.w ? I.y - R.y : -R.y);
     var src = PE.getData(srcC), md = PE.getData(mc).data, m = new Uint8Array(R.w * R.h), op = PE.clamp(st.o.op, 0, 1);
     for (var i = 0; i < m.length; i++) m[i] = Math.round(md[i * 4 + 3] * op);
-    ED.working(PE.work("heal", [{ data: dst.data, width: R.w, height: R.h }, { data: src.data, width: R.w, height: R.h }, m]), "Healing…").then(function (res) {
-      var e2 = PE.editPixels(ED.doc, label, st.holder, "canvas", R, function (c) { c.putImageData(new ImageData(new Uint8ClampedArray(res.data), R.w, R.h), R.x, R.y); });
-      ED.stroke = null; ED.push(PE.compound(label, [st.grow, e2]));
-    }).catch(function (err) { ED.stroke = null; ED.changed(); S3.toast(err.message, "error"); });
+    var grow = st.grow; PP.endStroke(st);
+    PP.commitAsync(PE.work("heal", [{ data: dst.data, width: R.w, height: R.h }, { data: src.data, width: R.w, height: R.h }, m]), "Healing…", function (res) {
+      var d = ED.doc, e2 = PE.editPixels(d, label, st.holder, "canvas", R, function (c) { c.putImageData(new ImageData(new Uint8ClampedArray(res.data), R.w, R.h), R.x, R.y); });
+      PP.pushJoined(grow, e2, label);
+    });
   }
   PP.strokeEnd = strokeEnd;
+  // A stroke whose pixels are committed later (worker): it stops being the live stroke now and its layer growth
+  // is recorded first, so the history order stays right whatever happens while the job runs.
+  PP.endStroke = function (st) {
+    if (ED.stroke === st) ED.stroke = null;
+    if (st.grow) { ED.push(st.grow); st.grow = null; }
+    delete ED.live.over[st.L.id]; delete ED.live.maskOver[st.L.id]; ED.render();
+  };
   PP.strokeStart = strokeStart;
 
   // ---------- the core's painting tools now run on this engine ----------

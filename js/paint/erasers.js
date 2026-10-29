@@ -11,8 +11,10 @@
   PP.magicErase = function (p) {
     var L = ED.layer(); if (!ED.editable(L, "pixels")) return Promise.resolve(false);
     if (ED.maskEdit) { S3.toast("The magic eraser works on layer pixels: click the layer thumbnail first", "error"); return Promise.resolve(false); }
+    var t = PP.target("pixels"); if (!t) return Promise.resolve(false);
+    ED.push(t.grow);       // the layer covers the document now; recorded before the job runs
     var d = ED.doc, sm = PP.sample(mo.all, L);
-    return ED.working(PE.work("wand", [{ data: sm.img.data, width: sm.img.width, height: sm.img.height }, p.x - sm.ox, p.y - sm.oy, mo.tol, mo.contig]), "Erasing…").then(function (lm) {
+    return PP.commitAsync(PE.work("wand", [{ data: sm.img.data, width: sm.img.width, height: sm.img.height }, p.x - sm.ox, p.y - sm.oy, mo.tol, mo.contig]), "Erasing…", function (lm) {
       var W = sm.img.width, Hh = sm.img.height, m = lm;
       if (mo.aa) m = PIX.feather(lm, W, Hh, 0.8);
       // into doc space, inside the selection
@@ -20,12 +22,11 @@
       for (var i = 0; i < m.length; i++) { var v = m[i]; if (d.sel) { var dx = (i % W) + sm.ox, dy = Math.floor(i / W) + sm.oy; v = dx >= 0 && dy >= 0 && dx < d.w && dy < d.h ? v * d.sel.m[dy * d.w + dx] / 255 : 0; } im.data[i * 4 + 3] = v; if (v) any = true; }
       if (!any) return false;
       x.putImageData(im, 0, 0);
-      var t = PP.target("pixels"); if (!t) return false;
       var r = PE.inter({ x: sm.ox - L.x, y: sm.oy - L.y, w: W, h: Hh }, { x: 0, y: 0, w: L.canvas.width, h: L.canvas.height });
       var e = PE.editPixels(d, "Magic eraser", L, "canvas", r, function (cc) { cc.save(); cc.globalAlpha = PE.clamp(mo.op, 0, 1); cc.globalCompositeOperation = "destination-out"; cc.drawImage(c, sm.ox - L.x, sm.oy - L.y); cc.restore(); });
-      ED.push(PE.compound("Magic eraser", [t.grow, e]));
+      PP.pushJoined(t.grow, e, "Magic eraser");
       return true;
-    }).catch(function (err) { S3.toast(err.message, "error"); return false; });
+    });
   };
   PP.addTool("magicerase", "Magic eraser", "E", "eraser", { down: function (p) { PP.magicErase(p); } });
   PP.cursors.magicerase = "crosshair";

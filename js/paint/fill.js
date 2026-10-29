@@ -67,21 +67,21 @@
     if (ED.maskEdit) { S3.toast("Fill with surroundings works on layer pixels: click the layer thumbnail first", "error"); return Promise.resolve(false); }
     var t = PP.target("pixels"); if (!t) return Promise.resolve(false);
     var L = t.L, cv = L.canvas, m = PE.selFor(d, { x: L.x, y: L.y, w: cv.width, h: cv.height });
-    return ED.working(PP.fillHole(cv, m, { expand: o.expand, adapt: o.adapt, quality: o.quality }), "Filling from the surroundings…").then(function (res) {
+    ED.push(t.grow);
+    return PP.commitAsync(PP.fillHole(cv, m, { expand: o.expand, adapt: o.adapt, quality: o.quality }), "Filling from the surroundings…", function (res) {
       if (o.newLayer) {
         var c = PE.mk(res.rect.w, res.rect.h), x = PE.cx2(c); x.putImageData(res.img, 0, 0);
         var mk = PE.mk(res.rect.w, res.rect.h), g = PE.cx2(mk);
         if (o.expand > 0) g.filter = "blur(" + (o.expand / 2) + "px)";
         for (var k = 0; k < (o.expand > 0 ? 3 : 1); k++) g.drawImage(PE.selCanvas(d.sel), -(L.x + res.rect.x), -(L.y + res.rect.y));
         x.globalCompositeOperation = "destination-in"; x.drawImage(mk, 0, 0);
-        ED.push(t.grow);
         ED.addLayer(PE.rasterFromCanvas(PE.touch(c), "Filled", L.x + res.rect.x, L.y + res.rect.y), "Fill with surroundings", L);
         return true;
       }
       var e = PE.editPixels(d, "Fill with surroundings", L, "canvas", res.rect, function (c) { c.putImageData(res.img, res.rect.x, res.rect.y); });
-      ED.push(PE.compound("Fill with surroundings", [t.grow, e]));
+      PP.pushJoined(t.grow, e, "Fill with surroundings");
       return true;
-    }).catch(function (err) { ED.push(t.grow); S3.toast(err.message, "error"); return false; });
+    });
   };
   function fillDialog() {
     if (!K.need()) return;
@@ -118,10 +118,10 @@
       var md = PE.getData(st.buf, bb).data, m = new Uint8Array(st.w * st.h);
       for (var y = 0; y < bb.h; y++) for (var x = 0; x < bb.w; x++) { var a = md[(y * bb.w + x) * 4 + 3]; if (a) m[(y + bb.y) * st.w + x + bb.x] = Math.min(255, a * 2); }
       var job = st.o.type === "proximity" ? proximity(st.holder.canvas, m, bb) : PP.fillHole(st.holder.canvas, m, { bbox: bb, expand: 1, adapt: true, quality: 2 });
-      ED.working(job, "Healing…").then(function (res) {
-        var e = PE.editPixels(ED.doc, label, st.holder, "canvas", res.rect, function (c) { c.putImageData(res.img, res.rect.x, res.rect.y); });
-        ED.stroke = null; ED.push(PE.compound(label, [st.grow, e]));
-      }).catch(function (err) { ED.stroke = null; ED.push(st.grow); ED.changed(); S3.toast(err.message, "error"); });
+      var grow = st.grow; PP.endStroke(st);
+      PP.commitAsync(job, "Healing…", function (res) {
+        PP.pushJoined(grow, PE.editPixels(ED.doc, label, st.holder, "canvas", res.rect, function (c) { c.putImageData(res.img, res.rect.x, res.rect.y); }), label);
+      });
     }
   }, { size: 30, hard: 0.6, type: "content", sizeC: "off" });
   PP.group("J", ["spot", "heal"]);

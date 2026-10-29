@@ -21,9 +21,10 @@
       var s = PE.surface(L, ED.doc); return { canvas: PE.cloneCanvas(s.canvas), x: s.x, y: s.y };
     }
     if (n === pos) return grab();
-    // an unrecorded change (a layer just grown for this stroke) is put back after the round trip
-    var keep = { canvas: L.canvas, x: L.x, y: L.y, mask: L.mask };
-    try { H.jump(n); out = grab(); } finally { H.jump(pos); L.canvas = keep.canvas; L.x = keep.x; L.y = keep.y; L.mask = keep.mask; }
+    // the round trip must not change anything: unrecorded state (the active layer, a layer just grown for this
+    // stroke, a properties edit still waiting to be recorded) is put back exactly
+    var keep = PE.snap(ED.doc);
+    try { H.jump(n); out = grab(); } finally { H.jump(pos); PE.restore(ED.doc, keep); }
     return out;
   };
   function begin(st) {
@@ -37,7 +38,7 @@
   PP.addTool("hbrush", "History brush", "Y", "pencil", ED.TOOLS.hbrush);
   PP.group("Y", ["hbrush"]);
   function options() {
-    var H = ED.hist, opts = [["0", (H && H.base) || "Open"]];
+    var H = ED.hist, opts = [["0", H && H.dropped ? "Oldest kept step (earlier ones were dropped)" : (H && H.base) || "Open"]];
     if (H) H.list.forEach(function (e, i) { opts.push([String(i + 1), (i + 1) + ". " + e.label]); });
     return opts;
   }
