@@ -125,4 +125,5 @@
     e.preventDefault(); e.stopImmediatePropagation(); settingsDialog(ED.tool);
   }, true);
   PP.shortcut("Brush settings", "F5 (with a painting tool)");
+  PP.shortcut("Paint tools", "B brush / pencil / colour replacement / mixer · Y history brush · E eraser / background / magic · S clone / pattern stamp (Shift+key cycles; right-click or hold a tool button for its group)");
 })();

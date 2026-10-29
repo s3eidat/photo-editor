@@ -100,6 +100,8 @@
     e.preventDefault(); e.stopImmediatePropagation(); fillDialog();
   }, true);
 
+  PP.shortcut("Fill with surroundings", "Shift+Alt+Backspace (with a selection)");
+
   // ---------- spot healing brush ----------
   PP.addTool("spot", "Spot healing brush", "J", "eyedropper", null);
   PP.engineTool("spot", {
