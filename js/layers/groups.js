@@ -46,6 +46,17 @@
   };
   ED.on("changed", function (why) { if (why === "open") SX.picked = {}; var d = ED.doc; if (!d) return; Object.keys(SX.picked).forEach(function (id) { if (!PE.findLayer(d, id)) delete SX.picked[id]; }); });
 
+  // Select › All layers / Similar layers (same kind as the active one) / Deselect layers: picks rows in the panel.
+  function pickable(L) { return !(SX.HELPER && SX.HELPER[L.kind]) && L.kind !== "qmask" && L.kind !== "channel" && !L.board; }
+  SX.pickLayers = function (how) {
+    var d = ED.doc; if (!d) return;
+    var a = ED.layer(); SX.picked = {};
+    if (how !== "none") d.layers.forEach(function (L) { if (pickable(L) && (how === "all" || (a && L.kind === a.kind))) SX.picked[L.id] = 1; });
+    if (a) delete SX.picked[a.id];
+    ED.emit("layers");
+    if (how !== "none") S3.toast((Object.keys(SX.picked).length + (a ? 1 : 0)) + " layers selected: move, align, group or link them together");
+  };
+
   function nextName(prefix) { var d = ED.doc, n = 1; while (d.layers.some(function (L) { return L.name === prefix + " " + n; })) n++; return prefix + " " + n; }
   function newGroupLayer(name) { var G = PE.newLayer("group", { name: name || nextName("Group"), blend: "pass" }); G.canvas = null; G.open = true; return G; }
 
@@ -295,12 +306,24 @@
   // ---------- menus + keys ----------
   function has() { return !!ED.doc; }
   function inGroup() { var L = ED.layer(); return !!(L && (L.kind === "group" || L.parent)); }
+  SX.menu("Select", ["-", ["All layers", "Ctrl+Alt+A", function () { SX.pickLayers("all"); }, has], ["Similar layers", "", function () { SX.pickLayers("similar"); }, has], ["Deselect layers", "", function () { SX.pickLayers("none"); }, function () { return has() && Object.keys(SX.picked).length > 0; }], "-"], "Inverse");
   SX.menu("Layer", [["New group", "", SX.newGroup, has], ["Group layers", "Ctrl+G", SX.groupLayers, has], ["Ungroup layers", "Ctrl+Shift+G", function () { SX.ungroup(); }, inGroup]], "Delete layer");
+  (ED.ui.keys = ED.ui.keys || []).push(function (e) {
+    if (!(e.ctrlKey || e.metaKey) || !e.altKey || e.shiftKey || e.code !== "KeyA" || !ED.doc || ED.isTyping(e)) return false;
+    e.preventDefault(); SX.pickLayers("all"); return true;
+  });
   (ED.ui.keys = ED.ui.keys || []).push(function (e) {
     if (!(e.ctrlKey || e.metaKey) || !ED.doc || e.altKey || e.code !== "KeyG") return false;
     e.preventDefault(); if (e.shiftKey) SX.ungroup(); else SX.groupLayers(); return true;
   });
 
+  SX.tests.push(async function (ok) {
+    var a = PE.rasterFromCanvas(SX.solid(2, 2, "#ff0000"), "a"), b = PE.rasterFromCanvas(SX.solid(2, 2, "#00ff00"), "b"), t = PE.newLayer("text", { name: "t", text: { text: "x" } }), d = SX.scratch(2, 2, [a, b, t]);
+    d.active = a.id; SX.pickLayers("similar"); var sim = SX.pickedList().map(function (L) { return L.name; }).sort().join();
+    SX.pickLayers("all"); var all = SX.pickedList().length;
+    SX.pickLayers("none"); var none = SX.pickedList().length;
+    ok(sim === "a,b" && all === d.layers.length && none === 1, "select all / similar / no layers");
+  });
   SX.tests.push(async function (ok) {
     var red = PE.rasterFromCanvas(SX.solid(4, 2, "#ff0000"), "R"), blue = PE.rasterFromCanvas(SX.solid(2, 2, "#0000ff"), "B"), top = PE.rasterFromCanvas(SX.solid(1, 1, "#00ff00"), "G");
     var d = SX.scratch(4, 2, [red, blue, top]); d.active = blue.id; SX.picked = {}; SX.picked[red.id] = 1;

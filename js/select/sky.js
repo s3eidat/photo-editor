@@ -25,7 +25,7 @@
       ED.setSelection(m, mode || "new", "Select sky");
     }).catch(function (e) { S3.toast(e.message, "error"); });
   };
-  SX.menu("Select", [["Sky", "", function () { SX.selectSky(); }, SX.has]], "Inverse");
+  SX.menu("Select", [["Sky", "", function () { SX.selectSky(); }, SX.has]], "Subject");
 
   SX.tests.push(async function (ok) {
     // blue sky gradient on top, textured green ground below, a dark crown with a sky gap at (30, 20)
