@@ -183,4 +183,49 @@
     }
     return img;
   }));
+
+  // ---------- extrude: the image broken into blocks or pyramids pushed out towards the viewer ----------
+  A.reg("extrude", A.filter(function (img, p) {
+    var w = img.width, h = img.height, d = img.data, src = PIX.copyImg(img), S = sc(p), size = Math.max(2, Math.round(clamp(num(p.size, 30), 2, 255) * S)), depth = clamp(num(p.depth, 30), 1, 255);
+    var pyr = p.type === "pyramids", byLevel = p.depthBy !== "random", solid = !!p.solid, R = A.rng(19), cx = w / 2, cy = h / 2, cells = [];
+    for (var by = 0; by < h; by += size) for (var bx = 0; bx < w; bx += size) {
+      var x1 = Math.min(w, bx + size), y1 = Math.min(h, by + size), sr = 0, sg = 0, sb = 0, n = 0;
+      for (var y = by; y < y1; y++) for (var x = bx; x < x1; x++) { var i = (y * w + x) * 4; sr += src.data[i]; sg += src.data[i + 1]; sb += src.data[i + 2]; n++; }
+      var lum = (0.299 * sr + 0.587 * sg + 0.114 * sb) / n / 255, z = (byLevel ? lum : R()) * depth / 255;
+      cells.push({ x0: bx, y0: by, x1: x1, y1: y1, z: z, c: [sr / n, sg / n, sb / n] });
+    }
+    cells.sort(function (a, b) { return a.z - b.z; });      // far first, near last
+    for (var q = 0; q < d.length; q += 4) { d[q] = d[q + 1] = d[q + 2] = 0; d[q + 3] = 255; }
+    cells.forEach(function (cl) {
+      var k = 1 + cl.z * 0.8, mx = (cl.x0 + cl.x1) / 2, my = (cl.y0 + cl.y1) / 2, ox = (mx - cx) * (k - 1), oy = (my - cy) * (k - 1), hs = (cl.x1 - cl.x0) / 2;
+      for (var y = Math.max(0, Math.floor(cl.y0 + oy)); y < Math.min(h, Math.ceil(cl.y1 + oy)); y++) for (var x = Math.max(0, Math.floor(cl.x0 + ox)); x < Math.min(w, Math.ceil(cl.x1 + ox)); x++) {
+        var u = x - ox - cl.x0, v = y - oy - cl.y0, i = (y * w + x) * 4, col;
+        if (pyr) {      // four sloped faces, lit from the top left
+          var dx = u - hs, dy = v - hs, f = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1.15 : 0.7) : (dy < 0 ? 1.3 : 0.6);
+          col = cl.c.map(function (c0) { return c0 * f; });
+        } else if (solid) col = cl.c;
+        else { var sx = Math.min(cl.x1 - 1, Math.max(cl.x0, Math.round(cl.x0 + u))), sy = Math.min(cl.y1 - 1, Math.max(cl.y0, Math.round(cl.y0 + v))), j = (sy * w + sx) * 4; col = [src.data[j], src.data[j + 1], src.data[j + 2]]; }
+        d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
+      }
+      if (!pyr && ox * ox + oy * oy > 1) {        // the block's side towards the centre, a little darker
+        var steps = Math.ceil(Math.sqrt(ox * ox + oy * oy));
+        for (var s2 = 0; s2 < steps; s2++) {
+          var t = s2 / steps, ex = ox * t, ey = oy * t;
+          [[cl.x0, cl.y0, cl.x1, cl.y0 + 1], [cl.x0, cl.y1 - 1, cl.x1, cl.y1], [cl.x0, cl.y0, cl.x0 + 1, cl.y1], [cl.x1 - 1, cl.y0, cl.x1, cl.y1]].forEach(function (e) {
+            for (var y2 = Math.max(0, Math.floor(e[1] + ey)); y2 < Math.min(h, Math.ceil(e[3] + ey)); y2++) for (var x2 = Math.max(0, Math.floor(e[0] + ex)); x2 < Math.min(w, Math.ceil(e[2] + ex)); x2++) {
+              var i2 = (y2 * w + x2) * 4; if (d[i2 + 3] === 255 && d[i2] + d[i2 + 1] + d[i2 + 2] > 0 && t > 0.98) continue;
+              d[i2] = cl.c[0] * 0.55; d[i2 + 1] = cl.c[1] * 0.55; d[i2 + 2] = cl.c[2] * 0.55;
+            }
+          });
+        }
+        // redraw the front face over its sides
+        for (var y3 = Math.max(0, Math.floor(cl.y0 + oy)); y3 < Math.min(h, Math.ceil(cl.y1 + oy)); y3++) for (var x3 = Math.max(0, Math.floor(cl.x0 + ox)); x3 < Math.min(w, Math.ceil(cl.x1 + ox)); x3++) {
+          var i3 = (y3 * w + x3) * 4, col2;
+          if (solid) col2 = cl.c; else { var sx3 = Math.min(cl.x1 - 1, Math.max(cl.x0, Math.round(x3 - ox))), sy3 = Math.min(cl.y1 - 1, Math.max(cl.y0, Math.round(y3 - oy))), j3 = (sy3 * w + sx3) * 4; col2 = [src.data[j3], src.data[j3 + 1], src.data[j3 + 2]]; }
+          d[i3] = col2[0]; d[i3 + 1] = col2[1]; d[i3 + 2] = col2[2];
+        }
+      }
+    });
+    return img;
+  }));
 })(typeof self !== "undefined" ? self : this);

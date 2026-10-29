@@ -46,3 +46,6 @@ maths files, `openAdjust` calls `spec.ui`, `ED.adjKit` exposes the UI widgets, `
 | Curves (full) | done | Image › Curves… / Ctrl+M: RGB + channels, histogram, black / grey / white point eyedroppers, 10 presets |
 | Hue / saturation per colour range | done | Image › Hue / Saturation… / Ctrl+U: master + reds / yellows / greens / cyans / blues / magentas with editable range fall-offs, pick range from the image, colourise |
 | Black & white (full) | done | Image › Black & white…: presets (colour filters, infrared look…), auto weights, tint hue / saturation. Also fixes panel histograms being drawn over the canvas (CSS) |
+| Brightness / contrast (modern + classic) | done | Image › Brightness / Contrast… now opens a panel with the modern curve (keeps black and white), the classic linear maths as an option, and Auto |
+| De-interlace, broadcast-safe colours | done | Filter › Video; odd/even lines by duplication or interpolation; YIQ chroma limit |
+| Extrude | done | Filter › Stylize; blocks (with sides, image or solid faces) or pyramids, depth by brightness or random |

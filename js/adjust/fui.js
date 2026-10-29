@@ -2,9 +2,9 @@
 (function () {
   "use strict";
   var PE = window.PE, ED = PE.ed, AUI = PE.adjUI, sl = AUI.sl, pc = AUI.pc, pxf = AUI.pxf, has = AUI.has, h = S3.h;
-  var F = AUI.FILTERS = { blur: [], distort: [], noise: [], pixelate: [], render: [], sharpen: [], stylize: [], other: [] };
+  var F = AUI.FILTERS = { blur: [], distort: [], noise: [], pixelate: [], render: [], sharpen: [], stylize: [], video: [], other: [] };
   AUI.addMenu("Filter", ["-", AUI.sub("Filter", "Blur", F.blur), AUI.sub("Filter", "Distort", F.distort), AUI.sub("Filter", "Noise", F.noise), AUI.sub("Filter", "Pixelate", F.pixelate),
-    AUI.sub("Filter", "Render", F.render), AUI.sub("Filter", "Sharpen", F.sharpen), AUI.sub("Filter", "Stylize", F.stylize), AUI.sub("Filter", "Other", F.other)]);
+    AUI.sub("Filter", "Render", F.render), AUI.sub("Filter", "Sharpen", F.sharpen), AUI.sub("Filter", "Stylize", F.stylize), AUI.sub("Filter", "Video", F.video), AUI.sub("Filter", "Other", F.other)]);
   // Add a filter: spec registered under op; quick filters (no settings) pass spec = null.
   AUI.filter = function (group, label, op, spec, key) {
     if (spec) AUI.adj(op, spec);
@@ -135,6 +135,10 @@
   AUI.filter("noise", "Dust & scratches…", "dustScratches", { t: "Dust & scratches", c: [sl("radius", "Radius", 1, 100, 1, 2, pxf), sl("threshold", "Threshold (levels)", 0, 255, 1, 10)] });
   AUI.filter("noise", "Median…", "median", { t: "Median", c: [sl("radius", "Radius", 1, 100, 1, 2, pxf)] });
   AUI.filter("noise", "Despeckle", "despeckle", null);
+  // video
+  AUI.filter("video", "De-interlace…", "deinterlace", { t: "De-interlace", sel: [["field", "Eliminate", [["odd", "Odd lines"], ["even", "Even lines"]], "odd"], ["mode", "Create new lines by", [["duplicate", "Duplication"], ["interp", "Interpolation"]], "interp"]] });
+  AUI.filter("video", "Broadcast-safe colours…", "broadcastSafe", { t: "Broadcast-safe colours", c: [sl("limit", "Signal limit", 50, 130, 1, 110, pc)] });
+
   // other
   AUI.filter("other", "High pass…", "highPass", { t: "High pass", c: [sl("radius", "Radius", 0.1, 250, 0.1, 10, pxf)] });
   var shape = [["shape", "Preserve", [["square", "Squareness"], ["round", "Roundness"]], "square"]];
@@ -206,6 +210,10 @@
   F.pixelate.push(["Mosaic…", "", function () { ED.ui.openAdjust("pixelate"); }, has]);
   AUI.filter("pixelate", "Pointillize…", "pointillize", { t: "Pointillize", c: [sl("size", "Cell size", 3, 300, 1, 6, pxf)], ui: function (el, st) { st.p.bg = ED.doc.bg; el.appendChild(h("p", { "class": "faint pe-p", text: "Gaps show the background colour." })); } });
 
+  // video
+  AUI.filter("video", "De-interlace…", "deinterlace", { t: "De-interlace", sel: [["field", "Eliminate", [["odd", "Odd lines"], ["even", "Even lines"]], "odd"], ["mode", "Create new lines by", [["duplicate", "Duplication"], ["interp", "Interpolation"]], "interp"]] });
+  AUI.filter("video", "Broadcast-safe colours…", "broadcastSafe", { t: "Broadcast-safe colours", c: [sl("limit", "Signal limit", 50, 130, 1, 110, pc)] });
+
   // other
   AUI.adj("customKernel", { t: "Custom", ui: function (el, st) {
     var p = st.p, K = ED.adjKit, grid = h("div", { "class": "pe-akernel", role: "group", "aria-label": "5 by 5 kernel" }), sc0, off;
@@ -226,6 +234,8 @@
 
   // stylize
   AUI.filter("stylize", "Emboss…", "emboss", { t: "Emboss", c: [sl("angle", "Angle", -180, 180, 1, 135, deg), sl("height", "Height", 1, 100, 1, 3, pxf), sl("amount", "Amount", 1, 500, 1, 100, pc)], chk: [["color", "Keep colours", false]] });
+  AUI.filter("stylize", "Extrude…", "extrude", { t: "Extrude", c: [sl("size", "Size", 2, 255, 1, 30, pxf), sl("depth", "Depth", 1, 255, 1, 30)],
+    sel: [["type", "Type", [["blocks", "Blocks"], ["pyramids", "Pyramids"]], "blocks"], ["depthBy", "Depth by", [["level", "Brightness"], ["random", "Random"]], "level"]], chk: [["solid", "Solid front faces", false]] });
   AUI.filter("stylize", "Find edges", "findEdges", null);
   AUI.filter("stylize", "Glowing edges…", "glowingEdges", { t: "Glowing edges", c: [sl("width", "Edge width", 1, 14, 1, 2), sl("brightness", "Edge brightness", 0, 20, 1, 6), sl("smooth", "Smoothness", 1, 15, 1, 5)] });
   AUI.filter("stylize", "Solarize", "solarize", null);

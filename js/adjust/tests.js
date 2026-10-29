@@ -233,6 +233,14 @@
     var bwt = get(run([[200, 100, 50]], "bwPlus", { tint: true, tintHue: 30, tintSat: 40 }), 0), bwn = get(run([[200, 100, 50]], "bwPlus", {}), 0);
     ok(bwn[0] === bwn[2] && bwt[0] > bwt[2] && near((Math.max.apply(null, bwt) + Math.min.apply(null, bwt)) / 2, bwn[0], 2), "black & white with a tint keeps lightness");
     ok(get(run([[64, 64, 64]], "curvesPlus", { rgb: [[0, 0], [64, 128], [255, 255]] }), 0)[0] === 128, "curves (fuller panel) uses the same maths");
+
+    // brightness / contrast (modern), video, extrude
+    var bm = PIX.A.lutBrightnessModern(60, 0), bm2 = PIX.A.lutBrightnessModern(0, 50), mono3 = true; for (i = 1; i < 256; i++) if (bm[i] < bm[i - 1] || bm2[i] < bm2[i - 1]) mono3 = false;
+    ok(bm[0] === 0 && bm[255] === 255 && bm[128] > 150 && bm2[64] < 64 && bm2[192] > 192 && mono3, "modern brightness / contrast keeps black and white");
+    ok(get(run([[100, 100, 100]], "brightnessPlus", { b: 20, legacy: true }), 0)[0] === 120, "classic brightness");
+    var di = run(gray(1, 3, function (x, y) { return y * 100; }), "deinterlace", { field: "odd", mode: "interp" }, null, 1, 3); ok(get(di, 1)[0] === 100 && get(di, 0)[0] === 0, "de-interlace interpolates the odd line");
+    var bs = get(run([[255, 0, 255]], "broadcastSafe", { limit: 100 }), 0); ok(bs[0] < 255 || bs[2] < 255, "broadcast-safe pulls in a hot magenta");
+    var ex = run(gray(16, 16, function () { return 120; }), "extrude", { size: 8, depth: 20, solid: true }, null, 16, 16); ok(ex.data.length === 16 * 16 * 4 && ex.data[3] === 255, "extrude runs");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };

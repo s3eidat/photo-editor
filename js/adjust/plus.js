@@ -144,7 +144,20 @@
     el.appendChild(K().range("Tint saturation", 25, 0, 100, 1, function (v) { p.tintSat = v; st.schedule(); }, AUI.pc));
   } });
 
+  // ---------- Brightness / contrast ----------
+  AUI.adj("brightnessPlus", { t: "Brightness / Contrast", c: [AUI.sl("b", "Brightness", -150, 150, 1, 0), AUI.sl("c", "Contrast", -50, 100, 1, 0)], chk: [["legacy", "Use the classic (linear) maths", false]],
+    ui: function (el, st) {
+      el.appendChild(K().btn("Auto", function () {
+        var Hh = A.hists(st.src, null).l, tot = 0, acc = 0, med = 128, i; for (i = 0; i < 256; i++) tot += Hh[i];
+        for (i = 0; i < 256; i++) { acc += Hh[i]; if (acc >= tot / 2) { med = i; break; } }
+        var lo = A.clipLo(Hh, 0.005), hi = A.clipHi(Hh, 0.005);
+        st.p.b = Math.round(A.clamp((118 - med) * 1.1, -100, 100)); st.p.c = Math.round(A.clamp((210 - (hi - lo)) / 2.5, -30, 60)); st.p.legacy = false;
+        AUI.closePanel(false); AUI.openLive("brightnessPlus", { b: st.p.b, c: st.p.c });
+      }, "ghost", null, "Suggested brightness and contrast for this image"));
+    } });
+
   // menu items and shortcuts now open these panels
+  replaceItem("Image", "Brightness / Contrast…", function () { AUI.open("brightnessPlus"); });
   replaceItem("Image", "Levels…", function () { AUI.open("levelsPlus"); });
   replaceItem("Image", "Curves…", function () { AUI.open("curvesPlus"); });
   replaceItem("Image", "Hue / Saturation…", function () { AUI.open("hueSatPlus"); });

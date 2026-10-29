@@ -273,4 +273,42 @@
     return out;
   };
   A.reg("curvesPlus", function (img, p, sel) { return PIX.adjust(img, "curves", p, sel); });
+
+  // ---------- brightness / contrast (modern: a curve that keeps black and white, or the classic linear one) ----------
+  A.lutBrightnessModern = function (b, c) {
+    var l = new Uint8Array(256), bb = clamp(b, -150, 150) / 150, cc = clamp(c, -50, 100) / 100;
+    for (var i = 0; i < 256; i++) {
+      var x = i / 255;
+      x = bb >= 0 ? 1 - Math.pow(1 - x, 1 + bb * 1.6) : Math.pow(x, 1 - bb * 1.6);            // brightness bends the curve, ends stay put
+      if (cc) { var s2 = x * x * (3 - 2 * x); x = cc > 0 ? x + (s2 - x) * Math.min(1, cc * 1.3) : x + (x - s2) * -cc; }
+      l[i] = c255(x * 255);
+    }
+    return l;
+  };
+  A.reg("brightnessPlus", function (img, p, sel) {
+    var l = p.legacy ? PIX.lutBrightnessContrast(num(p.b, 0), num(p.c, 0)) : A.lutBrightnessModern(num(p.b, 0), num(p.c, 0));
+    return PIX.applyLuts(img, l, l, l, sel);
+  });
+
+  // ---------- video: de-interlace, broadcast-safe colours ----------
+  A.reg("deinterlace", function (img, p, sel) {
+    var w = img.width, h = img.height, d = img.data, src = new Uint8ClampedArray(d), odd = p.field !== "even", interp = p.mode !== "duplicate";
+    for (var y = odd ? 1 : 0; y < h; y += 2) for (var x = 0; x < w; x++) {
+      var q = y * w + x, i = q * 4; if (sel && !sel[q]) continue;
+      var a = (Math.max(0, y - 1) * w + x) * 4, b = (Math.min(h - 1, y + 1) * w + x) * 4, k = sel ? sel[q] / 255 : 1;
+      for (var c = 0; c < 4; c++) { var v = interp ? (src[a + c] + src[b + c]) / 2 : src[(y > 0 ? a : b) + c]; d[i + c] = src[i + c] + (v - src[i + c]) * k; }
+    }
+    return img;
+  });
+  // Broadcast-safe: limit saturation so the composite signal stays inside the legal range (YIQ chroma limit).
+  A.reg("broadcastSafe", function (img, p, sel) {
+    var lim = clamp(num(p.limit, 110), 50, 130) / 100;
+    return A.perPixel(img, sel, function (r, g, b, o) {
+      var R = r / 255, G2 = g / 255, B = b / 255, Y = 0.299 * R + 0.587 * G2 + 0.114 * B, I = 0.596 * R - 0.274 * G2 - 0.322 * B, Q = 0.211 * R - 0.523 * G2 + 0.312 * B, C = Math.sqrt(I * I + Q * Q), k = 1;
+      if (Y + C > lim) k = Math.max(0, (lim - Y) / C); if (Y - C < -0.2) k = Math.min(k, (Y + 0.2) / C);
+      if (k >= 1) { o[0] = r; o[1] = g; o[2] = b; return; }
+      I *= k; Q *= k;
+      o[0] = (Y + 0.956 * I + 0.621 * Q) * 255; o[1] = (Y - 0.272 * I - 0.647 * Q) * 255; o[2] = (Y - 1.106 * I + 1.703 * Q) * 255;
+    });
+  });
 })(typeof self !== "undefined" ? self : this);
