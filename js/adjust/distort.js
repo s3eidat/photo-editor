@@ -118,15 +118,45 @@
     }, p.edge === "wrap" ? "wrap" : "clamp");
   }));
 
+  // Auto straighten: the tilt (degrees, ±20) that best lines up the picture's strong edges with horizontal /
+  // vertical. Edge pixels are projected onto the axis rotated by each candidate angle; the angle that gives the
+  // sharpest projection profile (largest sum of squares) wins. Works on stair-stepped lines too. 0 if nothing clear.
+  A.autoLevel = function (img) {
+    var w = img.width, h = img.height, st = Math.max(1, Math.round(Math.sqrt(w * h / 4e5))), Y = A.blur(A.lumPlane(img), w, h, 1), x, y;
+    var hx = [], hy = [], hw = [], vx = [], vy = [], vw = [], ms = [];
+    var mg = Math.max(1, Math.round(Math.min(w, h) * 0.03));      // skip a thin border (frames, smeared edges)
+    for (y = mg; y < h - mg; y += st * 3) for (x = mg; x < w - mg; x += st * 3) { var q0 = y * w + x, a1 = Y[q0 + 1] - Y[q0 - 1], a2 = Y[q0 + w] - Y[q0 - w]; ms.push(a1 * a1 + a2 * a2); }
+    ms.sort(function (a, b) { return a - b; });
+    var thr = Math.max(100, ms[Math.floor(ms.length * 0.9)] || 0);      // only the strongest tenth of edges: grain and soft shading don't vote
+    for (y = mg; y < h - mg; y += st) for (x = mg; x < w - mg; x += st) {
+      var q = y * w + x, gx = Y[q + 1] - Y[q - 1], gy = Y[q + w] - Y[q - w], m = gx * gx + gy * gy; if (m < thr) continue;
+      m = Math.sqrt(m);
+      if (Math.abs(gy) > Math.abs(gx) * 2) { hx.push(x); hy.push(y); hw.push(m); } else if (Math.abs(gx) > Math.abs(gy) * 2) { vx.push(x); vy.push(y); vw.push(m); }
+    }
+    if (hx.length + vx.length < 50) return 0;
+    var D = Math.ceil(Math.sqrt(w * w + h * h)) * 2 + 4, bins = new Float64Array(D), scores = [];
+    function prof(X, Yv, W, c, s, vert) {
+      bins.fill(0); for (var k = 0; k < X.length; k++) { var r = vert ? X[k] * c + Yv[k] * s : Yv[k] * c - X[k] * s; r += D / 2; var r0 = r | 0, fr = r - r0; bins[r0] += W[k] * (1 - fr); bins[r0 + 1] += W[k] * fr; }
+      // smooth with a binomial kernel so a profile's energy doesn't depend on where pixels fall between bins
+      var t = 0; for (var i = 2; i < D - 2; i++) { var v = (bins[i - 2] + 4 * bins[i - 1] + 6 * bins[i] + 4 * bins[i + 1] + bins[i + 2]) / 16; t += v * v; } return t;
+    }
+    for (var ai = -80; ai <= 80; ai++) { var an = ai / 4 * Math.PI / 180, c = Math.cos(an), s = Math.sin(an); scores.push(prof(hx, hy, hw, c, s, false) + prof(vx, vy, vw, c, s, true)); }
+    var best = 0, mean = 0; scores.forEach(function (v, i) { mean += v; if (v > scores[best]) best = i; }); mean /= scores.length;
+    if (scores[best] < mean * 1.15) return 0;
+    var off = 0; if (best > 0 && best < scores.length - 1) { var l = scores[best - 1], r = scores[best + 1], dn = l - 2 * scores[best] + r; if (dn) off = 0.5 * (l - r) / dn; }
+    return Math.round(((best - 80) + off) / 4 * 10) / 10;
+  };
+
   // ---------- lens correction: scale, rotation, perspective, barrel / pincushion, colour fringes, vignette ----------
   A.reg("lensCorrection", A.filter(function (img, p) {
     var w = img.width, h = img.height, d = img.data, src = PIX.copyImg(img), cx = w / 2, cy = h / 2, R = Math.sqrt(cx * cx + cy * cy) || 1;
     var k = -clamp(num(p.distort, 0), -100, 100) / 100 * 0.35, sR = 1 + clamp(num(p.caRed, 0), -100, 100) / 100 * 0.006, sB = 1 + clamp(num(p.caBlue, 0), -100, 100) / 100 * 0.006;
     var pv = clamp(num(p.vertical, 0), -100, 100) / 100 * 0.6, ph = clamp(num(p.horizontal, 0), -100, 100) / 100 * 0.6, ang = -num(p.angle, 0) * Math.PI / 180, ca = Math.cos(ang), sa = Math.sin(ang);
     var scl = clamp(num(p.scale, 100), 25, 400) / 100, va = clamp(num(p.vignette, 0), -100, 100) / 100, vm = clamp(num(p.vigMid, 50), 0, 100) / 100, edge = p.edge || "transparent";
+    var asp = clamp(num(p.aspect, 0), -100, 100) / 100 * 0.5, ox = clamp(num(p.offX, 0), -100, 100) / 100 * w / R / 2, oy = clamp(num(p.offY, 0), -100, 100) / 100 * h / R / 2;
     var fill = A.hex(p.fillColor, [255, 255, 255]), o = [0, 0, 0, 0], mode = edge === "extend" ? "clamp" : "transparent";
     for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
-      var u = (x + 0.5 - cx) / R / scl, v = (y + 0.5 - cy) / R / scl, uu = u * ca - v * sa, vv = u * sa + v * ca;
+      var u = (x + 0.5 - cx) / R / scl / (1 + asp) - ox, v = (y + 0.5 - cy) / R / scl / (1 - asp) - oy, uu = u * ca - v * sa, vv = u * sa + v * ca;
       var den = 1 + ph * uu + pv * vv; if (den < 0.05) den = 0.05;
       uu /= den; vv /= den;
       var r2 = uu * uu + vv * vv, f = 1 + k * r2, i = (y * w + x) * 4, X = cx + uu * f * R, Y = cy + vv * f * R;

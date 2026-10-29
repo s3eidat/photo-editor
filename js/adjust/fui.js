@@ -75,8 +75,13 @@
   AUI.addMenu("Filter", [["Filter gallery…", "", function () { AUI.open("gallery"); }, has]], "Gaussian blur");
   AUI.adj("lensCorrection", { t: "Lens correction", c: [sl("distort", "Remove distortion (− pincushion, + barrel)", -100, 100, 1, 0), sl("caRed", "Fix red / cyan fringe", -100, 100, 1, 0), sl("caBlue", "Fix blue / yellow fringe", -100, 100, 1, 0),
     sl("vignette", "Vignette amount", -100, 100, 1, 0), sl("vigMid", "Vignette midpoint", 0, 100, 1, 50, pc), sl("vertical", "Vertical perspective", -100, 100, 1, 0), sl("horizontal", "Horizontal perspective", -100, 100, 1, 0),
-    sl("angle", "Angle", -180, 180, 0.1, 0, deg), sl("scale", "Scale", 25, 400, 1, 100, pc)],
-    sel: [["edge", "Edge", [["transparent", "Transparency"], ["extend", "Edge extension"], ["color", "Background colour"]], "transparent"]], ui: function (el, st) { st.p.fillColor = ED.doc.bg; } });
+    sl("angle", "Angle", -180, 180, 0.1, 0, deg), sl("scale", "Scale", 25, 400, 1, 100, pc), sl("aspect", "Aspect", -100, 100, 1, 0), sl("offX", "Offset X", -100, 100, 1, 0), sl("offY", "Offset Y", -100, 100, 1, 0)],
+    sel: [["edge", "Edge", [["transparent", "Transparency"], ["extend", "Edge extension"], ["color", "Background colour"]], "transparent"]], ui: function (el, st) {
+      st.p.fillColor = ED.doc.bg;
+      el.insertBefore(ED.adjKit.btn("Auto straighten", function () { var a = PIX.A.autoLevel(st.src || st.t.img); st.set("angle", -a); var im = st.src || st.t.img, ar = Math.max(im.width / im.height, im.height / im.width), r = Math.abs(a) * Math.PI / 180;
+        if (a && st.p.scale === 100) st.set("scale", Math.ceil(100 * (Math.cos(r) + Math.sin(r) * ar)));      // zoom just enough to hide the rotated corners
+        S3.toast(a ? "Rotated by " + (-a) + "° to level the picture" : "The picture already looks level"); }, "ghost", null, "Find the tilt from the picture's lines and level it"), el.firstChild);
+    } });
   AUI.addMenu("Filter", [["Lens correction…", "Ctrl+Shift+R", function () { AUI.open("lensCorrection"); }, has]], "Gaussian blur");
   AUI.adj("wideAngle", { t: "Wide-angle correction", c: [sl("fovIn", "Lens field of view (fisheye)", 60, 360, 1, 180, deg), sl("fovOut", "View field of view", 20, 170, 1, 100, deg), sl("scale", "Scale", 25, 400, 1, 100, pc),
     sl("pannini", "Edge squeeze (Pannini)", 0, 200, 1, 100, pc), sl("yaw", "Look left / right (360°)", -180, 180, 1, 0, deg), sl("pitch", "Look up / down (360°)", -90, 90, 1, 0, deg), sl("roll", "Roll (360°)", -180, 180, 1, 0, deg)],

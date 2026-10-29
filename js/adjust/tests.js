@@ -304,6 +304,12 @@
     ok(near(c2[0], 80, 1e-6) && near(c2[1], 70, 1e-6) && near(back2[0], 1, 1e-6) && near(back2[1], 1, 1e-6), "perspective plane homography");
     var tg = im(gray(10, 10, function () { return 0; }), 10, 10), srcP = im(gray(2, 2, function () { return 200; }), 2, 2); PIX.A.placeOnPlane(tg, srcP, [[2, 2], [8, 2], [8, 8], [2, 8]], { opacity: 1, mode: "normal" });
     ok(tg.data[(5 * 10 + 5) * 4] === 200 && tg.data[0] === 0, "picture placed inside the plane only");
+
+    // auto straighten: a picture of lines tilted by 5° is levelled
+    var Wl = 120, tilted = { data: new Uint8ClampedArray(Wl * Wl * 4), width: Wl, height: Wl }, ta = 5 * Math.PI / 180;
+    for (var yl = 0; yl < Wl; yl++) for (var xl = 0; xl < Wl; xl++) { var vv = (Math.floor(((yl - 60) * Math.cos(ta) - (xl - 60) * Math.sin(ta)) / 10) % 2 ? 230 : 30); tilted.data.set([vv, vv, vv, 255], (yl * Wl + xl) * 4); }
+    var lvA = PIX.A.autoLevel(tilted); ok(near(lvA, 5, 0.6), "auto straighten finds a 5° tilt (" + lvA + ")");
+    var lvB = PIX.A.autoLevel(PIX.EXT.lensCorrection(PIX.copyImg(tilted), { angle: -lvA, scale: 130, edge: "extend" })); ok(near(lvB, 0, 0.6), "levelled picture reads as level (" + lvB + ")");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };
