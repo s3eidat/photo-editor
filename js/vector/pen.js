@@ -437,6 +437,13 @@
     once(tg, "Merge shape components", function (cs) { var b = VG.bounds(cs) || { w: 100, h: 100 }; return VG.ringsToComps(VG.combine(cs, Math.max(0.02, Math.max(b.w, b.h) / 4000))); });
     clearSel();
   };
+  // Properties row for shape layers with several components: combine mode of the selected (or all but the first) + merge
+  VX.pathOpsRow = function (L) {
+    var w = ED.ui.w, cs = L.shape.comps || [], ops = cs.slice(1).map(function (c) { return c.op || "add"; }), cur = ops.every(function (o) { return o === ops[0]; }) ? ops[0] : "";
+    return h("div", { "class": "pe-prow" }, [h("span", { "class": "faint", text: "Components" }),
+      w.seg("", OPS.slice(1), cur, function (v) { if (ED.layer() !== L) return; ED.doc.apath = null; VX.setCompOp(v); }),
+      w.btn("Merge", function () { if (ED.layer() !== L) return; ED.doc.apath = null; VX.mergeComps(); ED.ui.buildProps(); }, "ghost", null, "Merge the components into one outline")]);
+  };
   function deleteSelection() {
     var tg = curTarget(); if (!tg || !okLayer(tg)) return false;
     var cs = tg.get(), comps = Object.keys(compsFor(tg.key)).map(Number).filter(function (i) { return cs[i]; }), pts = selectedAnchors(cs);
