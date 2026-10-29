@@ -42,42 +42,61 @@
     for (var p = 0, i = 0; p < n; p++, i += 4) L[p] = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) * k;
     return L;
   };
-  A.blur = function (a, w, h, sigma) { return PIX.blurPlane(a, w, h, sigma); };
   A.copyPlane = function (a) { return new Float32Array(a); };
-  // Box mean of a plane with radius r (clamped edges), separable running sums. Returns a new plane.
-  A.boxMean = function (a, w, h, r) {
+  // One reusable scratch plane (all of this is synchronous, so a single buffer is enough); keeps memory flat.
+  var SCR = null;
+  function scratch(n) { if (!SCR || SCR.length !== n) SCR = new Float32Array(n); return SCR; }
+  // Box mean of a plane with radius r (clamped edges), separable running sums; the vertical pass runs row by row
+  // (sequential memory, much faster than walking columns on big images). Returns `out` (a new plane if omitted;
+  // out may be `a` itself).
+  A.boxMean = function (a, w, h, r, out) {
     r = Math.max(0, Math.round(r));
-    var out = new Float32Array(a.length);
+    out = out || new Float32Array(a.length);
     if (!r) { out.set(a); return out; }
-    var tmp = new Float32Array(a.length), x, y, s, k, row;
+    var tmp = scratch(a.length), inv = 1 / (2 * r + 1), x, y, s, k, row, col = new Float64Array(w);
     for (y = 0; y < h; y++) {
       row = y * w; s = 0;
       for (k = -r; k <= r; k++) s += a[row + clamp(k, 0, w - 1)];
       for (x = 0; x < w; x++) {
-        tmp[row + x] = s / (2 * r + 1);
-        s += a[row + Math.min(w - 1, x + r + 1)] - a[row + Math.max(0, x - r)];
+        tmp[row + x] = s * inv;
+        s += a[row + (x + r + 1 < w ? x + r + 1 : w - 1)] - a[row + (x - r > 0 ? x - r : 0)];
       }
     }
-    for (x = 0; x < w; x++) {
-      s = 0;
-      for (k = -r; k <= r; k++) s += tmp[clamp(k, 0, h - 1) * w + x];
-      for (y = 0; y < h; y++) {
-        out[y * w + x] = s / (2 * r + 1);
-        s += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x];
-      }
+    for (k = -r; k <= r; k++) { row = clamp(k, 0, h - 1) * w; for (x = 0; x < w; x++) col[x] += tmp[row + x]; }
+    for (y = 0; y < h; y++) {
+      var o = y * w, add = (y + r + 1 < h ? y + r + 1 : h - 1) * w, sub = (y - r > 0 ? y - r : 0) * w;
+      for (x = 0; x < w; x++) { out[o + x] = col[x] * inv; col[x] += tmp[add + x] - tmp[sub + x]; }
     }
     return out;
   };
-  // Guided filter (He et al.) of plane p guided by plane I (same size), radius r, regulariser eps. Edge-preserving, O(n).
+  // Gaussian-like blur of a plane in place: three box passes (same box sizes as PIX.blurPlane), row-sequential.
+  A.blur = function (a, w, h, sigma) {
+    if (!(sigma >= 0.3)) return a;
+    var wI = Math.floor(Math.sqrt(12 * sigma * sigma / 3 + 1)); if (wI % 2 === 0) wI--;
+    var mI = Math.round((12 * sigma * sigma - 3 * wI * wI - 12 * wI - 9) / (-4 * wI - 4));
+    for (var i = 0; i < 3; i++) { var bs = i < mI ? wI : wI + 2, r = (bs - 1) / 2; A.boxMean(a, w, h, r, a); }
+    return a;
+  };
+  // Guided filter (He et al.) of plane P guided by plane I (same size), radius r, regulariser eps. Edge-preserving,
+  // O(n) in time; I === P (self-guided smoothing) needs only two extra planes.
   A.guided = function (I, P, w, h, r, eps) {
-    var n = I.length, II = new Float32Array(n), IP = new Float32Array(n), i;
+    var n = I.length, i, v;
+    if (I === P) {
+      var m = A.boxMean(I, w, h, r), q = new Float32Array(n);
+      for (i = 0; i < n; i++) q[i] = I[i] * I[i];
+      A.boxMean(q, w, h, r, q);
+      for (i = 0; i < n; i++) { v = q[i] - m[i] * m[i]; var a0 = v / (v + eps); q[i] = a0; m[i] = m[i] - a0 * m[i]; }
+      A.boxMean(q, w, h, r, q); A.boxMean(m, w, h, r, m);
+      for (i = 0; i < n; i++) q[i] = q[i] * I[i] + m[i];
+      return q;
+    }
+    var mI = A.boxMean(I, w, h, r), mP = A.boxMean(P, w, h, r), II = new Float32Array(n), IP = new Float32Array(n);
     for (i = 0; i < n; i++) { II[i] = I[i] * I[i]; IP[i] = I[i] * P[i]; }
-    var mI = A.boxMean(I, w, h, r), mP = I === P ? mI : A.boxMean(P, w, h, r), mII = A.boxMean(II, w, h, r), mIP = I === P ? mII : A.boxMean(IP, w, h, r);
-    var a = new Float32Array(n), b = new Float32Array(n);
-    for (i = 0; i < n; i++) { var v = mII[i] - mI[i] * mI[i], cv = mIP[i] - mI[i] * mP[i]; a[i] = cv / (v + eps); b[i] = mP[i] - a[i] * mI[i]; }
-    var ma = A.boxMean(a, w, h, r), mb = A.boxMean(b, w, h, r), out = new Float32Array(n);
-    for (i = 0; i < n; i++) out[i] = ma[i] * I[i] + mb[i];
-    return out;
+    A.boxMean(II, w, h, r, II); A.boxMean(IP, w, h, r, IP);
+    for (i = 0; i < n; i++) { v = II[i] - mI[i] * mI[i]; var a1 = (IP[i] - mI[i] * mP[i]) / (v + eps); II[i] = a1; IP[i] = mP[i] - a1 * mI[i]; }
+    A.boxMean(II, w, h, r, II); A.boxMean(IP, w, h, r, IP);
+    for (i = 0; i < n; i++) mI[i] = II[i] * I[i] + IP[i];
+    return mI;
   };
 
   // ---------- colour spaces ----------
