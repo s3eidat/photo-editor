@@ -111,7 +111,7 @@
       var dist = (x - cx) * nx + (y - cy) * ny, dd = sym ? Math.abs(dist) : Math.max(0, dist);
       R[y * w + x] = rad * smooth(f, f + tr, dd);
     }
-    return A.varBlur(img, R, tapsFor(p, rad), clamp(num(p.bokeh, 0), 0, 100) / 100, 0.75, 0);
+    return A.varBlur(img, R, tapsFor(p, rad), clamp(num(p.bokeh, 0), 0, 100) / 100, 0.75, clamp(num(p.noise, 0), 0, 100) / 100 * 0.08);
   }));
   // Iris: an ellipse at (cx, cy) with radii rx, ry (% of the size), rotation; sharp inside `sharp` of it, then fading.
   A.reg("irisBlur", A.filter(function (img, p) {
@@ -122,7 +122,7 @@
       var dx = x - cx, dy = y - cy, u = (dx * cr + dy * sr) / rx, v = (-dx * sr + dy * cr) / ry, e = Math.sqrt(u * u + v * v);
       R[y * w + x] = rad * smooth(sharp, 1, e);
     }
-    return A.varBlur(img, R, tapsFor(p, rad), clamp(num(p.bokeh, 0), 0, 100) / 100, 0.75, 0);
+    return A.varBlur(img, R, tapsFor(p, rad), clamp(num(p.bokeh, 0), 0, 100) / 100, 0.75, clamp(num(p.noise, 0), 0, 100) / 100 * 0.08);
   }));
   // Field: pins [[x %, y %, blur px], ...]; blur between pins by inverse-distance weighting.
   A.reg("fieldBlur", A.filter(function (img, p) {
@@ -133,6 +133,6 @@
       for (var k = 0; k < P.length; k++) { var dx = x - P[k][0], dy = y - P[k][1], ww = 1 / Math.pow(dx * dx + dy * dy + 1, 1.2); sw += ww; sv += ww * P[k][2]; }
       R[y * w + x] = sv / sw;
     }
-    return A.varBlur(img, R, tapsFor(p, rmax), clamp(num(p.bokeh, 0), 0, 100) / 100, 0.75, 0);
+    return A.varBlur(img, R, tapsFor(p, rmax), clamp(num(p.bokeh, 0), 0, 100) / 100, 0.75, clamp(num(p.noise, 0), 0, 100) / 100 * 0.08);
   }));
 })(typeof self !== "undefined" ? self : this);

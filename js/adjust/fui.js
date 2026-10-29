@@ -128,12 +128,12 @@
   }
   F.blur.push("-");
   AUI.filter("blur", "Tilt-shift…", "tiltShift", { t: "Tilt-shift", mp: 8e5, handles: AUI.H.tilt, c: [sl("blur", "Blur", 0, 200, 1, 15, pxf), sl("cy", "Focus line position", 0, 100, 1, 50, pc), sl("angle", "Angle", -90, 90, 1, 0, deg),
-    sl("focus", "Sharp band", 0, 100, 1, 12, pc), sl("transition", "Fade", 1, 100, 1, 18, pc), sl("bokeh", "Light bokeh", 0, 100, 1, 0, pc)], chk: [["symmetric", "Blur both sides", true]], sel: [IRIS[1]],
+    sl("focus", "Sharp band", 0, 100, 1, 12, pc), sl("transition", "Fade", 1, 100, 1, 18, pc), sl("bokeh", "Light bokeh", 0, 100, 1, 0, pc), sl("noise", "Noise (match grain)", 0, 100, 1, 0, pc)], chk: [["symmetric", "Blur both sides", true]], sel: [IRIS[1]],
     ui: function (el, st) { st.p.cx = 50; placeCentre(el, st, "Place the focus line"); } });
   AUI.filter("blur", "Iris blur…", "irisBlur", { t: "Iris blur", mp: 8e5, handles: AUI.H.iris, c: [sl("blur", "Blur", 0, 200, 1, 15, pxf), sl("cx", "Centre X", 0, 100, 1, 50, pc), sl("cy", "Centre Y", 0, 100, 1, 50, pc),
-    sl("rx", "Width", 1, 150, 1, 30, pc), sl("ry", "Height", 1, 150, 1, 30, pc), sl("rotation", "Rotation", -180, 180, 1, 0, deg), sl("sharp", "Sharp area", 0, 99, 1, 50, pc), sl("bokeh", "Light bokeh", 0, 100, 1, 0, pc)], sel: [IRIS[1]],
+    sl("rx", "Width", 1, 150, 1, 30, pc), sl("ry", "Height", 1, 150, 1, 30, pc), sl("rotation", "Rotation", -180, 180, 1, 0, deg), sl("sharp", "Sharp area", 0, 99, 1, 50, pc), sl("bokeh", "Light bokeh", 0, 100, 1, 0, pc), sl("noise", "Noise (match grain)", 0, 100, 1, 0, pc)], sel: [IRIS[1]],
     ui: function (el, st) { placeCentre(el, st); } });
-  AUI.filter("blur", "Field blur…", "fieldBlur", { t: "Field blur", mp: 8e5, handles: AUI.H.field, c: [sl("bokeh", "Light bokeh", 0, 100, 1, 0, pc)], sel: [IRIS[1]], ui: function (el, st) {
+  AUI.filter("blur", "Field blur…", "fieldBlur", { t: "Field blur", mp: 8e5, handles: AUI.H.field, c: [sl("bokeh", "Light bokeh", 0, 100, 1, 0, pc), sl("noise", "Noise (match grain)", 0, 100, 1, 0, pc)], sel: [IRIS[1]], ui: function (el, st) {
     var p = st.p, K = ED.adjKit, box = h("div", { "class": "stack pe-asecin" });
     p.pins = [[50, 50, 15]];
     function draw() {
