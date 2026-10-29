@@ -43,7 +43,7 @@
   // applied before layer styles, so effects follow the vector shape
   SX.prepExt.unshift(function (R, L, P) {
     if (!L.vmask || L.vmask.on === false) return P;
-    var vm = maskCanvas(L, R.doc), key = PE.ver(P.img) + ":" + P.x + ":" + P.y + ":" + PE.ver(vm.canvas), hit = VC.get(L);
+    var vm = maskCanvas(L, R.doc), key = PE.ver(P.img) + ":" + P.x + ":" + P.y + ":" + SX.cv(vm.canvas), hit = VC.get(L);
     if (hit && hit.key === key && hit.src === P.img) return Object.assign({}, P, { img: hit.out });
     var t = PE.mk(P.img.width, P.img.height), c = PE.cx2(t);
     c.drawImage(P.img, 0, 0); c.globalCompositeOperation = "destination-in"; c.drawImage(vm.canvas, vm.x - P.x, vm.y - P.y);
