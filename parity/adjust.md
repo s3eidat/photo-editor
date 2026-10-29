@@ -15,3 +15,4 @@ maths files, `openAdjust` calls `spec.ui`, `ED.adjKit` exposes the UI widgets, `
 | Equalize | done | Image › More adjustments; one table for R, G, B from their combined histogram (keeps hues); with a selection: selected area only, or the whole layer from the selection's histogram |
 | Gradient map | done | Image › More adjustments; foreground→background or 8 own presets, stop editor (2–6 colour stops with positions), reverse, dither |
 | Channel mixer | done | Image › More adjustments; per output channel R/G/B % + constant, monochrome, total readout, 7 presets (own) |
+| Selective colour | done | Image › More adjustments; reds, yellows, greens, cyans, blues, magentas, whites, neutrals, blacks × cyan / magenta / yellow / black, relative or absolute |
