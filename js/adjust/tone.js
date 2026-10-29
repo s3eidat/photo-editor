@@ -198,4 +198,79 @@
       o[0] = (1 - clamp(ink[0] + d[0], 0, 1)) * 255; o[1] = (1 - clamp(ink[1] + d[1], 0, 1)) * 255; o[2] = (1 - clamp(ink[2] + d[2], 0, 1)) * 255;
     });
   });
+
+  // ---------- levels per channel ----------
+  // p.rgb / p.r / p.g / p.b = [inBlack, gamma, inWhite, outBlack, outWhite]; each channel's table, then the master.
+  function lv(a) { a = Array.isArray(a) ? a : []; return PIX.lutLevels(clamp(num(a[0], 0), 0, 253), clamp(num(a[2], 255), 2, 255), clamp(num(a[1], 1), 0.1, 9.99), clamp(num(a[3], 0), 0, 255), clamp(num(a[4], 255), 0, 255)); }
+  A.reg("levelsPlus", function (img, p, sel) {
+    var M = lv(p.rgb), R = lv(p.r), Gt = lv(p.g), B = lv(p.b), lr = new Uint8Array(256), lg = new Uint8Array(256), lb = new Uint8Array(256);
+    for (var i = 0; i < 256; i++) { lr[i] = M[R[i]]; lg[i] = M[Gt[i]]; lb[i] = M[B[i]]; }
+    return PIX.applyLuts(img, lr, lg, lb, sel);
+  });
+  // Levels settings for the auto button: "tone" per channel, "contrast" all together, "color" per channel + neutral gamma.
+  A.levelsAuto = function (img, sel, kind, clipPct) {
+    var H = A.hists(img, sel), f = clamp(clipPct == null ? 0.1 : +clipPct, 0, 10) / 100, out = { rgb: [0, 1, 255, 0, 255], r: [0, 1, 255, 0, 255], g: [0, 1, 255, 0, 255], b: [0, 1, 255, 0, 255] };
+    if (!H.n) return out;
+    if (kind === "contrast") { var all = new Float64Array(256); for (var i = 0; i < 256; i++) all[i] = H.r[i] + H.g[i] + H.b[i]; out.rgb = [A.clipLo(all, f), 1, Math.max(A.clipLo(all, f) + 2, A.clipHi(all, f)), 0, 255]; return out; }
+    ["r", "g", "b"].forEach(function (c) { var lo = Math.min(253, A.clipLo(H[c], f)); out[c] = [lo, 1, Math.max(lo + 2, A.clipHi(H[c], f)), 0, 255]; });
+    if (kind === "color") {
+      var L = A.autoLuts(img, "autoColor", sel, clipPct), T = A.autoLuts(img, "autoTone", sel, clipPct);
+      ["r", "g", "b"].forEach(function (c, k) {      // gamma that maps the tone-only result of mid grey onto the colour result
+        var a = T[k][128] / 255, b = L[k][128] / 255; out[c][1] = a > 0.01 && a < 0.99 && b > 0.01 && b < 0.99 ? clamp(Math.log(a) / Math.log(b), 0.1, 9.99) : 1;
+      });
+    }
+    return out;
+  };
+
+  // ---------- hue / saturation per colour range ----------
+  // p.master = [hue, sat, light]; p.ranges[i] = [hue, sat, light, a, b, c, d] for reds, yellows, greens, cyans,
+  // blues, magentas: full effect between b and c degrees, fading from a and to d. colorize = [hue, sat, light].
+  A.HS_RANGES = [["reds", 345, 15], ["yellows", 45, 75], ["greens", 105, 135], ["cyans", 165, 195], ["blues", 225, 255], ["magentas", 285, 315]];
+  function inRange(hh, a, b, c, d) {
+    function wrap(x) { return ((x % 360) + 360) % 360; }
+    var t = wrap(hh - a), lb = wrap(b - a), lc = wrap(c - a), ld = wrap(d - a);
+    if (t <= lb) return lb ? t / lb : 1;
+    if (t <= lc) return 1;
+    if (t <= ld) return ld > lc ? 1 - (t - lc) / (ld - lc) : 0;
+    return 0;
+  }
+  A.hsRangeWeight = inRange;
+  A.reg("hueSatPlus", function (img, p, sel) {
+    var M = Array.isArray(p.master) ? p.master : [0, 0, 0], col = Array.isArray(p.colorize) ? p.colorize : null, RG = Array.isArray(p.ranges) ? p.ranges : [];
+    return A.perPixel(img, sel, function (r, g, b, o) {
+      var hsl = A.rgb2hsl(r, g, b), h = hsl[0], s = hsl[1], l = hsl[2], dh = num(M[0], 0), ds = num(M[1], 0) / 100, dl = num(M[2], 0) / 100;
+      if (col) { h = num(col[0], 0); s = clamp(num(col[1], 25), 0, 100) / 100; dl = num(col[2], 0) / 100; }
+      else if (s > 0) for (var k = 0; k < RG.length && k < 6; k++) {
+        var q = RG[k]; if (!q || !(q[0] || q[1] || q[2])) continue;
+        var wgt = inRange(hsl[0], num(q[3], 0), num(q[4], 0), num(q[5], 0), num(q[6], 0)) * Math.min(1, s * 4);
+        if (wgt) { dh += num(q[0], 0) * wgt; ds += num(q[1], 0) / 100 * wgt; dl += num(q[2], 0) / 100 * wgt; }
+      }
+      if (!col) { h += dh; s = ds >= 0 ? s + (1 - s) * Math.min(1, ds) * (s > 0 ? 1 : 0) : s * (1 + Math.max(-1, ds)); }
+      l = dl >= 0 ? l + (1 - l) * Math.min(1, dl) : l * (1 + Math.max(-1, dl));
+      var c = A.hsl2rgb(h, clamp(s, 0, 1), clamp(l, 0, 1)); o[0] = c[0]; o[1] = c[1]; o[2] = c[2];
+    });
+  });
+
+  // ---------- black & white with tint ----------
+  A.reg("bwPlus", function (img, p, sel) {
+    var W = {}; Object.keys(PIX.BW_DEFAULT).forEach(function (k) { W[k] = isFinite(+p[k]) ? +p[k] : PIX.BW_DEFAULT[k]; });
+    var tint = !!p.tint, th = num(p.tintHue, 35), ts = clamp(num(p.tintSat, 25), 0, 100) / 100;
+    return A.perPixel(img, sel, function (r, g, b, o) {
+      var v = PIX.bwGray(r, g, b, W);
+      if (tint && ts) { var c = A.hsl2rgb(th, ts, v / 255); o[0] = c[0]; o[1] = c[1]; o[2] = c[2]; } else { o[0] = o[1] = o[2] = v; }
+    });
+  });
+  // Auto weights: spread the six colour ranges' greys apart according to how much of each the image has.
+  A.bwAuto = function (img, sel) {
+    var d = img.data, acc = [0, 0, 0, 0, 0, 0], tot = 0;
+    for (var i = 0, q = 0; i < d.length; i += 16, q += 4) {
+      if (sel && sel[q] < 128) continue;
+      var hs = A.rgb2hsv(d[i], d[i + 1], d[i + 2]); if (hs[1] < 0.15) continue;
+      acc[Math.round(hs[0] / 60) % 6] += hs[1]; tot += hs[1];
+    }
+    var names = ["reds", "yellows", "greens", "cyans", "blues", "magentas"], out = {};
+    names.forEach(function (k, j) { var share = tot ? acc[j] / tot : 0; out[k] = Math.round(clamp(PIX.BW_DEFAULT[k] + (share - 1 / 6) * 120 * (j % 2 ? -1 : 1), -200, 300)); });
+    return out;
+  };
+  A.reg("curvesPlus", function (img, p, sel) { return PIX.adjust(img, "curves", p, sel); });
 })(typeof self !== "undefined" ? self : this);

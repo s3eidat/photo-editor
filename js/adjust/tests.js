@@ -222,6 +222,17 @@
     var lc0 = run(grid, "lensCorrection", {}, null, 8, 8), lcs = true; for (i = 0; i < 64; i++) if (get(lc0, i)[0] !== grid[i][0]) lcs = false;
     ok(lcs, "lens correction at defaults changes nothing");
     var lc1 = run(grid, "lensCorrection", { angle: 180 }, null, 8, 8); ok(get(lc1, 0)[0] === grid[63][0], "lens correction angle 180°");
+
+    // fuller levels / curves / hue-sat / black & white
+    var lp = get(run([[100, 100, 100]], "levelsPlus", { rgb: [0, 1, 255, 0, 255], r: [100, 1, 255, 0, 255], g: [0, 1, 200, 0, 255], b: [0, 1, 255, 0, 255] }), 0);
+    ok(lp[0] === 0 && near(lp[1], 128, 1) && lp[2] === 100, "levels per channel (" + lp + ")");
+    var la = PIX.A.levelsAuto(im([[20, 40, 60], [220, 200, 180]]), null, "tone", 0); ok(la.r[0] === 20 && la.r[2] === 220 && la.b[0] === 60 && la.b[2] === 180, "levels auto per channel");
+    var hsr = run([[255, 0, 0], [0, 0, 255]], "hueSatPlus", { master: [0, 0, 0], ranges: [[120, 0, 0, 315, 345, 15, 45]] });
+    ok(get(hsr, 0).join() === "0,255,0" && get(hsr, 1).join() === "0,0,255", "hue / saturation on the reds range only");
+    ok(PIX.A.hsRangeWeight(0, 315, 345, 15, 45) === 1 && PIX.A.hsRangeWeight(30, 315, 345, 15, 45) === 0.5 && PIX.A.hsRangeWeight(90, 315, 345, 15, 45) === 0, "colour range weights wrap around red");
+    var bwt = get(run([[200, 100, 50]], "bwPlus", { tint: true, tintHue: 30, tintSat: 40 }), 0), bwn = get(run([[200, 100, 50]], "bwPlus", {}), 0);
+    ok(bwn[0] === bwn[2] && bwt[0] > bwt[2] && near((Math.max.apply(null, bwt) + Math.min.apply(null, bwt)) / 2, bwn[0], 2), "black & white with a tint keeps lightness");
+    ok(get(run([[64, 64, 64]], "curvesPlus", { rgb: [[0, 0], [64, 128], [255, 255]] }), 0)[0] === 128, "curves (fuller panel) uses the same maths");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };

@@ -42,3 +42,7 @@ maths files, `openAdjust` calls `spec.ui`, `ED.adjKit` exposes the UI widgets, `
 | Average, blur, blur more, box blur, shape blur (8 shapes), spin blur | done | Filter › Blur |
 | Custom 5×5 kernel, HSB / HSL | done | Filter › Other |
 | Lens correction filter | done | Filter › Lens correction… (Ctrl+Shift+R): remove distortion, red/cyan and blue/yellow fringes, vignette, vertical / horizontal perspective, angle, scale, edge = transparent / extension / background colour. No camera lens profiles (needs a profile database) |
+| Levels (full) | done | Image › Levels… / Ctrl+L now opens the fuller panel: RGB + per-channel input/gamma/output, histogram per channel, black / grey / white point eyedroppers, auto (colour / each channel / together), presets |
+| Curves (full) | done | Image › Curves… / Ctrl+M: RGB + channels, histogram, black / grey / white point eyedroppers, 10 presets |
+| Hue / saturation per colour range | done | Image › Hue / Saturation… / Ctrl+U: master + reds / yellows / greens / cyans / blues / magentas with editable range fall-offs, pick range from the image, colourise |
+| Black & white (full) | done | Image › Black & white…: presets (colour filters, infrared look…), auto weights, tint hue / saturation. Also fixes panel histograms being drawn over the canvas (CSS) |

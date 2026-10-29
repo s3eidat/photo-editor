@@ -6,7 +6,7 @@
 .pe-astop input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
 .pe-arow { gap: 14px; flex-wrap: wrap; }
 .pe-asub .pe-aback span { font-weight: 700; }
-.pe-stage .pe-float canvas.pe-agrad, .pe-stage .pe-float canvas.pe-acv { position: static; pointer-events: auto; }
+.pe-stage .pe-float canvas { position: static; pointer-events: auto; }   /* panel canvases (histograms, curves, wheels) are not stage layers */
 .pe-float.pe-awide { width: 340px; }
 .pe-asec { border-top: 1px solid var(--line); }
 .pe-asec > summary { cursor: pointer; padding: 8px 2px; font-weight: 700; font-size: 12.5px; list-style-position: inside; }
