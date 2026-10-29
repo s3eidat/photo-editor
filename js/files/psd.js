@@ -388,7 +388,7 @@
     function layerOf(c, parent, ph, pop) {
       var r = rectOf(c), cv = null, L;
       var saved = c.id != null ? xmp[String(c.id)] : null, same = !!(saved && saved.sig && saved.sig === sigOf(c));
-      if (c.adjustment) {
+      if (c.adjustment || (same && saved.kind === "adjust" && saved.ext.adj && !(c.imageData && c.imageData.width * c.imageData.height > 1))) {      // an op with no PSD form was saved as an empty layer
         var a = same && saved.ext.adj ? saved.ext.adj : X ? X.adjIn(c.adjustment) : null;
         if (!a || !kindOn("adjust")) { note("adjust"); return null; }
         L = common(c, "adjust", {}, ph, pop); L.canvas = null; L.adj = a;

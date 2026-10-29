@@ -25,18 +25,32 @@
   function bi(b) { return P.blendIn(b || "normal"); }
 
   // ---------- adjustment layers ----------
-  var CH = [["r", "red"], ["g", "green"], ["b", "blue"]];
+  var CH = [["r", "red"], ["g", "green"], ["b", "blue"]], HS = ["reds", "yellows", "greens", "cyans", "blues", "magentas"];
+  var BW_DEF = { reds: 40, yellows: 60, greens: 40, cyans: 60, blues: 20, magentas: 80 };
+  function HS_DEF(i) { var m = [0, 60, 120, 180, 240, 300][i]; return { a: (m + 315) % 360, b: (m + 345) % 360, c: (m + 15) % 360, d: (m + 45) % 360, hue: 0, saturation: 0, lightness: 0 }; }
+  function lvOut(v) { v = Array.isArray(v) ? v : [0, 1, 255, 0, 255]; return { shadowInput: Math.round(clamp(v[0], 0, 253)), highlightInput: Math.round(clamp(v[2], 2, 255)), shadowOutput: Math.round(clamp(v[3], 0, 255)), highlightOutput: Math.round(clamp(v[4], 0, 255)), midtoneInput: Math.round(clamp(v[1], 0.1, 9.99) * 100) / 100 }; }
+  function lvIn(l) { l = l || {}; return [clamp(l.shadowInput || 0, 0, 253), Math.round(clamp(l.midtoneInput || 1, 0.1, 9.99) * 100) / 100, clamp(l.highlightInput == null ? 255 : l.highlightInput, 2, 255), clamp(l.shadowOutput || 0, 0, 255), clamp(l.highlightOutput == null ? 255 : l.highlightOutput, 0, 255)]; }
+  function hsbRgb(hh, sat, v) { var f = function (n) { var k = (n + hh / 60) % 6; return Math.round(255 * (v - v * sat * Math.max(0, Math.min(k, 4 - k, 1)))); }; return { r: f(5), g: f(3), b: f(1) }; }
+  function rgbHsb(c) { var r = c.r / 255, g = c.g / 255, b = c.b / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, hh = 0;
+    if (d) hh = mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return [Math.round(hh * 60) % 360, mx ? Math.round(d / mx * 100) : 0]; }
   X.adjOut = function (a) {
     if (!a || !a.op) return null; var p = a.p || {}, o = null;
     switch (a.op) {
-      case "brightness": o = { type: "brightness/contrast", brightness: Math.round(clamp(p.b, -150, 150)), contrast: Math.round(clamp(p.c, -100, 100)), useLegacy: false }; break;
+      case "brightness": o = { type: "brightness/contrast", brightness: Math.round(clamp(p.b, -150, 150)), contrast: Math.round(clamp(p.c, -100, 100)), useLegacy: true }; break;
+      case "brightnessPlus": o = { type: "brightness/contrast", brightness: Math.round(clamp(p.b, -150, 150)), contrast: Math.round(clamp(p.c, p.legacy ? -100 : -50, 100)), useLegacy: !!p.legacy }; break;
+      case "levelsPlus": o = { type: "levels" }; [["rgb", "rgb"]].concat(CH).forEach(function (c) { o[c[1]] = lvOut(p[c[0]]); }); break;
       case "levels": o = { type: "levels", rgb: { shadowInput: Math.round(p.inB || 0), highlightInput: Math.round(p.inW == null ? 255 : p.inW), shadowOutput: Math.round(p.outB || 0), highlightOutput: Math.round(p.outW == null ? 255 : p.outW), midtoneInput: p.gamma || 1 } }; break;
-      case "curves": o = { type: "curves" }; [["rgb", "rgb"]].concat(CH).forEach(function (c) { var pts = p[c[0]]; if (Array.isArray(pts) && pts.length >= 2) o[c[1]] = pts.map(function (q) { return { input: Math.round(q[0]), output: Math.round(q[1]) }; }); }); break;
+      case "curves": case "curvesPlus": o = { type: "curves" }; [["rgb", "rgb"]].concat(CH).forEach(function (c) { var pts = p[c[0]]; if (Array.isArray(pts) && pts.length >= 2) o[c[1]] = pts.map(function (q) { return { input: Math.round(q[0]), output: Math.round(q[1]) }; }); }); break;
       case "exposure": o = { type: "exposure", exposure: +p.ev || 0, offset: +p.offset || 0, gamma: p.gamma || 1 }; break;
       case "vibrance": o = { type: "vibrance", vibrance: Math.round(p.vibrance || 0), saturation: Math.round(p.sat || 0) }; break;
       case "hueSat": if (p.colorize) return null; o = { type: "hue/saturation", master: { a: 0, b: 0, c: 0, d: 0, hue: Math.round(p.hue || 0), saturation: Math.round(p.sat || 0), lightness: Math.round(p.light || 0) } }; break;
       case "colorBalance": var cb = function (v) { v = v || [0, 0, 0]; return { cyanRed: v[0] || 0, magentaGreen: v[1] || 0, yellowBlue: v[2] || 0 }; }; o = { type: "color balance", shadows: cb(p.sh), midtones: cb(p.mid), highlights: cb(p.hi), preserveLuminosity: p.keepLum !== false }; break;
-      case "bw": o = { type: "black & white" }; ["reds", "yellows", "greens", "cyans", "blues", "magentas"].forEach(function (k) { o[k] = Math.round(p[k] || 0); }); break;
+      case "hueSatPlus": var M = Array.isArray(p.master) ? p.master : [0, 0, 0], col = Array.isArray(p.colorize) ? p.colorize : null;
+        o = { type: "hue/saturation", colorize: !!col, master: { hue: Math.round(+M[0] || 0), saturation: Math.round(+M[1] || 0), lightness: Math.round(+M[2] || 0) } };
+        if (col) o.colorization = { hue: Math.round(clamp(col[0], 0, 360)), saturation: Math.round(clamp(col[1], 0, 100)), lightness: Math.round(clamp(col[2], -100, 100)) };
+        HS.forEach(function (k, i) { var q = (p.ranges || [])[i]; o[k] = Array.isArray(q) ? { a: Math.round(+q[3] || 0), b: Math.round(+q[4] || 0), c: Math.round(+q[5] || 0), d: Math.round(+q[6] || 0), hue: Math.round(+q[0] || 0), saturation: Math.round(+q[1] || 0), lightness: Math.round(+q[2] || 0) } : HS_DEF(i); }); break;
+      case "bw": case "bwPlus": o = { type: "black & white" }; HS.forEach(function (k) { o[k] = Math.round(p[k] == null ? BW_DEF[k] : p[k]); });
+        if (a.op === "bwPlus" && p.tint) { o.useTint = true; o.tintColor = hsbRgb(+p.tintHue || 0, clamp(p.tintSat, 0, 100) / 100, 0.88); } break;
       case "threshold": o = { type: "threshold", level: Math.round(p.level || 128) }; break;
       case "invert": o = { type: "invert" }; break;
       case "desaturate": o = { type: "hue/saturation", master: { a: 0, b: 0, c: 0, d: 0, hue: 0, saturation: -100, lightness: 0 } }; break;
@@ -57,18 +71,24 @@
     if (!a || !a.type) return null; var o;
     function has(op) { return !!(ED.ADJ && ED.ADJ[op]) || op === "invert" || op === "desaturate"; }
     switch (a.type) {
-      case "brightness/contrast": o = { op: "brightness", p: { b: clamp(a.brightness || 0, -150, 150), c: clamp(a.contrast || 0, -100, 100) } }; break;
-      case "levels": var l = a.rgb || { shadowInput: 0, highlightInput: 255, shadowOutput: 0, highlightOutput: 255, midtoneInput: 1 };
+      case "brightness/contrast":       // the classic (linear) maths is the editor's own; the modern curve comes from the adjust lane
+        o = !a.useLegacy && has("brightnessPlus") ? { op: "brightnessPlus", p: { b: clamp(a.brightness || 0, -150, 150), c: clamp(a.contrast || 0, -50, 100), legacy: false } } : { op: "brightness", p: { b: clamp(a.brightness || 0, -150, 150), c: clamp(a.contrast || 0, -100, 100) } }; break;
+      case "levels": if (CH.some(function (c) { return a[c[1]] && lvIn(a[c[1]]).join() !== "0,1,255,0,255"; }) && has("levelsPlus")) { o = { op: "levelsPlus", p: {} }; [["rgb", "rgb"]].concat(CH).forEach(function (c) { o.p[c[0]] = lvIn(a[c[1]]); }); break; }
+        var l = a.rgb || { shadowInput: 0, highlightInput: 255, shadowOutput: 0, highlightOutput: 255, midtoneInput: 1 };
         o = { op: "levels", p: { inB: clamp(l.shadowInput, 0, 253), inW: clamp(l.highlightInput, 2, 255), gamma: clamp(l.midtoneInput || 1, 0.1, 9.99), outB: clamp(l.shadowOutput, 0, 255), outW: clamp(l.highlightOutput, 0, 255) } }; break;
       case "curves": o = { op: "curves", p: {} }; [["rgb", "rgb"]].concat(CH).forEach(function (c) { var pts = a[c[1]]; o.p[c[0]] = Array.isArray(pts) && pts.length >= 2 ? pts.slice(0, 14).map(function (q) { return [clamp(q.input, 0, 255), clamp(q.output, 0, 255)]; }) : [[0, 0], [255, 255]]; }); break;
       case "exposure": o = { op: "exposure", p: { ev: clamp(a.exposure || 0, -5, 5), offset: clamp(a.offset || 0, -0.5, 0.5), gamma: clamp(a.gamma || 1, 0.1, 4) } }; break;
       case "vibrance": o = { op: "vibrance", p: { vibrance: clamp(a.vibrance || 0, -100, 100), sat: clamp(a.saturation || 0, -100, 100) } }; break;
       case "hue/saturation": var m = a.master || {};
-        if (["reds", "yellows", "greens", "cyans", "blues", "magentas"].some(function (k) { var c = a[k]; return c && (c.hue || c.saturation || c.lightness); })) return null;      // per-range edits: kept as pixels
+        if (a.colorize || HS.some(function (k) { var c = a[k]; return c && (c.hue || c.saturation || c.lightness); })) {      // colourise and per-range edits need the fuller panel
+          var cz = a.colorization || {}; o = { op: "hueSatPlus", p: { master: [clamp(m.hue || 0, -180, 180), clamp(m.saturation || 0, -100, 100), clamp(m.lightness || 0, -100, 100)], colorize: a.colorize ? [clamp(cz.hue || 0, 0, 360), clamp(cz.saturation == null ? 25 : cz.saturation, 0, 100), clamp(cz.lightness || 0, -100, 100)] : null,
+            ranges: HS.map(function (k, i) { var c = a[k] || HS_DEF(i); return [clamp(c.hue || 0, -180, 180), clamp(c.saturation || 0, -100, 100), clamp(c.lightness || 0, -100, 100), clamp(c.a || 0, 0, 360), clamp(c.b || 0, 0, 360), clamp(c.c || 0, 0, 360), clamp(c.d || 0, 0, 360)]; }) } }; break;
+        }
         o = { op: "hueSat", p: { hue: clamp(m.hue || 0, -180, 180), sat: clamp(m.saturation || 0, -100, 100), light: clamp(m.lightness || 0, -100, 100), colorize: false } }; break;
       case "color balance": var cv = function (v) { v = v || {}; return [clamp(v.cyanRed || 0, -100, 100), clamp(v.magentaGreen || 0, -100, 100), clamp(v.yellowBlue || 0, -100, 100)]; };
         o = { op: "colorBalance", p: { sh: cv(a.shadows), mid: cv(a.midtones), hi: cv(a.highlights), keepLum: a.preserveLuminosity !== false } }; break;
-      case "black & white": if (a.useTint) return null; o = { op: "bw", p: {} }; ["reds", "yellows", "greens", "cyans", "blues", "magentas"].forEach(function (k) { o.p[k] = clamp(a[k] || 0, -200, 300); }); break;
+      case "black & white": o = { op: a.useTint ? "bwPlus" : "bw", p: {} }; HS.forEach(function (k) { o.p[k] = clamp(a[k] == null ? BW_DEF[k] : a[k], -200, 300); });
+        if (a.useTint) { var tc = a.tintColor && a.tintColor.r != null ? rgbHsb(a.tintColor) : [42, 20]; o.p.tint = true; o.p.tintHue = tc[0]; o.p.tintSat = tc[1]; } break;
       case "threshold": o = { op: "threshold", p: { level: clamp(a.level || 128, 1, 255) } }; break;
       case "invert": o = { op: "invert", p: {} }; break;
       case "posterize": o = { op: "posterize", p: { levels: clamp(a.levels || 4, 2, 255) } }; break;
@@ -211,6 +231,19 @@
       { op: "bw", p: { reds: 40, yellows: 60, greens: 40, cyans: 60, blues: 20, magentas: 80 } }, { op: "threshold", p: { level: 100 } }, { op: "vibrance", p: { vibrance: 30, sat: -10 } }, { op: "brightness", p: { b: 12, c: -4 } }];
     var bad = cases.filter(function (c) { var back = X.adjIn(X.adjOut(c)); return !back || back.op !== c.op || !X.same(back.p, c.p); }).map(function (c) { return c.op; });
     ok(!bad.length, "psd adjustment mapping round trip " + bad.join(","));
+    // the adjust lane's fuller panels: native PSD structures out, and back to the same op where that op exists here
+    var rg = [0, 1, 2, 3, 4, 5].map(function (i) { var d = HS_DEF(i); return [0, 0, 0, d.a, d.b, d.c, d.d]; }); rg[0] = [30, 20, -10, 315, 345, 15, 45];
+    var plus = [{ op: "levelsPlus", p: { rgb: [5, 1.2, 250, 0, 255], r: [20, 1, 255, 0, 240], g: [0, 0.9, 255, 0, 255], b: [0, 1, 230, 10, 255] } },
+      { op: "hueSatPlus", p: { master: [10, -5, 0], colorize: null, ranges: rg } }, { op: "hueSatPlus", p: { master: [0, 0, 0], colorize: [200, 40, -10], ranges: rg } },
+      { op: "bwPlus", p: { reds: 40, yellows: 60, greens: 40, cyans: 60, blues: 20, magentas: 80, tint: true, tintHue: 30, tintSat: 40 } }, { op: "brightnessPlus", p: { b: 30, c: -20, legacy: false } }];
+    var lo = X.adjOut(plus[0]), ho = X.adjOut(plus[2]), bo2 = X.adjOut(plus[3]);
+    ok(lo.red.shadowInput === 20 && lo.red.highlightOutput === 240 && lo.blue.shadowOutput === 10 && lo.rgb.midtoneInput === 1.2 && ho.colorize && ho.colorization.hue === 200 && ho.reds.hue === 30 && ho.reds.a === 315 && bo2.useTint && !X.adjOut(plus[4]).useLegacy && X.adjOut({ op: "brightness", p: { b: 1, c: 1 } }).useLegacy, "psd mapping of the fuller adjustment panels (out)");
+    if (["levelsPlus", "hueSatPlus", "bwPlus", "brightnessPlus"].every(function (k) { return ED.ADJ && ED.ADJ[k]; })) {
+      bad = plus.filter(function (c) { var back = X.adjIn(X.adjOut(c)); return !back || back.op !== c.op || !X.same(back.p, c.p); }).map(function (c) { return c.op; });
+      ok(!bad.length, "psd mapping of the fuller adjustment panels (round trip) " + bad.join(","));
+    }
+    var tint = X.adjIn({ type: "black & white", reds: 40, yellows: 60, greens: 40, cyans: 60, blues: 20, magentas: 80, useTint: true, tintColor: { r: 225, g: 211, b: 179 } });
+    ok(!tint || (tint.op === "bwPlus" && tint.p.tintHue === 42 && tint.p.tintSat === 20), "psd black & white tint reads the tint colour");
     var fx = { on: true, dropShadow: { on: true, blend: "multiply", color: "#112233", op: 0.6, angle: 135, dist: 9, spread: 10, size: 12 }, stroke: { on: true, size: 3, pos: "inside", blend: "normal", color: "#ff0000", op: 1 },
       gradOverlay: { on: true, blend: "screen", op: 0.8, from: "#000000", to: "#ffffff", style: "radial", angle: 45, scale: 150, reverse: true }, bevel: { on: true, style: "emboss", depth: 200, dir: "down", size: 6, soften: 1, angle: 120, altitude: 30, hiBlend: "screen", hiColor: "#ffffff", hiOp: 0.75, shBlend: "multiply", shColor: "#000000", shOp: 0.75 } };
     var back = X.fxIn(X.fxOut(fx)).fx;
