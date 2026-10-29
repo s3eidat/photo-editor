@@ -88,6 +88,16 @@
     }
   }, true);
 
+  // ---------- shadows / highlights ----------
+  function sl(k, label, min, max, step, def, fmt) { return { k: k, label: label, min: min, max: max, step: step, def: def, fmt: fmt }; }
+  AUI.sl = sl;
+  var pc = function (v) { return v + "%"; }, pxf = function (v) { return v + " px"; };
+  AUI.pc = pc; AUI.pxf = pxf;
+  AUI.adj("shadowsHighlights", { t: "Shadows / highlights", c: [sl("sAmt", "Shadows: amount", 0, 100, 1, 35, pc), sl("sTone", "Shadows: tonal width", 0, 100, 1, 50, pc), sl("sRad", "Shadows: radius", 0, 500, 1, 30, pxf),
+    sl("hAmt", "Highlights: amount", 0, 100, 1, 0, pc), sl("hTone", "Highlights: tonal width", 0, 100, 1, 50, pc), sl("hRad", "Highlights: radius", 0, 500, 1, 30, pxf),
+    sl("color", "Colour", -100, 100, 1, 20), sl("mid", "Midtone contrast", -100, 100, 1, 0)] });
+  AUI.addMenu("Image", [["Shadows / highlights…", "", function () { AUI.open("shadowsHighlights"); }, has]], "Auto tone");
+
   // ---------- auto tone / contrast / colour ----------
   var AUTO = [["autoTone", "Auto tone", "Ctrl+Shift+L"], ["autoContrast", "Auto contrast", "Ctrl+Alt+Shift+L"], ["autoColor", "Auto colour", "Ctrl+Shift+B"]];
   AUI.addMenu("Image", AUTO.map(function (a) { return [a[1], a[2], function () { AUI.quick(a[0], a[1]); }, has]; }).concat(["-"]), "Vibrance");

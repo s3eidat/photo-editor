@@ -18,6 +18,15 @@
     ok(Math.abs(s[0] - s[2]) / 64 < 6 && Math.abs(s[1] - s[2]) / 64 < 6, "auto colour neutralises a cast (" + s.map(function (x) { return Math.round(x / 64); }) + ")");
     var a4 = run([[50, 50, 50], [200, 200, 200]], "autoContrast", { clip: 0 }, new Uint8Array([255, 0]));
     ok(get(a4, 1).join() === "200,200,200", "auto ops respect the selection");
+
+    // shadows / highlights on flat greys: L' = B^(1/(1+3a*w)) with w the tonal weight
+    var g64 = run([[64, 64, 64], [64, 64, 64], [64, 64, 64], [64, 64, 64]], "shadowsHighlights", { sAmt: 50, sTone: 100, sRad: 4, hAmt: 0, color: 0 }, null, 2, 2);
+    var B = 64 / 255, ws = 1 - B * B * (3 - 2 * B), want = 255 * Math.pow(B, 1 / (1 + 1.5 * ws));
+    ok(near(get(g64, 0)[0], want, 1.5) && get(g64, 3)[1] === get(g64, 3)[0], "shadows lift a dark grey (" + get(g64, 0)[0] + " want " + Math.round(want) + ")");
+    var bw = run([[0, 0, 0], [255, 255, 255]], "shadowsHighlights", { sAmt: 100, sTone: 100, sRad: 0, hAmt: 100, hTone: 100, hRad: 0 });
+    ok(get(bw, 0).join() === "0,0,0" && get(bw, 1)[0] > 250, "black stays black");
+    var hi = run([[230, 230, 230]], "shadowsHighlights", { sAmt: 0, hAmt: 60, hTone: 60, hRad: 0 });
+    ok(get(hi, 0)[0] < 222, "highlights recover a bright grey (" + get(hi, 0)[0] + ")");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };
