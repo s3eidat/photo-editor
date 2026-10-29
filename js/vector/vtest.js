@@ -231,3 +231,24 @@
     ok(r3.width === 50 && r3.height === 15 && r3.data[(14 * 50 + 49) * 4 + 3] === 255, "widening and heightening fill every pixel");
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, VX = PE.VX;
+  VX.test("pin warp", function (ok) {
+    var c = PE.mk(40, 200); PE.cx2(c).fillRect(0, 0, 40, 200); PE.touch(c);
+    var L = PE.rasterFromCanvas(c, "bar", 10, 10), m = VX.pinMesh(L);
+    ok(m && m.pins.length === 0 && m.kept.some(Boolean), "mesh covers the layer");
+    var a = VX.nearestRest(m, 30, 10), b = VX.nearestRest(m, 30, 210);
+    // pins moved by the same offset: the whole bar translates
+    m.pins = [{ v: a, x: m.rest[a * 2] + 50, y: m.rest[a * 2 + 1] + 20 }, { v: b, x: m.rest[b * 2] + 50, y: m.rest[b * 2 + 1] + 20 }];
+    VX.pinSolve(m, 300);
+    var worst = 0; for (var i = 0; i < m.kept.length; i++) if (m.kept[i]) worst = Math.max(worst, Math.abs(m.pos[i * 2] - m.rest[i * 2] - 50), Math.abs(m.pos[i * 2 + 1] - m.rest[i * 2 + 1] - 20));
+    ok(worst < 0.5, "two pins moved together translate the shape (max error " + worst.toFixed(3) + ")");
+    // rotate both pins 90° about the bar's centre: the far corner follows
+    m.pos = new Float32Array(m.rest); var cx = m.rest[a * 2], cy = (m.rest[a * 2 + 1] + m.rest[b * 2 + 1]) / 2;
+    function rot(v) { var x = m.rest[v * 2] - cx, y = m.rest[v * 2 + 1] - cy; return { v: v, x: cx - y, y: cy + x }; }
+    m.pins = [rot(a), rot(b)]; VX.pinSolve(m, 400);
+    var k = VX.nearestRest(m, 10, 110), want = rot(k), err = Math.hypot(m.pos[k * 2] - want.x, m.pos[k * 2 + 1] - want.y);
+    ok(err < 3, "rigid mode rotates the rest of the shape with the pins (error " + err.toFixed(2) + " px)");
+  });
+})();

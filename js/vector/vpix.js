@@ -62,7 +62,7 @@
   // ---------- mesh warp: a regular grid over the source rect (sx0, sy0, sw, sh) goes to dst points (gw x gh, output px) ----------
   // Every grid cell is two triangles; each output pixel inside one samples the source (bilinear, premultiplied).
   // Pixels up to ~1 px outside the mesh still sample (the source is transparent there), which anti-aliases the edge.
-  VPIX.meshWarp = function (img, sx0, sy0, sw, sh, gw, gh, dst, outW, outH) {
+  VPIX.meshWarp = function (img, sx0, sy0, sw, sh, gw, gh, dst, outW, outH, cells) {      // cells: optional (gw-1)*(gh-1) mask of the cells to draw
     var W = img.width, H = img.height, S = img.data, out = new Uint8ClampedArray(outW * outH * 4), wt = new Float32Array(outW * outH);
     var cx0 = sx0 + 0.5, cx1 = sx0 + sw - 0.5, cy0 = sy0 + 0.5, cy1 = sy0 + sh - 0.5;
     function sample(x, y, o, k) {
@@ -94,6 +94,7 @@
       }
     }
     for (var j = 0; j < gh - 1; j++) for (var i = 0; i < gw - 1; i++) {
+      if (cells && !cells[j * (gw - 1) + i]) continue;
       var a = (j * gw + i) * 2, b = a + 2, c = a + gw * 2, d = c + 2;
       var ua = sx0 + i / (gw - 1) * sw, ub = sx0 + (i + 1) / (gw - 1) * sw, va = sy0 + j / (gh - 1) * sh, vc = sy0 + (j + 1) / (gh - 1) * sh;
       tri(dst[a], dst[a + 1], dst[b], dst[b + 1], dst[d], dst[d + 1], ua, va, ub, va, ub, vc);
