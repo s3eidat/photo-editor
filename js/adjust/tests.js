@@ -251,6 +251,15 @@
     var bm2 = PIX.A.localMask({ type: "brush", strokes: [{ r: 20, hard: 1, flow: 1, pts: [50, 50] }, { r: 10, hard: 1, flow: 1, erase: true, pts: [50, 50] }] }, 21, 21);
     ok(bm2[10 * 21 + 10] === 0 && bm2[10 * 21 + 7] === 1 && bm2[0] === 0, "develop brush mask paints and erases");
     var cal0 = get(run([[200, 60, 40]], "develop", Object.assign(PIX.A.devDefaults(), { calRedS: -100 })), 0); ok(cal0[0] < 200, "develop calibration: red primary saturation");
+
+    // blend modes (apply image / calculations)
+    var B2 = PIX.A.BLEND2;
+    ok(near(B2.softLight(0.25, 0.75), 0.375, 1e-6) && B2.colorDodge(0.5, 0.5) === 1 && near(B2.colorBurn(0.5, 0.75), 1 / 3, 1e-6) && B2.hardMix(0.6, 0.5) === 1 && near(B2.vividLight(0.4, 0.75), 0.8, 1e-6) && B2.pinLight(0.2, 0.9) === 0.8, "blend mode maths");
+    var ai = im([[200, 100, 50]]), as = im([[128, 255, 0]]); PIX.A.applyImage(ai, as, { channel: "rgb", mode: "multiply", opacity: 1, keepAlpha: true });
+    ok(near(ai.data[0], 100, 1) && ai.data[1] === 100 && ai.data[2] === 0, "apply image multiply");
+    var ai2 = im([[200, 100, 50]]); PIX.A.applyImage(ai2, im([[0, 255, 0]]), { channel: "g", invert: true, mode: "normal", opacity: 0.5, keepAlpha: true });
+    ok(ai2.data[0] === 100 && ai2.data[1] === 50, "apply image: one channel, inverted, half opacity");
+    var calc = PIX.A.calculate(im([[255, 0, 0]]), im([[0, 0, 255]]), { ch1: "r", ch2: "b", mode: "multiply", opacity: 1 }); ok(calc[0] === 1, "calculations multiply two channels");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };
