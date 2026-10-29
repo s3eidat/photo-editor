@@ -18,14 +18,20 @@
 
   // ---------- dab iteration with the tip's falloff and the selection ----------
   // Calls fn(i, w) for every pixel of the dab with weight w in (0, 1]. Returns the dab rect (holder coords).
-  function dabEach(st, x, y, d, ang, rnd, a, fn) {
-    var r = Math.max(0.5, d / 2), x0 = Math.max(0, Math.floor(x - r)), y0 = Math.max(0, Math.floor(y - r)), x1 = Math.min(st.w - 1, Math.ceil(x + r)), y1 = Math.min(st.h - 1, Math.ceil(y + r));
+  var TA = new WeakMap();
+  function tipAlphaData(tip) { var hit = TA.get(tip); if (hit) return hit; var d = PE.getData(tip.canvas).data, a = new Uint8Array(tip.w * tip.h); for (var i = 0; i < a.length; i++) a[i] = d[i * 4 + 3]; TA.set(tip, a); return a; }
+  function dabEach(st, x, y, d, ang, rnd, a, fn, flip) {
+    var tip = st.tip, ta = tip ? tipAlphaData(tip) : null, tk = tip ? Math.max(tip.w, tip.h) / Math.max(0.5, d) : 0;
+    var r = Math.max(0.5, d / 2) * (tip ? 1.42 : 1), x0 = Math.max(0, Math.floor(x - r)), y0 = Math.max(0, Math.floor(y - r)), x1 = Math.min(st.w - 1, Math.ceil(x + r)), y1 = Math.min(st.h - 1, Math.ceil(y + r));
     if (x1 < x0 || y1 < y0) return null;
     ensure(st, { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 });
     var hard = PE.clamp(st.o.hard, 0, 1), rh = r * hard, ca = Math.cos(-ang * RAD), sa = Math.sin(-ang * RAD), ry = Math.max(0.01, rnd), sel = st.sel, W = st.w;
     for (var yy = y0; yy <= y1; yy++) for (var xx = x0; xx <= x1; xx++) {
       var ux = xx + 0.5 - x, uy = yy + 0.5 - y, vx = ux * ca - uy * sa, vy = (ux * sa + uy * ca) / ry, dd = Math.sqrt(vx * vx + vy * vy), w;
-      if (hard >= 0.99) w = PE.clamp(r - dd + 0.5, 0, 1); else w = dd <= rh ? 1 : dd >= r ? 0 : (r - dd) / (r - rh);
+      if (ta) {        // sampled tip: its own density, nearest pixel
+        var tx = Math.floor((flip ? -vx : vx) * tk + tip.w / 2), ty = Math.floor(vy * tk + tip.h / 2);
+        w = tx >= 0 && ty >= 0 && tx < tip.w && ty < tip.h ? ta[ty * tip.w + tx] / 255 : 0;
+      } else if (hard >= 0.99) w = PE.clamp(r - dd + 0.5, 0, 1); else w = dd <= rh ? 1 : dd >= r ? 0 : (r - dd) / (r - rh);
       if (w <= 0) continue;
       w *= a;
       if (sel) { var sx = xx + st.ox, sy = yy + st.oy; w *= sx >= 0 && sy >= 0 && sx < sel.w && sy < sel.h ? sel.m[sy * sel.w + sx] / 255 : 0; if (w <= 0) continue; }

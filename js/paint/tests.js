@@ -348,3 +348,16 @@
     ok(PP.px(s.L.canvas, 10, 10)[3] === 0 && e[3] > 20 && e[3] < 240 && e[0] > 170 && e[2] < 90, "the half-blue edge keeps only its red, partly see-through (" + e + ")");
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, ED = PE.ed, PP = PE.paint;
+  PP.test("retouch tools with sampled tips", function (ok) {
+    var s = PP.scratch(60, 30, "#808080"), g = new Uint8Array(20 * 20);
+    for (var y = 0; y < 20; y++) for (var x = 0; x < 20; x++) g[y * 20 + x] = x < 10 ? 255 : 0;
+    PP.tipFromGray("t:half", "Half", 20, 20, g);
+    Object.assign(ED.o.dodge, PP.BDEF, { tip: "t:half", size: 20, op: 1, flow: 1, range: "mid", protect: true, sizeC: "off" });
+    PP.drive("dodge", [{ x: 30, y: 15 }]);
+    ok(PP.px(s.L.canvas, 24, 15)[0] > 170 && PP.px(s.L.canvas, 36, 15)[0] === 128, "dodge follows the tip's shape");
+    ED.o.dodge.tip = ""; delete PP.tips["t:half"];
+  });
+})();
