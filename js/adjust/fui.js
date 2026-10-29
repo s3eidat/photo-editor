@@ -80,7 +80,19 @@
   AUI.addMenu("Filter", [["Lens correction…", "Ctrl+Shift+R", function () { AUI.open("lensCorrection"); }, has]], "Gaussian blur");
   AUI.adj("wideAngle", { t: "Wide-angle correction", c: [sl("fovIn", "Lens field of view (fisheye)", 60, 360, 1, 180, deg), sl("fovOut", "View field of view", 20, 170, 1, 100, deg), sl("scale", "Scale", 25, 400, 1, 100, pc),
     sl("pannini", "Edge squeeze (Pannini)", 0, 200, 1, 100, pc), sl("yaw", "Look left / right (360°)", -180, 180, 1, 0, deg), sl("pitch", "Look up / down (360°)", -90, 90, 1, 0, deg), sl("roll", "Roll (360°)", -180, 180, 1, 0, deg)],
-    sel: [["type", "Correction", [["fisheye", "Fisheye to flat"], ["pannini", "Wide shot: keep verticals, squeeze edges"], ["spherical", "360° panorama to a flat view"]], "fisheye"], ["edge", "Edges", [["clamp", "Repeat edge pixels"], ["transparent", "Transparent"]], "clamp"]] });
+    sel: [["type", "Correction", [["fisheye", "Fisheye to flat"], ["pannini", "Wide shot: keep verticals, squeeze edges"], ["spherical", "360° panorama to a flat view"]], "fisheye"], ["edge", "Edges", [["clamp", "Repeat edge pixels"], ["transparent", "Transparent"]], "clamp"]],
+    handles: AUI.H.paths(false), ui: function (el, st) {
+      var K = ED.adjKit; st.p.paths = [[]]; st.pathCur = 0;
+      var info = h("p", { "class": "faint pe-p", text: "Fisheye: trace along something that should be straight (click 3 or more points on it, several lines if you like), then Solve." });
+      el.appendChild(h("div", { "class": "row pe-arow" }, [K.btn("New line", function () { st.p.paths.push([]); st.pathCur = st.p.paths.length - 1; }, "ghost", "i-plus"),
+        K.btn("Solve", function () {
+          var r = st.t.r, lines = st.p.paths.filter(function (P) { return P.length >= 6; }).map(function (P) { var o = []; for (var i = 0; i + 1 < P.length; i += 2) o.push([P[i] / 100 * r.w, P[i + 1] / 100 * r.h]); return o; });
+          if (!lines.length) { S3.toast("Trace a line first: click at least 3 points along it"); return; }
+          st.set("type", "fisheye"); st.set("fovIn", PIX.A.solveFisheye(lines, r.w, r.h, st.p.fovOut * Math.PI / 180, st.p.scale / 100)); S3.toast("Lens field of view set to " + st.p.fovIn + "°");
+        }, "primary small", null, "Work out the lens field of view that straightens the traced lines"),
+        K.btn("Clear lines", function () { st.p.paths = [[]]; st.pathCur = 0; st.schedule(); }, "ghost")]));
+      el.appendChild(info);
+    } });
   AUI.addMenu("Filter", [["Wide-angle correction…", "Ctrl+Alt+Shift+A", function () { AUI.open("wideAngle"); }, has]], "Gaussian blur");
   AUI.key("Ctrl+Alt+Shift+A", function () { AUI.open("wideAngle"); });
   AUI.key("Ctrl+Shift+R", function () { AUI.open("lensCorrection"); });

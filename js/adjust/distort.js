@@ -143,6 +143,26 @@
     return img;
   }));
 
+  // Fisheye lens field of view that makes traced lines straightest after correction. lines: arrays of [x, y] pixel
+  // points in the source; returns degrees. Straightness = squared distance of the corrected points from their best line.
+  A.solveFisheye = function (lines, w, h, fovOut, scale) {
+    var cx = w / 2, cy = h / 2, D = Math.sqrt(cx * cx + cy * cy), DEG = Math.PI / 180, fOut = D / Math.tan(Math.min(fovOut, 179 * DEG) / 2);
+    function cost(fovIn) {
+      var fIn = D / (fovIn / 2), tot = 0;
+      lines.forEach(function (P) {
+        var Q = P.map(function (q) { var dx = q[0] - cx, dy = q[1] - cy, r = Math.sqrt(dx * dx + dy * dy); if (r < 1e-6) return [0, 0]; var th = r / fIn; if (th >= Math.PI / 2 - 0.01) th = Math.PI / 2 - 0.01; var ro = fOut * Math.tan(th) * scale; return [dx / r * ro, dy / r * ro]; });
+        var mx = 0, my = 0; Q.forEach(function (q) { mx += q[0]; my += q[1]; }); mx /= Q.length; my /= Q.length;
+        var sxx = 0, syy = 0, sxy = 0; Q.forEach(function (q) { var a = q[0] - mx, b = q[1] - my; sxx += a * a; syy += b * b; sxy += a * b; });
+        var tr = sxx + syy, det = sxx * syy - sxy * sxy, small = tr / 2 - Math.sqrt(Math.max(0, tr * tr / 4 - det));      // smaller eigenvalue = spread off the line
+        tot += small / Math.max(1e-9, tr);
+      });
+      return tot;
+    }
+    var a = 60 * DEG, b = 330 * DEG, g = (Math.sqrt(5) - 1) / 2, c = b - g * (b - a), d = a + g * (b - a), fc = cost(c), fd = cost(d);
+    for (var i = 0; i < 40; i++) { if (fc < fd) { b = d; d = c; fd = fc; c = b - g * (b - a); fc = cost(c); } else { a = c; c = d; fc = fd; d = a + g * (b - a); fd = cost(d); } }
+    return Math.round((a + b) / 2 / DEG);
+  };
+
   // ---------- wide-angle correction ----------
   // fisheye (equidistant) -> rectilinear; 360° equirectangular panorama -> a rectilinear view (yaw, pitch, roll, field
   // of view); rectilinear wide shot -> Pannini-style view that keeps verticals straight and squeezes stretched edges.
