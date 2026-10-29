@@ -5,7 +5,7 @@
   "use strict";
   var PE = window.PE, ED = PE.ed, SX = PE.sx, h = S3.h;
   var RS = null, BUILTIN = [["clear", "Clear blue"], ["clouds", "Blue with clouds"], ["golden", "Golden hour"], ["dusk", "Dusk"], ["overcast", "Overcast"]];
-  var DEF = { shift: 0, fade: 4, bright: 0, temp: 0, scale: 100, ox: 0, oy: 0, flip: false, light: 30 };
+  var DEF = { shift: 0, fade: 4, bright: 0, temp: 0, scale: 100, ox: 0, oy: 0, flip: false, light: 30, edgeFix: 70 };
 
   // ---------- skies drawn in code (2:1, horizon at the bottom) ----------
   var built = {};
@@ -71,11 +71,14 @@
     if (n < 1e-3) return "#808080";
     return "#" + s.map(function (v) { return ("0" + Math.round(Math.min(255, v / n)).toString(16)).slice(-2); }).join("");
   }
-  // Composite preview at the working size: photo, soft-light tint on the foreground, masked sky.
+  // Edge colour: the photo with the old sky taken out of partly-sky pixels (PIXS.unmix), RGBA bytes -> canvas.
+  function edgeCanvas(rgb, w, h) { var c = PE.mk(w, h), x = PE.cx2(c), id = x.createImageData(w, h); id.data.set(rgb); x.putImageData(id, 0, 0); return PE.touch(c); }
+  // Composite preview at the working size: photo, edge colour, soft-light tint on the foreground, masked sky.
   function render() {
     var r = RS; if (!r || !r.edge) return;
     var W = r.W, H = r.H, o = r.o, c = r.prev || (r.prev = PE.mk(W, H)), x = PE.cx2(c), sky = skyAt(srcCanvas(r.src), W, H, horizon(r.edge, W, H), o), mc = maskCanvas(r.edge, W, H);
     x.globalCompositeOperation = "copy"; x.drawImage(r.base, 0, 0);
+    x.globalCompositeOperation = "source-over"; if (o.edgeFix > 0 && r.deco) x.drawImage(r.deco, 0, 0);
     if (o.light > 0) {
       var t = PE.mk(W, H), tx = PE.cx2(t); tx.fillStyle = avgColour(sky, mc); tx.fillRect(0, 0, W, H); tx.globalCompositeOperation = "destination-out"; tx.drawImage(mc, 0, 0);
       x.globalCompositeOperation = "soft-light"; x.globalAlpha = o.light / 100; x.drawImage(t, 0, 0); x.globalAlpha = 1;
@@ -90,7 +93,11 @@
     if (r.busy) { r.again = true; return; }
     r.busy = true; r.again = false;
     var k = r.W / ED.doc.w;
-    SX.work("maskEdge", [new Uint8Array(r.m), r.W, r.H, r.o.shift * k, r.o.fade * k]).then(function (e) { if (RS !== r) return; r.edge = e; render(); })
+    SX.work("maskEdge", [new Uint8Array(r.m), r.W, r.H, r.o.shift * k, r.o.fade * k]).then(function (e) {
+      if (RS !== r) return; r.edge = e;
+      if (!(r.o.edgeFix > 0)) { r.deco = null; return; }
+      return SX.work("unmix", [{ data: r.baseData.data, width: r.W, height: r.H }, e, r.m, r.o.edgeFix / 100, 8]).then(function (rgb) { if (RS === r) r.deco = edgeCanvas(rgb, r.W, r.H); });
+    }).then(function () { if (RS === r) render(); })
       .catch(function (e) { S3.toast(e.message, "error"); }).then(function () { r.busy = false; if (RS === r && r.again) edge(); });
   }
   var edgeSoon = S3.debounce(edge, 60), renderSoon = S3.debounce(render, 30);
@@ -106,15 +113,24 @@
     var inv = PE.mk(d.w, d.h), ix = PE.cx2(inv); ix.fillStyle = "#fff"; ix.fillRect(0, 0, d.w, d.h); ix.globalCompositeOperation = "destination-out"; ix.drawImage(mc, 0, 0);
     F.parent = G.id; F.canvas = null; F.fillSpec = { type: "solid", color: avgColour(sky, mc) }; F.blend = "soft-light"; F.opacity = o.light / 100; F.visible = o.light > 0;
     F.mask = { canvas: PE.touch(inv), x: 0, y: 0 }; F.maskOn = true;
+    var E = null;
+    if (o.edgeFix > 0) {
+      var bc = PE.mk(W, H), bx = PE.cx2(bc); bx.imageSmoothingQuality = "high"; bx.drawImage(PE.flatten(d), 0, 0, W, H);
+      var bd = PE.getData(bc), rgb = PIXS.unmix({ data: bd.data, width: W, height: H }, e, m, o.edgeFix / 100, 8), small = edgeCanvas(rgb, W, H);
+      var ec = PE.mk(d.w, d.h), ex = PE.cx2(ec), am = new Uint8Array(full.length);
+      for (var i = 0; i < full.length; i++) am[i] = full[i] > 0 ? 255 : 0;
+      ex.imageSmoothingQuality = "high"; ex.drawImage(small, 0, 0, d.w, d.h); ex.globalCompositeOperation = "destination-in"; ex.drawImage(maskCanvas(am, d.w, d.h), 0, 0);
+      E = PE.rasterFromCanvas(PE.touch(ec), "Sky edge colour", 0, 0); E.parent = G.id;
+    }
     var hide = srcKey.indexOf("l:") === 0 ? PE.findLayer(d, srcKey.slice(2)) : null;
     ED.meta("Replace sky", function () {
-      d.layers.push(G); d.layers.push(F); d.layers.push(S);
+      d.layers.push(G); if (E) d.layers.push(E); d.layers.push(F); d.layers.push(S);
       d.layers = SX.groupsApi.serialize(SX.tree(d));
       if (hide) hide.visible = false;
       d.active = S.id; ED.maskEdit = false;
     });
     ED.emit("layers");
-    return { group: G, sky: S, light: F };
+    return { group: G, sky: S, light: F, edge: E };
   };
 
   // ---------- panel ----------
@@ -127,7 +143,7 @@
       var base = PE.mk(r.W, r.H), bx = PE.cx2(base); bx.imageSmoothingQuality = "high"; bx.drawImage(flat, 0, 0, r.W, r.H);
       var st = S3.store("pe-skyswap") || {}, o = {}, known = BUILTIN.some(function (b) { return "b:" + b[0] === st.src; });
       Object.keys(DEF).forEach(function (k) { o[k] = typeof st[k] === typeof DEF[k] ? st[k] : DEF[k]; });
-      RS = { d: d, m: r.m, W: r.W, H: r.H, base: base, o: o, src: known ? st.src : "b:clouds", file: null, edge: null, prev: null };
+      RS = { d: d, m: r.m, W: r.W, H: r.H, base: base, baseData: PE.getData(base), deco: null, o: o, src: known ? st.src : "b:clouds", file: null, edge: null, prev: null };
       build(); edge();
     }).catch(function (e) { S3.toast(e.message, "error"); });
   };
@@ -152,6 +168,7 @@
     body.appendChild(w.range("Move up / down", r.o.oy, -100, 100, 1, set("oy")));
     body.appendChild(w.check("Flip horizontally", r.o.flip, set("flip")));
     body.appendChild(w.range("Foreground lighting", r.o.light, 0, 100, 1, set("light"), function (v) { return v + "%"; }));
+    body.appendChild(w.range("Edge colour fix", r.o.edgeFix, 0, 100, 1, set("edgeFix", true), function (v) { return v + "%"; }));
     box.appendChild(h("div", { "class": "row between pe-fhead" }, [h("b", { text: "Replace sky" })]));
     box.appendChild(body);
     box.appendChild(h("div", { "class": "row pe-ffoot" }, [h("span", { "class": "grow" }), w.btn("Cancel", function () { close(false); }, "ghost"), w.btn("OK", function () { close(true); }, "primary")]));
@@ -175,6 +192,11 @@
   SX.tests.push(async function (ok) {
     var m = new Uint8Array(20 * 20); for (var p = 0; p < 200; p++) m[p] = 255;          // top half selected
     var e = PIXS.maskEdge(m, 20, 20, 3, 0);
+    // a half-sky pixel (blue sky, orange branch) next to sure sky unmixes to the branch colour
+    var um = { data: new Uint8ClampedArray(9 * 4), width: 9, height: 1 }, mm = new Uint8Array(9), raw = new Uint8Array(9);
+    for (var q = 0; q < 9; q++) { var half = q === 8; um.data.set(half ? [100, 50, 128, 255] : [0, 0, 255, 255], q * 4); mm[q] = half ? 128 : 255; raw[q] = half ? 0 : 255; }
+    var u = PIXS.unmix(um, mm, raw, 1, 4);
+    ok(Math.abs(u[32] - 200) <= 3 && Math.abs(u[33] - 100) <= 3 && u[34] <= 3 && u[35] === 255, "replace sky: edge colour takes the old sky out of a half-sky pixel");
     ok(e[12 * 20 + 5] === 255 && e[14 * 20 + 5] === 0, "replace sky: shift edge moves the sky edge down 3 px");
     // a doc with sky on top and ground below: replacing gives a group with a masked sky layer
     ED.newBlank(200, 100, "#ffffff", "Sky test");

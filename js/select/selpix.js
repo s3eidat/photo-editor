@@ -458,6 +458,25 @@
     return out;
   };
 
+  // Sky edge unmixing: where the sky mask m is partial, a pixel is taken as m x old sky + (1 - m) x foreground; the old
+  // sky colour comes from nearby sure sky (raw >= 250). Returns RGBA bytes of the foreground colour (amount 0..1 of the
+  // way from the photo), alpha 255 where 0 < m, else 0. Under the new sky at alpha m this gives photo + m (new - old).
+  PIXS.unmix = function (img, m, raw, amount, radius) {
+    var w = img.width, h = img.height, n = w * h, d = img.data, W = new Float32Array(n), C = [new Float32Array(n), new Float32Array(n), new Float32Array(n)], p, i, c, g = [0, 0, 0], gn = 0;
+    for (p = 0, i = 0; p < n; p++, i += 4) if (raw[p] >= 250) { W[p] = 1; for (c = 0; c < 3; c++) { C[c][p] = d[i + c]; g[c] += d[i + c]; } gn++; }
+    var sg = Math.max(2, radius || 8) / 2, k = clamp(amount, 0, 1), out = new Uint8ClampedArray(n * 4);
+    PIX.blurPlane(W, w, h, sg); C.forEach(function (pl) { PIX.blurPlane(pl, w, h, sg); });
+    for (p = 0, i = 0; p < n; p++, i += 4) {
+      var a = m[p] / 255; if (a <= 0) continue;
+      out[i + 3] = 255;
+      for (c = 0; c < 3; c++) {
+        var sky = W[p] > 1e-3 ? C[c][p] / W[p] : gn ? g[c] / gn : d[i + c], f = a >= 0.995 ? d[i + c] : (d[i + c] - a * sky) / (1 - a);
+        out[i + c] = d[i + c] + (f - d[i + c]) * k;
+      }
+    }
+    return out;
+  };
+
   // ---------- dispatcher for js/select/worker.js ----------
   PIXS.call = function (fn, args) {
     if (["edt", "call"].indexOf(fn) >= 0 || typeof PIXS[fn] !== "function") throw new Error("Not allowed: " + fn);
