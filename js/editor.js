@@ -698,7 +698,7 @@
   };
   function transformLayer(L, m, xf) {
     if (L.mask) { var mb = PE.bake(L.mask.canvas, L.mask.x, L.mask.y, m); L.mask = { canvas: mb.canvas, x: mb.x, y: mb.y }; }
-    if (PE.xfExt && PE.xfExt[L.kind]) return PE.xfExt[L.kind](L, m, xf);   // lane:selection
+    if (PE.xfAny) PE.xfAny(L, m, xf); if (PE.xfExt && PE.xfExt[L.kind]) return PE.xfExt[L.kind](L, m, xf);   // lane:selection (xfAny: vector masks etc. on any layer)
     if (L.kind === "raster") { var r = PE.bake(L.canvas, L.x, L.y, m); L.canvas = r.canvas; L.x = r.x; L.y = r.y; return; }
     // vector layers stay editable: new centre, size, rotation and flips
     var b = PE.vbox(L), c = PE.mApply(m, b.x + b.w / 2, b.y + b.h / 2), sx = xf ? xf.sx : 1, sy = xf ? xf.sy : 1, rot = xf ? (b.rot + xf.rot) : b.rot;

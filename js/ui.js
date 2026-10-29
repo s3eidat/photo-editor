@@ -251,6 +251,7 @@
         seg("", [["pix", "Pixels"], ["mask", "Mask"]], ED.maskEdit ? "mask" : "pix", function (v) { ED.setActive(L.id, v === "mask"); })]));
       P.appendChild(h("div", { "class": "pe-prow" }, [btn("Invert", function () { maskOp("invert"); }, "ghost"), btn("Apply", function () { maskOp("apply"); }, "ghost"), btn("Delete", function () { maskOp("delete"); }, "ghost")]));
     }
+    if (ED.ui.propsTail) ED.ui.propsTail(P, L);   // lane:selection (vector mask, more Properties for any layer)
   }
 
   // ---------- Layers panel ----------
