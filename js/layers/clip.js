@@ -25,7 +25,7 @@
       var Pc = base.fx ? SX.prep(R, base, { noFx: true }) : P;
       reg = SX.devRect(R.M, P.m ? PE.mBounds(P.m, { x: P.x, y: P.y, w: P.img.width, h: P.img.height }) : { x: P.x, y: P.y, w: P.img.width, h: P.img.height });
       reg = PE.inter(reg, rg); if (!reg) return;
-      SX.compositeDoc(R, B, P, "normal", P.alpha);
+      SX.drawPrepared(R, B, P, "normal", 1);
       var sd = SX.toDevice(R, Pc, reg, "shape");
       shape = new Uint8Array(reg.w * reg.h); for (var k = 0; k < shape.length; k++) shape[k] = sd[k * 4 + 3];
       bd = B.c.getImageData(reg.x - B.ox, reg.y - B.oy, reg.w, reg.h);

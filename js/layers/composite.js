@@ -159,9 +159,16 @@
   function drawItem(R, tgt, L) {
     if (SX.drawExt[L.kind]) { SX.drawExt[L.kind](R, tgt, L); return; }
     var P = prep(R, L);
-    if (P) compositeDoc(R, tgt, P, L.blend, L.opacity * P.alpha);
+    if (P) drawPrepared(R, tgt, P, L.blend, L.opacity);
   }
   SX.drawItem = drawItem;
+  // Layer pixels plus any style parts drawn behind (shadows, glows) and after (stroke, outer bevel), each with its own blend.
+  function drawPrepared(R, tgt, P, blend, opacity) {
+    if (P.behind) P.behind.forEach(function (q) { compositeDoc(R, tgt, q, q.blend, q.alpha * opacity); });
+    compositeDoc(R, tgt, P, blend, opacity * P.alpha);
+    if (P.after) P.after.forEach(function (q) { compositeDoc(R, tgt, q, q.blend, q.alpha * opacity); });
+  }
+  SX.drawPrepared = drawPrepared;
 
   // Pixels of a drawable layer, masked and styled: {img, x, y, m, alpha (fill opacity still to apply)}. o.noFx: content only.
   function prep(R, L, o) {
