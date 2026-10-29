@@ -1,0 +1,25 @@
+/* Files lane: export dialog, rulers, guides, panels. Colours come from the kit variables (light + dark). */
+.pe-sheet.fx-wide { width: min(980px, calc(100vw - 24px)); }
+.fx-exp { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+.fx-left { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.fx-prev { height: min(56vh, 480px); display: grid; place-items: center; overflow: hidden; border-radius: 10px; border: 1px solid var(--line); cursor: zoom-in;
+  background-color: #fff; background-image: linear-gradient(45deg, #d4d7dc 25%, transparent 25%, transparent 75%, #d4d7dc 75%), linear-gradient(45deg, #d4d7dc 25%, transparent 25%, transparent 75%, #d4d7dc 75%);
+  background-size: 16px 16px; background-position: 0 0, 8px 8px; }
+.fx-prev.full { overflow: auto; place-items: start; cursor: zoom-out; }
+.fx-prev-c { display: block; max-width: none; }
+.fx-irow { align-items: center; gap: 10px; }
+.fx-info { font-size: 12.5px; }
+.fx-busy { font-size: 12px; }
+.fx-side { gap: 10px; }
+.fx-side h3 { margin: 6px 0 0 !important; }
+.fx-side .select { max-width: 100%; width: 100%; }
+.fx-side .pe-of { flex-wrap: wrap; }
+.fx-side .pe-custom .input { width: 84px; }
+.fx-scales { display: flex; gap: 4px; flex-wrap: wrap; }
+.fx-meta { display: grid; gap: 8px; }
+.fx-meta .pe-of { flex-direction: column; align-items: stretch; gap: 4px; }
+.fx-meta .input { width: 100%; height: 32px; }
+@media (max-width: 860px) {
+  .fx-exp { grid-template-columns: 1fr; }
+  .fx-prev { height: 240px; }
+}

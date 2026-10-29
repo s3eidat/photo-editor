@@ -568,6 +568,7 @@
     var dlg = modal("Fill", body, [h("span", { "class": "grow" }), go]);
   }
   function exportDialog(selOnly) {
+    if (ED.ui.exportExt && ED.ui.exportExt(selOnly)) return;   // lane:files (export-as dialog)
     if (!need()) return; ED.flushProps();
     var d = doc(), st = Object.assign({ fmt: "png", q: 0.9, scale: 1 }, S3.store("pe-export") || {}), only = !!(selOnly && d.sel);
     var info = h("p", { "class": "pe-p mono" }), qf = range("Quality", st.q, 0.1, 1, 0.01, function (v) { st.q = v; }, pct);
