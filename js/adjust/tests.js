@@ -289,6 +289,10 @@
 
     var g9 = gray(9, 9, function (x, y) { return x * 25 + y; }), wa = run(g9, "wideAngle", { type: "fisheye", fovIn: 90, fovOut: 90 }, null, 9, 9); ok(get(wa, 40)[0] === g9[40][0], "wide-angle: the centre stays put");
     var eq = run(gray(16, 8, function (x) { return x * 16; }), "wideAngle", { type: "spherical", fovOut: 60, yaw: 0 }, null, 16, 8); ok(near(get(eq, 4 * 16 + 8)[0], 128, 20), "360° view looks at the panorama's centre");
+
+    var lrM = PIX.A.localMask({ type: "lumRange", lo: 0, hi: 30, smooth: 4 }, 2, 1, new Uint8ClampedArray([10, 10, 10, 255, 240, 240, 240, 255]));
+    var crM = PIX.A.localMask({ type: "colorRange", colors: ["#ff0000"], fuzz: 40 }, 2, 1, new Uint8ClampedArray([250, 5, 5, 255, 0, 0, 255, 255]));
+    ok(lrM[0] > 0.9 && lrM[1] === 0 && crM[0] === 1 && crM[1] === 0, "develop brightness / colour range masks");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };

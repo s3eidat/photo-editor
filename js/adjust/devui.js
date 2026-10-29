@@ -27,9 +27,10 @@
       var v = src[k];
       if (k === "locals") {
         if (Array.isArray(v)) out.locals = v.slice(0, 12).filter(function (L) { return L && typeof L === "object"; }).map(function (L) {
-          var o = { type: ["linear", "brush"].indexOf(L.type) >= 0 ? L.type : "radial", invert: !!L.invert };
+          var o = { type: ["linear", "brush", "lumRange", "colorRange"].indexOf(L.type) >= 0 ? L.type : "radial", invert: !!L.invert };
+          if (o.type === "colorRange") o.colors = (Array.isArray(L.colors) ? L.colors : []).filter(function (c) { return /^#[0-9a-f]{6}$/i.test(c); }).slice(0, 8);
           if (o.type === "brush") o.strokes = (Array.isArray(L.strokes) ? L.strokes : []).slice(0, 400).map(function (k) { return { r: +k.r || 5, hard: +k.hard || 0, flow: +k.flow || 1, erase: !!k.erase, pts: (Array.isArray(k.pts) ? k.pts : []).slice(0, 16000).map(Number).filter(isFinite) }; });
-          ["x0", "y0", "x1", "y1", "cx", "cy", "rx", "ry", "rotation", "feather"].concat(LOCAL_KEYS.map(function (q) { return q[1]; })).forEach(function (q) { if (isFinite(+L[q]) && L[q] !== null && L[q] !== "") o[q] = +L[q]; });
+          ["x0", "y0", "x1", "y1", "cx", "cy", "rx", "ry", "rotation", "feather", "lo", "hi", "smooth", "fuzz"].concat(LOCAL_KEYS.map(function (q) { return q[1]; })).forEach(function (q) { if (isFinite(+L[q]) && L[q] !== null && L[q] !== "") o[q] = +L[q]; });
           return o;
         });
       }
@@ -140,14 +141,17 @@
         if (cur >= list.length) cur = list.length - 1;
         st.devLocal = cur;
         function add(type) {
-          list.push(type === "linear" ? { type: "linear", x0: 50, y0: 25, x1: 50, y1: 60, exposure: 0 } : type === "brush" ? { type: "brush", strokes: [], exposure: 0 } : { type: "radial", cx: 50, cy: 50, rx: 25, ry: 25, rotation: 0, feather: 50, exposure: 0 });
+          list.push(type === "linear" ? { type: "linear", x0: 50, y0: 25, x1: 50, y1: 60, exposure: 0 } : type === "brush" ? { type: "brush", strokes: [], exposure: 0 } :
+            type === "lumRange" ? { type: "lumRange", lo: 0, hi: 40, smooth: 20, exposure: 0 } : type === "colorRange" ? { type: "colorRange", colors: [ED.doc.fg], fuzz: 40, exposure: 0 } : { type: "radial", cx: 50, cy: 50, rx: 25, ry: 25, rotation: 0, feather: 50, exposure: 0 });
           st.devLocal = list.length - 1; open.local = true; build(); st.schedule();
         }
         b.appendChild(h("div", { "class": "row pe-arow" }, [K2.btn("Linear gradient", function () { add("linear"); }, "ghost", "i-plus", "Add a linear gradient mask: drag its start and end on the image"),
           K2.btn("Radial", function () { add("radial"); }, "ghost", "i-plus", "Add an elliptical mask: drag its centre and edges on the image"),
-          K2.btn("Brush", function () { add("brush"); }, "ghost", "i-plus", "Paint a mask on the image (Alt erases)")]));
+          K2.btn("Brush", function () { add("brush"); }, "ghost", "i-plus", "Paint a mask on the image (Alt erases)"),
+          K2.btn("Brightness range", function () { add("lumRange"); }, "ghost", "i-plus", "Mask by brightness: only shadows, only highlights…"),
+          K2.btn("Colour range", function () { add("colorRange"); }, "ghost", "i-plus", "Mask by colour: pick colours on the image")]));
         if (!list.length) { b.appendChild(h("p", { "class": "faint pe-p", text: "Add a gradient to adjust part of the image; its handles appear on the canvas." })); return; }
-        b.appendChild(h("div", { "class": "row pe-arow" }, [K2.select("Edit", list.map(function (L, i) { return [String(i), (i + 1) + ". " + (L.type === "linear" ? "Linear gradient" : L.type === "brush" ? "Brush" : "Radial")]; }), String(cur), function (v) { st.devLocal = +v; if (p.localShow != null) p.localShow = +v; build(); st.schedule(); }),
+        b.appendChild(h("div", { "class": "row pe-arow" }, [K2.select("Edit", list.map(function (L, i) { return [String(i), (i + 1) + ". " + ({ linear: "Linear gradient", brush: "Brush", lumRange: "Brightness range", colorRange: "Colour range" }[L.type] || "Radial")]; }), String(cur), function (v) { st.devLocal = +v; if (p.localShow != null) p.localShow = +v; build(); st.schedule(); }),
           K2.btn("", function () { list.splice(cur, 1); st.devLocal = list.length - 1; p.localShow = null; build(); st.schedule(); }, "ghost icon", "i-trash", "Delete this local adjustment")]));
         var L0 = list[cur];
         LOCAL_KEYS.forEach(function (k) {
@@ -156,6 +160,19 @@
           b.appendChild(r);
         });
         if (L0.type === "radial") { var fr = K2.range("Feather", L0.feather == null ? 50 : L0.feather, 0, 100, 1, function (v) { L0.feather = v; st.schedule(); }); b.appendChild(fr); }
+        if (L0.type === "lumRange") {
+          b.appendChild(group("Brightness range"));
+          [["From", "lo", 0], ["To", "hi", 40], ["Smoothness", "smooth", 20]].forEach(function (k) { b.appendChild(K2.range(k[0], L0[k[1]] == null ? k[2] : L0[k[1]], 0, 100, 1, function (v) { L0[k[1]] = v; st.schedule(); })); });
+        }
+        if (L0.type === "colorRange") {
+          b.appendChild(group("Colour range"));
+          var sw = h("div", { "class": "pe-aswatches" });
+          var drawSw = function () { sw.textContent = ""; (L0.colors || []).forEach(function (c, i) { var bt = h("button", { type: "button", "class": "pe-aswatch", title: c + " (click to remove)", "aria-label": "Colour " + c + ", remove" }); bt.style.background = c; bt.addEventListener("click", function () { if (L0.colors.length > 1) { L0.colors.splice(i, 1); drawSw(); st.schedule(); } }); sw.appendChild(bt); }); };
+          var pk = K2.btn("Pick colours", function () { AUI.pick(function (pt, e) { var c = AUI.sampleAt(st, pt); if (!c) return; if (e.shiftKey || !L0.colors.length) L0.colors.push(c); else L0.colors = [c]; L0.colors = L0.colors.slice(-8); drawSw(); st.schedule(); }, pk); }, "ghost", null, "Click the image (Shift-click adds more colours)");
+          pk.setAttribute("aria-pressed", "false"); pk.classList.add("pe-apick");
+          b.appendChild(h("div", { "class": "row pe-arow" }, [pk, sw])); drawSw();
+          b.appendChild(K2.range("Fuzziness", L0.fuzz == null ? 40 : L0.fuzz, 1, 200, 1, function (v) { L0.fuzz = v; st.schedule(); }));
+        }
         if (L0.type === "brush") {
           var bs = st.devBrush = st.devBrush || { r: 5, feather: 50, flow: 100, erase: false };
           b.appendChild(group("Brush"));

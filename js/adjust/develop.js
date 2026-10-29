@@ -51,8 +51,20 @@
 
   // Weight plane (0..1) of one local adjustment. Positions are % of the layer. linear: full at (x0, y0), none at
   // (x1, y1); radial: ellipse (cx, cy, rx, ry % of width / height, rotation), feather %, invert = effect outside.
-  A.localMask = function (L, w, h) {
+  A.localMask = function (L, w, h, d) {
     var W = new Float32Array(w * h), x, y, q = 0, inv = !!L.invert;
+    if ((L.type === "lumRange" || L.type === "colorRange") && d) {       // masks from the picture itself
+      var lab = [0, 0, 0], n = w * h, i;
+      if (L.type === "lumRange") {
+        var lo = clamp(num(L.lo, 0), 0, 100), hi = clamp(num(L.hi, 50), 0, 100), sm = Math.max(0.5, clamp(num(L.smooth, 20), 0, 100) * 0.5);
+        for (q = 0, i = 0; q < n; q++, i += 4) { var lv = (0.2126 * A.S2L[d[i]] + 0.7152 * A.S2L[d[i + 1]] + 0.0722 * A.S2L[d[i + 2]]); lv = Math.cbrt(lv) * 100; W[q] = smooth(lo - sm, lo, lv) * (1 - smooth(hi, hi + sm, lv)); }
+      } else {
+        var cols = (Array.isArray(L.colors) && L.colors.length ? L.colors : ["#ff0000"]).slice(0, 8).map(function (hx) { var c = A.hex(hx, [255, 0, 0]); return A.rgb2lab(c[0], c[1], c[2]); }), fz = clamp(num(L.fuzz, 40), 1, 200);
+        for (q = 0, i = 0; q < n; q++, i += 4) { A.rgb2lab(d[i], d[i + 1], d[i + 2], lab); W[q] = A.rcWeight ? A.rcWeight(lab, cols, fz) : 0; }
+      }
+      if (inv) for (q = 0; q < n; q++) W[q] = 1 - W[q];
+      return W;
+    }
     if (L.type === "brush") {        // strokes of soft dabs: [{r: % of the short side, hard 0..1, flow 0..1, erase, pts: [x%, y%, ...]}]
       var short = Math.min(w, h);
       (Array.isArray(L.strokes) ? L.strokes : []).slice(0, 400).forEach(function (sk) {
@@ -322,7 +334,7 @@
     if (LOC.length) {
       var Yl = null, Bl = null, Bc = null;
       LOC.forEach(function (L0, li) {
-        var W = A.localMask(L0, w, h);
+        var W = A.localMask(L0, w, h, d);
         if (li === showM) maskShown = W;
         var ev = clamp(num(L0.exposure, 0), -4, 4), ctl = n100(L0.contrast), hil = n100(L0.highlights), shl = n100(L0.shadows), tmp = n100(L0.temp), tnt = n100(L0.tint);
         var sat0 = n100(L0.saturation), clr = n100(L0.clarity), shp = clamp(num(L0.sharpness, 0), -100, 100) / 100;
