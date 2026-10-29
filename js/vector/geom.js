@@ -295,7 +295,7 @@
       C[1][0] = C[0][1];
       var det = C[0][0] * C[1][1] - C[1][0] * C[0][1], a1 = det ? (X[0] * C[1][1] - X[1] * C[0][1]) / det : 0, a2 = det ? (C[0][0] * X[1] - C[1][0] * X[0]) / det : 0;
       var seg = Math.hypot(p3.x - p0.x, p3.y - p0.y), e = 1e-6 * seg;
-      if (a1 < e || a2 < e) { a1 = a2 = seg / 3; }
+      if (a1 < e || a2 < e || a1 > seg * 2 || a2 > seg * 2) { a1 = a2 = seg / 3; }      // degenerate or runaway handles
       return [p0, addv(p0, mul(t1, a1)), addv(p3, mul(t2, a2)), p3];
     }
     function maxErr(f, l, bz, u) { var md = 0, mi = Math.floor((l - f + 1) / 2) + f; for (var i = f + 1; i < l; i++) { var p = q(bz, u[i - f]), d = Math.pow(p.x - pts[i].x, 2) + Math.pow(p.y - pts[i].y, 2); if (d >= md) { md = d; mi = i; } } return [md, mi]; }

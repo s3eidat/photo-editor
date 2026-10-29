@@ -278,3 +278,44 @@
   ED.on("layers", function () { var f = font(); if (panel && panel.open && f !== last) { last = f; fill(); } });
   VX.ui.menu("Layer", [["Glyphs…", "", function () { if (!panel) return; panel.open = true; fill(); panel.scrollIntoView({ block: "nearest" }); }]], "Warp text…");
 })();
+/* text -> outlines: the browser gives no glyph outlines, so the text is drawn large and its edge traced and fitted */
+(function () {
+  "use strict";
+  var PE = window.PE, ED = PE.ed, VX = PE.VX, VG = PE.VG, UI = VX.ui, h = S3.h;
+  VX.textOutlines = function (L) {
+    var d = ED.doc, s = PE.surface(L, d), k = PE.clamp(260 / Math.max(8, L.text.size), 1, 8);
+    k = Math.min(k, 4000 / Math.max(s.canvas.width, s.canvas.height));
+    var W = Math.max(1, Math.ceil(s.canvas.width * k)), H = Math.max(1, Math.ceil(s.canvas.height * k)), c = PE.mk(W, H), x = PE.cx2(c);
+    x.setTransform(k, 0, 0, k, -s.x * k, -s.y * k); PE.drawVector(x, L);
+    var px = x.getImageData(0, 0, W, H).data, m = new Uint8Array(W * H);
+    for (var i = 0; i < m.length; i++) m[i] = px[i * 4 + 3];
+    return VX.work("maskToComps", [m, W, H, 0.8]).then(function (cs) { return VG.map(cs, function (a, b) { return [s.x + a / k, s.y + b / k]; }); });
+  };
+  function textL() { var L = ED.doc && ED.layer(); if (!L || L.kind !== "text") { S3.toast("Select a text layer first", "error"); return null; } if (ED.textL) ED.finishText(); return L; }
+  VX.textToWorkPath = function () {
+    var L = textL(); if (!L) return;
+    ED.working(VX.textOutlines(L), "Tracing letters…").then(function (cs) {
+      if (!cs.length) { S3.toast("Nothing to trace", "error"); return; }
+      var d = ED.doc; VX.pathEdit("Work path from text", function () { d.work = { id: "work", name: "Work path", comps: cs }; d.apath = "work"; });
+      ED.setTool("dsel"); ED.renderOvl();
+    }).catch(function (e) { S3.toast(e.message, "error"); });
+  };
+  VX.textToShape = function () {
+    var L = textL(); if (!L || !ED.editable(L)) return;
+    ED.working(VX.textOutlines(L), "Tracing letters…").then(function (cs) {
+      if (!cs.length) { S3.toast("Nothing to trace", "error"); return; }
+      ED.meta("Convert text to shape", function () {
+        var col = L.text.color; L.kind = "shape"; L.text = null;
+        L.shape = { type: "path", x: 0, y: 0, w: 1, h: 1, rot: 0, fill: PE.hex(col, "#111111"), stroke: "#111111", sw: 0, radius: 0, flipX: false, flipY: false, comps: [] };
+        VX.setDocComps(L, cs);
+      });
+      ED.emit("layers");
+    }).catch(function (e) { S3.toast(e.message, "error"); });
+  };
+  function isText() { var L = ED.doc && ED.layer(); return !!(L && L.kind === "text"); }
+  UI.menu("Layer", [["Create work path from text", "", function () { if (ED.ui.w.need()) VX.textToWorkPath(); }, isText], ["Convert text to shape", "", function () { if (ED.ui.w.need()) VX.textToShape(); }, isText]], "Warp text…");
+  UI.props(function (P, L) {
+    if (!L || L.kind !== "text") return;
+    P.appendChild(h("div", { "class": "pe-prow" }, [ED.ui.w.btn("To shape", VX.textToShape, "ghost", "t-shape", "Convert the letters to an editable shape layer"), ED.ui.w.btn("To work path", VX.textToWorkPath, "ghost", "v-path", "Outline the letters as a work path")]));
+  });
+})();

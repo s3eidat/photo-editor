@@ -305,3 +305,19 @@
     T.box = { w: 100, h: 45 }; ok(PE.textLayout(T).lines.length === 3, "a box height wraps the column");
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, VX = PE.VX, VG = PE.VG, VPIX = window.VPIX;
+  VX.test("outlines", async function (ok) {
+    // a soft-edged disc traces to a near-perfect circle
+    var w = 60, h = 60, m = new Uint8Array(w * h);
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) m[y * w + x] = Math.max(0, Math.min(255, Math.round((20.5 - Math.hypot(x + 0.5 - 30, y + 0.5 - 30)) * 255 + 127.5)));
+    var cs = VPIX.maskToComps(m, w, h, 0.3), worst = 0;
+    VG.flatComp(cs[0], 0.05).forEach(function (p) { worst = Math.max(worst, Math.abs(Math.hypot(p.x - 30, p.y - 30) - 20.5)); });
+    ok(cs.length === 1 && worst < 0.45, "sub-pixel contour of a disc (error " + worst.toFixed(2) + " px, " + (cs[0] ? cs[0].pts.length : 0) + " anchors)");
+    var d = PE.newDoc(300, 120, "o"), L = PE.newLayer("text", { text: { text: "Ob", size: 80, color: "#000000", ax: 20, ay: 10 } }); d.layers = [L]; PE.ed.doc = d; PE.ed.testing = true;
+    var out = await VX.textOutlines(L);
+    var rs = VG.flatten(out, 0.2), ob = VG.bounds([out[0]]);
+    ok(out.length === 4 && VG.winding(rs, ob.x + ob.w / 2, ob.y + ob.h / 2) === 0 && VG.winding(rs, ob.x + 4, ob.y + ob.h / 2) !== 0, "letters trace with their holes (O and b counters)");
+  });
+})();

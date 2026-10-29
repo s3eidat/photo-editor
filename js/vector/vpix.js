@@ -43,15 +43,53 @@
     }
     return rings;      // flat [x0, y0, x1, y1, ...]
   };
-  // rings of pixel corners -> smooth bezier components (staircases become diagonals, then curves are fitted)
-  VPIX.maskToComps = function (m, w, h, tol) {
-    var rings = VPIX.traceMask(m, w, h, 128), out = [];
-    rings.forEach(function (r) {
-      var n = r.length / 2, pts = [];
-      for (var i = 0; i < n; i++) { var j = (i + 1) % n; pts.push({ x: (r[i * 2] + r[j * 2]) / 2, y: (r[i * 2 + 1] + r[j * 2 + 1]) / 2 }); }
-      if (pts.length > 6) {      // drop the staircase corners: keep points where the direction really changes
-        var sm = VG.rdp(pts.concat([pts[0]]), Math.max(0.3, tol * 0.35)); sm.pop(); pts = sm;
+  // ---------- sub-pixel contours (marching squares on pixel centres, iso-level thr), oriented for non-zero filling ----------
+  var MS = [[], [["L", "B"]], [["B", "R"]], [["L", "R"]], [["T", "R"]], null, [["T", "B"]], [["T", "L"]], [["T", "L"]], [["T", "B"]], null, [["T", "R"]], [["L", "R"]], [["B", "R"]], [["L", "B"]], []];
+  VPIX.contours = function (m, w, h, thr) {
+    thr = thr == null ? 128 : thr;
+    var W = w + 2, H = h + 2;
+    function v(x, y) { x -= 1; y -= 1; return x < 0 || y < 0 || x >= w || y >= h ? 0 : m[y * w + x]; }
+    var next = new Map(), pt = new Map(), starts = [];
+    function ep(e, x, y, a, b, c, d) {      // edge point: key + interpolated position (pixel-centre grid, minus the padding)
+      var k, px, py;
+      if (e === "T") { k = "h" + x + "," + y; px = x + (thr - a) / (b - a); py = y; }
+      else if (e === "B") { k = "h" + x + "," + (y + 1); px = x + (thr - d) / (c - d); py = y + 1; }
+      else if (e === "L") { k = "v" + x + "," + y; px = x; py = y + (thr - a) / (d - a); }
+      else { k = "v" + (x + 1) + "," + y; px = x + 1; py = y + (thr - b) / (c - b); }
+      if (!pt.has(k)) pt.set(k, { x: px - 1 + 0.5, y: py - 1 + 0.5 });
+      return k;
+    }
+    for (var y = 0; y < H - 1; y++) for (var x = 0; x < W - 1; x++) {
+      var a = v(x, y), b = v(x + 1, y), c = v(x + 1, y + 1), d = v(x, y + 1);      // tl, tr, br, bl
+      var idx = (a >= thr ? 8 : 0) | (b >= thr ? 4 : 0) | (c >= thr ? 2 : 0) | (d >= thr ? 1 : 0);
+      if (idx === 0 || idx === 15) continue;
+      var segs = MS[idx];
+      if (!segs) { var mid = (a + b + c + d) / 4 >= thr; segs = idx === 5 ? (mid ? [["T", "L"], ["B", "R"]] : [["T", "R"], ["L", "B"]]) : (mid ? [["T", "R"], ["L", "B"]] : [["T", "L"], ["B", "R"]]); }
+      for (var s = 0; s < segs.length; s++) {
+        var k1 = ep(segs[s][0], x, y, a, b, c, d), k2 = ep(segs[s][1], x, y, a, b, c, d), p1 = pt.get(k1), p2 = pt.get(k2);
+        // orient: the inside must be on the right of the walking direction. Judge by a corner the segment cuts off
+        // (the corner between two adjacent edges, else the top-left one), which is never on the line.
+        var pair = segs[s][0] + segs[s][1], cx0 = 0, cy0 = 0, cv = a;
+        if (/T/.test(pair) && /R/.test(pair)) { cx0 = 1; cv = b; } else if (/B/.test(pair) && /R/.test(pair)) { cx0 = 1; cy0 = 1; cv = c; } else if (/L/.test(pair) && /B/.test(pair)) { cy0 = 1; cv = d; }
+        var qx = x + cx0 - 0.5, qy = y + cy0 - 0.5, cr = (p2.x - p1.x) * (qy - p1.y) - (p2.y - p1.y) * (qx - p1.x);
+        if ((cr > 0) === (cv >= thr)) { next.set(k1, k2); starts.push(k1); } else { next.set(k2, k1); starts.push(k2); }
       }
+    }
+    var rings = [];
+    starts.forEach(function (k0) {
+      if (!next.has(k0)) return;
+      var ring = [], k = k0, guard = 0;
+      while (next.has(k) && guard++ < 1e7) { var q = pt.get(k); ring.push({ x: q.x, y: q.y }); var n = next.get(k); next.delete(k); k = n; if (k === k0) break; }
+      if (ring.length >= 3) rings.push(ring);
+    });
+    return rings;
+  };
+  // mask -> smooth bezier components (sub-pixel contours, simplified, curves fitted with tolerance tol px)
+  VPIX.maskToComps = function (m, w, h, tol) {
+    var out = [];
+    VPIX.contours(m, w, h, 127.5).forEach(function (pts) {
+      if (Math.abs(VG.area(pts)) < 6) return;      // specks from anti-aliasing
+      if (pts.length > 8) { var sm = VG.rdp(pts.concat([pts[0]]), Math.max(0.15, tol * 0.25)); sm.pop(); pts = sm; }
       if (pts.length < 3) return;
       var anchors = tol > 0 ? VG.fit(pts, tol, true) : pts.map(function (p) { return VG.P(p.x, p.y); });
       if (anchors.length >= 2) out.push(VG.comp(anchors, true));
