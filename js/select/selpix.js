@@ -159,6 +159,59 @@
     return o;
   };
 
+  // ---------- quick selection: edge-aware region growing from painted seeds ----------
+  // img: RGBA (working size), seed: Uint8 (>=128 = painted), opt {sens 0.5..2, enhance}. Returns the grown region (Uint8).
+  PIXS.quickSel = function (img, seed, opt) {
+    opt = opt || {};
+    var w = img.width, h = img.height, n = w * h, d = img.data, p, i;
+    var luma = new Float32Array(n), grad = new Float32Array(n);
+    for (p = 0, i = 0; p < n; p++, i += 4) luma[p] = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+      p = y * w + x;
+      var gx = luma[p + (x < w - 1 ? 1 : 0)] - luma[p - (x > 0 ? 1 : 0)], gy = luma[p + (y < h - 1 ? w : 0)] - luma[p - (y > 0 ? w : 0)];
+      grad[p] = Math.max(Math.abs(gx), Math.abs(gy)) / 2;
+    }
+    // seed colours -> a small palette (k-means), and how varied they are
+    var seeds = [];
+    for (p = 0; p < n; p++) if (seed[p] >= 128) seeds.push(p);
+    if (!seeds.length) return new Uint8Array(n);
+    var step = Math.max(1, Math.floor(seeds.length / 3000)), sample = [];
+    for (i = 0; i < seeds.length; i += step) { var q = seeds[i] * 4; sample.push([d[q], d[q + 1], d[q + 2]]); }
+    var K = Math.min(4, sample.length), C = [], it, k;
+    for (k = 0; k < K; k++) C.push(sample[Math.floor(k * sample.length / K)].slice());
+    function dist(c, r, g, b) { var dr = c[0] - r, dg = c[1] - g, db = c[2] - b; return Math.sqrt((dr * dr * 2 + dg * dg * 4 + db * db * 3) / 9); }
+    for (it = 0; it < 6; it++) {
+      var acc = C.map(function () { return [0, 0, 0, 0]; });
+      sample.forEach(function (s) { var bi = 0, bd = 1e9; for (var j = 0; j < K; j++) { var dd = dist(C[j], s[0], s[1], s[2]); if (dd < bd) { bd = dd; bi = j; } } var A = acc[bi]; A[0] += s[0]; A[1] += s[1]; A[2] += s[2]; A[3]++; });
+      for (k = 0; k < K; k++) if (acc[k][3]) C[k] = [acc[k][0] / acc[k][3], acc[k][1] / acc[k][3], acc[k][2] / acc[k][3]];
+    }
+    var spread = 0, gs = [];
+    sample.forEach(function (s) { var bd = 1e9; for (var j = 0; j < K; j++) bd = Math.min(bd, dist(C[j], s[0], s[1], s[2])); spread += bd; });
+    spread /= sample.length;
+    for (i = 0; i < seeds.length; i += step) gs.push(grad[seeds[i]]);
+    gs.sort(function (a, b) { return a - b; });
+    var sens = opt.sens || 1, T = Math.min(80, Math.max(9, 9 + spread * 2.2)) * sens, E = Math.max(14, gs[Math.floor(gs.length * 0.95)] * 2.2) * sens;
+    function ok(q) { var j = q * 4, bd = 1e9; for (var c = 0; c < K; c++) { var dd = dist(C[c], d[j], d[j + 1], d[j + 2]); if (dd < bd) bd = dd; } return bd <= T && (grad[q] <= E || bd <= T * 0.35); }
+    var out = new Uint8Array(n), stack = new Int32Array(n), sp = 0;
+    seeds.forEach(function (s) { out[s] = 255; stack[sp++] = s; });
+    while (sp) {
+      var c0 = stack[--sp], cx = c0 % w;
+      if (cx > 0 && !out[c0 - 1] && ok(c0 - 1)) { out[c0 - 1] = 255; stack[sp++] = c0 - 1; }
+      if (cx < w - 1 && !out[c0 + 1] && ok(c0 + 1)) { out[c0 + 1] = 255; stack[sp++] = c0 + 1; }
+      if (c0 >= w && !out[c0 - w] && ok(c0 - w)) { out[c0 - w] = 255; stack[sp++] = c0 - w; }
+      if (c0 < n - w && !out[c0 + w] && ok(c0 + w)) { out[c0 + w] = 255; stack[sp++] = c0 + w; }
+    }
+    // close pinholes smaller than ~2 px, then optionally snap the edge to the photo (guided filter)
+    var m = PIXS.smooth(out, w, h, 1);
+    for (p = 0; p < n; p++) if (seed[p] >= 128) m[p] = 255;
+    if (!opt.enhance) return m;
+    var f = new Float32Array(n); for (p = 0; p < n; p++) { f[p] = m[p] / 255; luma[p] /= 255; }
+    var g = PIXS.guided(luma, f, w, h, 2, 4e-3), o = new Uint8Array(n);
+    for (p = 0; p < n; p++) o[p] = Math.round(clamp((g[p] - 0.5) * 2.5 + 0.5, 0, 1) * 255);
+    for (p = 0; p < n; p++) if (seed[p] >= 128) o[p] = 255;
+    return o;
+  };
+
   // ---------- dispatcher for js/select/worker.js ----------
   PIXS.call = function (fn, args) {
     if (["edt", "call"].indexOf(fn) >= 0 || typeof PIXS[fn] !== "function") throw new Error("Not allowed: " + fn);

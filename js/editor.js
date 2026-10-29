@@ -128,7 +128,7 @@
     }
   }
   function cross(c, x, y) { c.beginPath(); c.moveTo(x - 8, y); c.lineTo(x + 8, y); c.moveTo(x, y - 8); c.lineTo(x, y + 8); c.stroke(); }
-  function brushTool() { return ["brush", "eraser", "clone", "heal"].indexOf(ED.tool) >= 0; }
+  function brushTool() { return ["brush", "eraser", "clone", "heal"].indexOf(ED.tool) >= 0 || !!(TOOLS[ED.tool] && TOOLS[ED.tool].brush); }   // lane:selection (.brush tools)
   setInterval(function () { if (ED.doc && (ED.doc.sel || ED.drag || ED.poly) && !document.hidden) { antOff = (antOff + 1) % 8; renderOvl(); } }, 140);
 
   // ---------- history plumbing ----------

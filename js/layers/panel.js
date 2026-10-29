@@ -80,17 +80,7 @@
     "t-link": '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
     "t-adj": '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17" /><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>'
   };
-  SX.addIcons = function (map) {
-    var sprite = document.querySelector("body > svg"); if (!sprite) return;
-    Object.keys(map).forEach(function (id) {
-      if (document.getElementById(id)) return;
-      var s = document.createElementNS("http://www.w3.org/2000/svg", "symbol"); s.setAttribute("id", id); s.setAttribute("viewBox", "0 0 24 24");
-      var tmp = new DOMParser().parseFromString('<svg xmlns="http://www.w3.org/2000/svg">' + map[id] + "</svg>", "image/svg+xml").documentElement;
-      Array.prototype.slice.call(tmp.childNodes).forEach(function (n) { s.appendChild(document.importNode(n, true)); });
-      sprite.appendChild(s);
-    });
-  };
-  document.addEventListener("DOMContentLoaded", function () { SX.addIcons(ICONS); });
+  SX.addIcons(ICONS);
 
   // ---------- thumbnails (cached per layer by content version) ----------
   var TH = new WeakMap(), checker = null;

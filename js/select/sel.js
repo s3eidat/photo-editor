@@ -29,6 +29,17 @@
   start();
 
   // ---------- helpers ----------
+  // Add icons (inner SVG markup we write ourselves, 24x24) to the page's sprite.
+  SX.addIcons = function (map) {
+    var sprite = document.querySelector("body > svg"); if (!sprite) return;
+    Object.keys(map).forEach(function (id) {
+      if (document.getElementById(id)) return;
+      var s = document.createElementNS("http://www.w3.org/2000/svg", "symbol"); s.setAttribute("id", id); s.setAttribute("viewBox", "0 0 24 24");
+      var tmp = new DOMParser().parseFromString('<svg xmlns="http://www.w3.org/2000/svg">' + map[id] + "</svg>", "image/svg+xml").documentElement;
+      Array.prototype.slice.call(tmp.childNodes).forEach(function (n) { s.appendChild(document.importNode(n, true)); });
+      sprite.appendChild(s);
+    });
+  };
   SX.need = function () { if (!ED.doc) { S3.toast("Open a photo or make a new document first"); return false; } if (ED.busyCheck()) return false; return true; };
   SX.needSel = function () { if (!SX.need()) return false; if (!ED.doc.sel) { S3.toast("Make a selection first", "error"); return false; } return true; };
   // RGBA of the active layer (or of all layers) in document coordinates.
