@@ -374,3 +374,17 @@
     ED.o.blurtool.sample = "current";
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, ED = PE.ed, PP = PE.paint;
+  PP.test("spot healing: create texture", async function (ok) {
+    var s = PP.scratch(80, 40, "#4a7a3a"), c = PE.cx2(s.L.canvas), R = window.PPX.rng(5);
+    for (var i = 0; i < 400; i++) { c.fillStyle = R() < 0.5 ? "#3a6a2a" : "#5a8a4a"; c.fillRect(Math.floor(R() * 80), Math.floor(R() * 40), 2, 2); }
+    c.fillStyle = "#ff00ff"; c.fillRect(36, 16, 8, 8); PE.touch(s.L.canvas);
+    Object.assign(ED.o.spot, PP.BDEF, { size: 14, hard: 1, type: "texture", sample: "current", sizeC: "off" });
+    PP.drive("spot", [{ x: 40, y: 20 }]);
+    for (var k = 0; k < 100 && ED.busy; k++) await new Promise(function (r) { setTimeout(r, 30); });
+    var q = PP.px(s.L.canvas, 40, 20); ok(q[0] < 140 && q[1] > 90, "the spot is filled with the grass texture (" + q + ")");
+    ED.o.spot.type = "content";
+  });
+})();

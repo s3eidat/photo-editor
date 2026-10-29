@@ -3,7 +3,7 @@
    it is replaced from nearby texture and blended to the surrounding tone). */
 (function () {
   "use strict";
-  var PE = window.PE, PIX = window.PIX, ED = PE.ed, PP = PE.paint, K = ED.ui.kit, h = S3.h;
+  var PE = window.PE, PIX = window.PIX, PPX = window.PPX, ED = PE.ed, PP = PE.paint, K = ED.ui.kit, h = S3.h;
 
   PP.icons({
     "t-spot": [["rect", { x: "2.5", y: "8.6", width: "19", height: "6.8", rx: "3.4", transform: "rotate(-45 12 12)" }], "M10.6 10.6h.01M13.4 13.4h.01M13.4 10.6h.01M10.6 13.4h.01", "M18.5 2.5v3M17 4h3"]
@@ -118,7 +118,7 @@
       var md = PE.getData(st.buf, bb).data, m = new Uint8Array(st.w * st.h);
       for (var y = 0; y < bb.h; y++) for (var x = 0; x < bb.w; x++) { var a = md[(y * bb.w + x) * 4 + 3]; if (a) m[(y + bb.y) * st.w + x + bb.x] = Math.min(255, a * 2); }
       var all = st.o.sample && st.o.sample !== "current", srcC = all ? PP.sampleCanvas(st.L, st.holder, st.o.sample) : st.holder.canvas;
-      var job = st.o.type === "proximity" ? proximity(srcC, m, bb) : PP.fillHole(srcC, m, { bbox: bb, expand: 1, adapt: true, quality: 2 });
+      var job = st.o.type === "proximity" ? proximity(srcC, m, bb) : st.o.type === "texture" ? texture(srcC, m, bb) : PP.fillHole(srcC, m, { bbox: bb, expand: 1, adapt: true, quality: 2 });
       var grow = st.grow; PP.endStroke(st);
       PP.commitAsync(job, "Healing…", function (res) {
         var R = res.rect;
@@ -134,9 +134,24 @@
   PP.group("J", ["spot", "heal"]);
   PP.optsFor.spot = function (items) {
     var o = ED.o.spot;
-    return PP.brushBar("spot", items, [K.seg("Type", [["content", "Content-aware"], ["proximity", "Proximity match"]], o.type, function (v) { o.type = v; ED.saveOpts(); }), PP.sampleSelect("spot")],
+    return PP.brushBar("spot", items, [K.seg("Type", [["content", "Content-aware"], ["texture", "Create texture"], ["proximity", "Proximity match"]], o.type, function (v) { o.type = v; ED.saveOpts(); }), PP.sampleSelect("spot")],
       "Paint over a spot or a small object, a little larger than it. It is replaced from the texture around it.", { noOp: true, noFlow: true, noSym: true });
   };
+  // Create texture: blocks of texture picked at random from around the spot fill it, then the tone is healed in.
+  function texture(cv, m, bb) {
+    var W = cv.width, H = cv.height, B = 6, pad = Math.max(B * 3, Math.round(Math.max(bb.w, bb.h) * 0.6));
+    var R = PE.inter({ x: bb.x - pad, y: bb.y - pad, w: bb.w + 2 * pad, h: bb.h + 2 * pad }, { x: 0, y: 0, w: W, h: H });
+    var dst = PE.getData(cv, R), src = new ImageData(new Uint8ClampedArray(dst.data), R.w, R.h), d = dst.data, s = src.data, rnd = PPX.rng(bb.x * 7 + bb.y * 13 + 1), cands = [], x, y;
+    function clean(x0, y0) { for (var yy = y0; yy < y0 + B; yy += 2) for (var xx = x0; xx < x0 + B; xx += 2) if (m[(yy + R.y) * W + xx + R.x]) return false; return true; }
+    for (y = 0; y + B <= R.h; y += 2) for (x = 0; x + B <= R.w; x += 2) if (clean(x, y)) cands.push([x, y]);
+    if (!cands.length) return PP.fillHole(cv, m, { bbox: bb, expand: 1 });
+    for (y = bb.y - R.y; y < bb.y - R.y + bb.h; y += B) for (x = bb.x - R.x; x < bb.x - R.x + bb.w; x += B) {
+      var c = cands[Math.floor(rnd() * cands.length)];
+      for (var j = 0; j < B && y + j < R.h; j++) for (var i = 0; i < B && x + i < R.w; i++) { var q = ((y + j) * R.w + x + i) * 4, p = ((c[1] + j) * R.w + c[0] + i) * 4; s[q] = d[p]; s[q + 1] = d[p + 1]; s[q + 2] = d[p + 2]; s[q + 3] = d[p + 3]; }
+    }
+    var sm = new Uint8Array(R.w * R.h); for (y = 0; y < R.h; y++) for (x = 0; x < R.w; x++) sm[y * R.w + x] = m[(y + R.y) * W + x + R.x];
+    return PE.work("heal", [{ data: dst.data, width: R.w, height: R.h }, { data: s, width: R.w, height: R.h }, sm]).then(function (res) { return { rect: R, img: new ImageData(new Uint8ClampedArray(res.data), R.w, R.h) }; });
+  }
   // Proximity match: copy the best-matching nearby patch (judged on the ring around the stroke), then heal.
   function proximity(cv, m, bb) {
     var W = cv.width, H = cv.height, pad = Math.max(4, Math.round(Math.max(bb.w, bb.h) * 0.25)), R = PE.inter({ x: bb.x - pad, y: bb.y - pad, w: bb.w + 2 * pad, h: bb.h + 2 * pad }, { x: 0, y: 0, w: W, h: H });
