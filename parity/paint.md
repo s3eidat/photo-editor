@@ -31,3 +31,4 @@ Known-answer checks: `js/paint/tests.js` (run by `S3_SELFTEST` after the core ch
 | Red eye | done | J group; click the pupil or drag a box; pupil size + darken; the red region grows from the reddest pixel near the click, soft edge, highlight included; respects the selection |
 | Magic eraser | done | E group; tolerance, contiguous, anti-alias, sample all layers, opacity; respects the selection |
 | Background eraser | done | E group; sampling continuous / once / background colour, contiguous or discontiguous, tolerance, protect foreground colour; edge fringe clean-up (decontamination) not done |
+| Patch tool | done | J group; freehand outline (Shift add / Alt subtract) or any selection, then drag it; source / destination, transparent; healed to the surrounding tone in the worker |
