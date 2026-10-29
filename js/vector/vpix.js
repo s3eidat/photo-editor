@@ -103,6 +103,31 @@
     return { data: out, width: outW, height: outH };
   };
 
+  // ---------- liquify: apply a displacement field (fw x fh, in field px; field px = k image px) to the full image ----------
+  VPIX.liquifyApply = function (img, D, fw, fh, k) {
+    var W = img.width, H = img.height, S = img.data, out = new Uint8ClampedArray(W * H * 4);
+    function fieldAt(fx, fy, o) {      // bilinear displacement at field coords
+      fx = Math.max(0, Math.min(fw - 1.001, fx)); fy = Math.max(0, Math.min(fh - 1.001, fy));
+      var x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0, i00 = (y0 * fw + x0) * 2, i10 = i00 + 2, i01 = i00 + fw * 2, i11 = i01 + 2;
+      if (x0 + 1 >= fw) { i10 = i00; i11 = i01; } if (y0 + 1 >= fh) { i01 = i00; i11 = i10; }
+      o[0] = (D[i00] * (1 - tx) + D[i10] * tx) * (1 - ty) + (D[i01] * (1 - tx) + D[i11] * tx) * ty;
+      o[1] = (D[i00 + 1] * (1 - tx) + D[i10 + 1] * tx) * (1 - ty) + (D[i01 + 1] * (1 - tx) + D[i11 + 1] * tx) * ty;
+    }
+    var d = [0, 0];
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+      fieldAt((x + 0.5) * k - 0.5, (y + 0.5) * k - 0.5, d);
+      var sx = x + d[0] / k - 0, sy = y + d[1] / k, o = (y * W + x) * 4;
+      if (d[0] === 0 && d[1] === 0) { out[o] = S[o]; out[o + 1] = S[o + 1]; out[o + 2] = S[o + 2]; out[o + 3] = S[o + 3]; continue; }
+      var x0 = Math.floor(sx), y0 = Math.floor(sy), fx = sx - x0, fy = sy - y0, r = 0, g = 0, b = 0, a = 0;
+      for (var j = 0; j < 2; j++) for (var i = 0; i < 2; i++) {
+        var xx = Math.max(0, Math.min(W - 1, x0 + i)), yy = Math.max(0, Math.min(H - 1, y0 + j)), w = (i ? fx : 1 - fx) * (j ? fy : 1 - fy), q = (yy * W + xx) * 4, al = S[q + 3] * w;
+        r += S[q] * al; g += S[q + 1] * al; b += S[q + 2] * al; a += al;
+      }
+      if (a > 0) { out[o] = r / a; out[o + 1] = g / a; out[o + 2] = b / a; out[o + 3] = a; }
+    }
+    return { data: out, width: W, height: H };
+  };
+
   VPIX.call = function (fn, args) {
     if (typeof VPIX[fn] !== "function" || fn === "call") throw new Error("Unknown job " + fn);
     return VPIX[fn].apply(null, args);

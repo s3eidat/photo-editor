@@ -168,3 +168,18 @@
     ok(big.data[((3 * 16) + 5) * 4 + 3] === 255 && big.data[3] === 255 && big.data[(11 * 16 + 15) * 4 + 3] === 255 && Math.abs(big.data[0] - d[0]) <= 2, "scaled mesh warp fills the larger area, edges stay solid");
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, VX = PE.VX, VPIX = window.VPIX;
+  VX.test("liquify", function (ok) {
+    var W = 6, H = 4, d = new Uint8ClampedArray(W * H * 4); for (var i = 0; i < W * H; i++) { d[i * 4] = i * 10; d[i * 4 + 3] = 255; }
+    var zero = VPIX.liquifyApply({ data: d, width: W, height: H }, new Float32Array(W * H * 2), W, H, 1), same = true;
+    for (i = 0; i < d.length; i++) if (zero.data[i] !== d[i]) same = false;
+    ok(same, "an empty field changes nothing");
+    var F = new Float32Array(W * H * 2); for (i = 0; i < W * H; i++) F[i * 2] = 1;      // every pixel shows its right neighbour
+    var sh = VPIX.liquifyApply({ data: d, width: W, height: H }, F, W, H, 1);
+    ok(sh.data[0] === d[4] && sh.data[(W + 2) * 4] === d[(W + 3) * 4], "a constant field shifts the image");
+    var half = VPIX.liquifyApply({ data: d, width: W, height: H }, new Float32Array([0.5, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0.5, 0]), 3, 2, 0.5);
+    ok(half.data[0] === d[4], "a half-size field is scaled up to the image");
+  });
+})();
