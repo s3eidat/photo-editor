@@ -244,3 +244,23 @@
   VX.workerAlive = function () { start(); return alive; };
   setTimeout(start, 400);
 })();
+/* fast live preview while dragging: draw a vector layer at screen resolution into one reused, viewport-sized canvas
+   instead of re-rendering its full-size surface on every move (big shapes on big documents stay smooth) */
+(function () {
+  "use strict";
+  var PE = window.PE, ED = PE.ed, VX = PE.VX, fc = null;
+  VX.fastLive = function (L) {
+    var d = ED.doc;
+    if (!d || !L || L.kind === "raster" || (L.mask && L.maskOn) || !ED.stage || (PE.sx && PE.sx.special && PE.sx.special(d))) { ED.render(); return; }
+    var st = ED.stage.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), k = ED.zoom * dpr;
+    var x0 = Math.max(-64, -ED.panX / ED.zoom), y0 = Math.max(-64, -ED.panY / ED.zoom), x1 = Math.min(d.w + 64, (st.width - ED.panX) / ED.zoom), y1 = Math.min(d.h + 64, (st.height - ED.panY) / ED.zoom);
+    if (x1 <= x0 || y1 <= y0) { ED.render(); return; }
+    var W = Math.max(1, Math.ceil((x1 - x0) * k)), H = Math.max(1, Math.ceil((y1 - y0) * k));
+    if (W * H > 16e6) { ED.render(); return; }
+    if (!fc || fc.width !== W || fc.height !== H) fc = PE.mk(W, H);
+    var c = PE.cx2(fc); c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H);
+    c.setTransform(k, 0, 0, k, -x0 * k, -y0 * k); PE.drawVector(c, L); c.setTransform(1, 0, 0, 1, 0, 0);
+    ED.live.over[L.id] = { canvas: PE.touch(fc), x: 0, y: 0, m: [1 / k, 0, 0, 1 / k, x0, y0] };
+    ED.render();
+  };
+})();

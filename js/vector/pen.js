@@ -38,7 +38,11 @@
     tg.put(r || cs); s.commit(label); refresh();
   }
   VX.editTarget = once;
-  function refresh() { ED.render(); ED.renderOvl(); }
+  function refresh() {
+    var dr = ED.drag, tg = dr && dr.kind === "vec" && dr.tg;
+    if (tg && tg.kind === "layer") VX.fastLive(tg.L); else ED.render();
+    ED.renderOvl();
+  }
 
   // ---------- hit testing (document units; tolerance from the zoom) ----------
   function tol() { return 7 / ED.zoom; }

@@ -41,7 +41,7 @@
         s.indent = PE.clamp(1 - rr, 0.01, 0.99);
       }
       if (e && e.shiftKey && s.radius != null) s.radius = Math.round(s.radius);
-      ED.render(); ED.renderOvl();
+      VX.fastLive(dr.L); ED.renderOvl();
     };
     T.up = function (p, e) {
       var dr = ED.drag; if (!dr || dr.kind !== "vwidget") return u0 && u0(p, e);

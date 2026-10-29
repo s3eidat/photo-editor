@@ -109,8 +109,8 @@
   function preview() {
     if (!Q) return;
     var q = Q, L = q.L, f = mapper(q);
-    if (q.tg) { q.tg.put(compsMapped(q, f)); ED.render(); ED.renderOvl(); return; }
-    if (L.kind === "shape") { VX.setDocComps(L, mapComps(q.comps0, q.r, f)); ED.render(); ED.renderOvl(); return; }
+    if (q.tg) { q.tg.put(compsMapped(q, f)); if (q.tg.kind === "layer") VX.fastLive(L); else ED.render(); ED.renderOvl(); return; }
+    if (L.kind === "shape") { VX.setDocComps(L, mapComps(q.comps0, q.r, f)); VX.fastLive(L); ED.renderOvl(); return; }
     VX.meshPreview(L, q.prev, f, q.mode === "warp" ? 20 : 12);
   }
   // live preview of any mapping f (unit square of the layer's rect -> document) drawn from a reduced copy src
