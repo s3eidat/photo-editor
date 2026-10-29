@@ -34,6 +34,7 @@
     else if (ED.crop) s = "Crop W " + WS.fmt(ED.crop.w, null, "x") + "   H " + WS.fmt(ED.crop.h, null, "y");
     else if (ED.xf) s = "W " + f1(ED.xf.sx * 100) + "%   H " + f1(ED.xf.sy * 100) + "%   ∠ " + f1(ED.xf.rot) + "°";
     else if (dr && (dr.kind === "move" || dr.kind === "float") && dr.L) s = "Moving " + (dr.kind === "float" ? "selection" : "layer");
+    else if (WS.measure && WS.measure.line && ED.tool === "ruler") s = WS.measure.summary();
     else if (d.sel) s = "Selection W " + WS.fmt(d.sel.b.w, null, "x") + "   H " + WS.fmt(d.sel.b.h, null, "y");
     set("wh", s || "—");
     var dpi = WS.dpi(d);

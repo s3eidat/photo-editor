@@ -125,3 +125,17 @@
 @media (max-width: 860px) { .ws-mode { grid-template-columns: 1fr; } }
 .ws-proofchip { font-size: 11px; color: var(--accent); }
 .ws-proofchip[hidden] { display: none; }
+
+/* ruler / note / count tools */
+.ws-rinfo { color: var(--text) !important; display: inline !important; }
+.ws-notepop { position: absolute; z-index: 6; width: 280px; display: grid; gap: 8px; padding: 10px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-pop); user-select: text; -webkit-user-select: text; font-size: 12.5px; }
+.ws-notepop .textarea { min-height: 90px; font-size: 13px; }
+.ws-notepop .input { height: 30px; flex: 1; min-width: 0; }
+.ws-notepop input[type="color"] { width: 40px; height: 30px; padding: 1px; border: 1px solid var(--line-strong); border-radius: 6px; }
+.ws-nlist { display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; }
+.ws-nrow { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border: 0; border-radius: 7px; background: transparent; color: var(--text); font: 12.5px var(--font); text-align: start; cursor: pointer; }
+.ws-nrow:hover { background: var(--surface-2); }
+.ws-ndot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.ws-ntext { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-ccol { width: 40px; height: 30px; padding: 1px; border: 1px solid var(--line-strong); border-radius: 6px; }

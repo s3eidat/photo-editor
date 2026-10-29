@@ -9,7 +9,8 @@
   var P = FX.psd = {};
   var RAD = Math.PI / 180, KAPPA = 0.5522847498;
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
-  function sx() { return PE.sx || null; }                       // selection lane (groups, clipping, fill opacity, 27 blend modes)
+  function sx() { return PE.sx || null; }
+  function WS() { return PE.ws || {}; }                       // selection lane (groups, clipping, fill opacity, 27 blend modes)
   function groupsOn() { var S = sx(); return !!(S && S.tree && (PE.kindsExt || []).indexOf("group") >= 0); }
 
   // ---------- running ag-psd ----------
@@ -317,6 +318,10 @@
     if (ri && ri.horizontalResolution > 0) doc.dpi = Math.round((ri.horizontalResolutionUnit === "PPCM" ? ri.horizontalResolution * 2.54 : ri.horizontalResolution) * 100) / 100;
     var gg = res.gridAndGuidesInformation;
     if (gg && Array.isArray(gg.guides)) doc.guides = gg.guides.slice(0, 400).filter(function (g) { return isFinite(g.location); }).map(function (g) { return { dir: g.direction === "horizontal" ? "h" : "v", pos: Math.round(g.location * 1000) / 1000 }; });
+    if (Array.isArray(psd.annotations) && WS().measure) doc.notes = WS().measure.cleanNotes(psd.annotations.filter(function (a) { return a && a.type === "text" && a.iconLocation; }).map(function (a) {
+      return { x: a.iconLocation.left, y: a.iconLocation.top, text: typeof a.data === "string" ? a.data.replace(/\r/g, "\n") : "", author: a.author || "", color: colorHex(a.color, "#f5c518"), date: a.date && !isNaN(Date.parse(a.date)) ? new Date(a.date).toISOString() : "" };
+    }));
+    if (doc.notes && !doc.notes.length) delete doc.notes;
     var out = [];
     function common(c, kind, extra, parentHidden, parentOp) {
       var o = Object.assign({ name: String(c.name || (kind === "group" ? "Group" : "Layer")).replace(/[\u0000-\u001f]/g, " ").slice(0, 100) || "Layer",
@@ -415,8 +420,14 @@
     var children = roots.map(one), dpi = doc.dpi || 72;
     var res = { resolutionInfo: { horizontalResolution: dpi, horizontalResolutionUnit: "PPI", widthUnit: "Inches", verticalResolution: dpi, verticalResolutionUnit: "PPI", heightUnit: "Inches" },
       xmpMetadata: xmpOut(map) };
+    var notes = (doc.notes || []).map(function (n) {
+      return { type: "text", open: false, iconLocation: { left: Math.round(n.x), top: Math.round(n.y), right: Math.round(n.x) + 24, bottom: Math.round(n.y) + 24 },
+        popupLocation: { left: Math.round(n.x) + 30, top: Math.round(n.y), right: Math.round(n.x) + 330, bottom: Math.round(n.y) + 200 }, color: rgb(PE.hex(n.color, "#f5c518")), author: n.author || "", name: "", date: n.date || "", data: String(n.text || "").replace(/\n/g, "\r") };
+    });
     if (doc.guides && doc.guides.length) res.gridAndGuidesInformation = { grid: { horizontal: 18 * 32, vertical: 18 * 32 }, guides: doc.guides.map(function (g) { return { location: g.pos, direction: g.dir === "h" ? "horizontal" : "vertical" }; }) };
-    return { width: doc.w, height: doc.h, children: children, imageData: FX.imageData(PE.flatten(doc)), imageResources: res };
+    var out = { width: doc.w, height: doc.h, children: children, imageData: FX.imageData(PE.flatten(doc)), imageResources: res };
+    if (notes.length) out.annotations = notes;
+    return out;
   };
 
   // ---------- bytes in / out ----------
@@ -504,6 +515,7 @@
     var r3 = PE.newLayer("shape", { name: "Star", locked: true, visible: false, shape: { type: "star", x: 4, y: 5, w: 30, h: 20, fill: "", stroke: "#abcdef", sw: 3, rot: -20, flipX: true } });
     var r4 = PE.newLayer("shape", { name: "Box", shape: { type: "rect", x: 10, y: 8, w: 20, h: 12, fill: "#00ff00", stroke: "#000000", sw: 0, radius: 4 } });
     d.layers = [r1, r2, r3, r4]; d.active = r2.id; d.guides = [{ dir: "h", pos: 12 }, { dir: "v", pos: 30.5 }]; d.dpi = 300;
+    d.notes = [{ x: 10, y: 12, text: "Line 1\nLine 2 ✓", author: "Tester", color: "#00ff00", date: "2026-10-29T10:00:00.000Z" }];
     var bytes = await P.save(d);
     ok(bytes[0] === 0x38 && bytes[1] === 0x42 && bytes[2] === 0x50 && bytes[3] === 0x53, "psd written with signature");
     var o = (await P.open(bytes, "back")).doc, L = o.layers;
@@ -519,6 +531,7 @@
     ok(L[1].kind === "text" && JSON.stringify(L[1].text) === JSON.stringify(r2.text), "psd text stays editable and exact");
     ok(L[2].kind === "shape" && JSON.stringify(L[2].shape) === JSON.stringify(r3.shape) && L[2].locked && !L[2].visible, "psd shape stays editable, lock + hidden");
     ok(L[3].kind === "shape" && L[3].shape.radius === 4, "psd rounded rect");
+    ok(o.notes && o.notes.length === 1 && o.notes[0].text === "Line 1\nLine 2 ✓" && o.notes[0].author === "Tester" && o.notes[0].x === 10 && o.notes[0].color === "#00ff00", "psd notes round trip " + JSON.stringify(o.notes));
     ok(o.dpi === 300 && o.guides && o.guides.length === 2 && o.guides[1].pos === 30.5 && o.guides[0].dir === "h", "psd resolution and guides");
     // a foreign-app view of the same file (no XMP): text and live shapes come from the file's own data
     var raw = await P.read(bytes); delete raw.imageResources.xmpMetadata;
