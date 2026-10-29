@@ -39,32 +39,8 @@
 
   // The working pixels are read lazily, 128 px tiles at a time, and the preview is written straight into the
   // layer; the original tiles make the undo step (and restore the layer if the stroke is cancelled).
-  var LT = 128;
-  function beginCommon(st, keepOrig) {
-    var W = st.w, H = st.h;
-    st.cv = st.holder.canvas; st.cx = PE.cx2(st.cv); st.sel = ED.doc.sel; st.dirty = null;
-    st.img = new ImageData(W, H); st.orig = keepOrig ? new ImageData(W, H) : st.img;
-    st.ltx = Math.ceil(W / LT); st.loaded = new Uint8Array(st.ltx * Math.ceil(H / LT));
-  }
-  function ensure(st, R) {
-    var tx0 = Math.max(0, Math.floor(R.x / LT)), ty0 = Math.max(0, Math.floor(R.y / LT)), tx1 = Math.min(st.ltx - 1, Math.floor((R.x + R.w - 1) / LT)), ty1 = Math.min(Math.ceil(st.h / LT) - 1, Math.floor((R.y + R.h - 1) / LT));
-    for (var ty = ty0; ty <= ty1; ty++) for (var tx = tx0; tx <= tx1; tx++) {
-      var k = ty * st.ltx + tx; if (st.loaded[k]) continue;
-      st.loaded[k] = 1;
-      var x = tx * LT, y = ty * LT, w = Math.min(LT, st.w - x), h = Math.min(LT, st.h - y), t = st.cx.getImageData(x, y, w, h).data;
-      for (var j = 0; j < h; j++) {
-        var row = t.subarray(j * w * 4, (j + 1) * w * 4), at = ((y + j) * st.w + x) * 4;
-        st.img.data.set(row, at); if (st.orig !== st.img) st.orig.data.set(row, at);
-      }
-    }
-  }
-  PP.ensureTiles = ensure;
-  function region(img, R) {      // copy of rect R of a full-size ImageData
-    var out = new ImageData(R.w, R.h), W = img.width;
-    for (var j = 0; j < R.h; j++) out.data.set(img.data.subarray(((R.y + j) * W + R.x) * 4, ((R.y + j) * W + R.x + R.w) * 4), j * R.w * 4);
-    return out;
-  }
-  function clipR(st, r) { return r && PE.inter(PE.rectI(r), { x: 0, y: 0, w: st.w, h: st.h }); }
+  var ensure = PP.ensureTiles, region = PP.regionOf, clipR = PP.clipR;
+  function beginCommon(st, keepOrig) { PP.initTiles(st, keepOrig); st.sel = ED.doc.sel; }
   // commit: write the final pixels of bb, then record only the changed tiles against the originals
   function finish(st, label, write) {
     var bb = clipR(st, st.bbox);
@@ -74,7 +50,7 @@
     var e = PE.tileEntry(label, st.cv, bb, region(st.orig, bb));
     PE.touch(st.cv); ED.push(PE.compound(label, [st.grow, e]));
   }
-  function cancel(st) { var bb = clipR(st, st.bbox); if (bb) { ensure(st, bb); st.cx.putImageData(st.orig, 0, 0, bb.x, bb.y, bb.w, bb.h); PE.touch(st.cv); ED.render(); } }
+  function cancel(st) { PP.restoreRect(st, st.bbox); }
   // ---------- coverage tools ----------
   function covTile(st, i, make) {
     var x = i % st.w, y = (i - x) / st.w, ti = Math.floor(y / T) * st.tx + Math.floor(x / T), t = st.cov[ti];

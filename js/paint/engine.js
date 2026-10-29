@@ -50,6 +50,14 @@
   function mixIn(a, b, t) { return { pr: a.pr + (b.pr - a.pr) * t, tilt: a.tilt + (b.tilt - a.tilt) * t, tiltA: b.tiltA, twist: b.twist, pen: b.pen }; }
 
   // ---------- stroke ----------
+  // Stroke buffers are kept between strokes: a fresh layer-sized canvas costs a lot on its first draw.
+  var POOL = {};
+  function pooled(key, w, h) {
+    var c = POOL[key];
+    if (!c || c.width !== w || c.height !== h) c = POOL[key] = PE.mk(w, h);
+    else { var x = PE.cx2(c); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.globalCompositeOperation = "source-over"; x.clearRect(0, 0, w, h); }
+    return c;
+  }
   function strokeStart(p, e) {
     var tool = ED.tool, spec = SPEC[tool], o = ED.o[tool];
     if ((tool === "brush" || tool === "pencil") && e.altKey) { ED.pick(p, false); return; }
@@ -72,8 +80,9 @@
     if (st.o.sym !== "off" && spec.sym !== false) st.sym = symSetup(st);
     if (st.o.tex && PP.patternOf && PP.patternOf(st.o.tex)) st.tex = texSetup(st);
     if (!spec.process) {
-      st.buf = PE.mk(cv.width, cv.height); st.bctx = PE.cx2(st.buf); st.live = PE.mk(cv.width, cv.height);
-      if (st.o.dual) { st.dualBuf = PE.mk(cv.width, cv.height); st.dctx = PE.cx2(st.dualBuf); st.dualTip = st.o.dual === "round" ? null : PP.tipOf(st.o.dual); }
+      st.buf = pooled("buf", cv.width, cv.height); st.bctx = PE.cx2(st.buf);
+      if (spec.preview) st.live = PE.mk(cv.width, cv.height); else initTiles(st, false);     // preview straight into the layer
+      if (st.o.dual) { st.dualBuf = pooled("dual", cv.width, cv.height); st.dctx = PE.cx2(st.dualBuf); st.dualTip = st.o.dual === "round" ? null : PP.tipOf(st.o.dual); }
     }
     if (tool === "clone" || tool === "heal") {
       st.src = PE.cloneCanvas(cv);
@@ -81,7 +90,7 @@
       st.off = ED.cloneOff; st.srcOff = st.off;
     }
     if (spec.begin && spec.begin(st, p, e) === false) { ED.stroke = null; ED.push(st.grow); return; }
-    ED.drag = { kind: "stroke", cancel: function () { if (st.timer) clearInterval(st.timer); if (spec.cancel) spec.cancel(st); } };
+    ED.drag = { kind: "stroke", cancel: function () { if (st.timer) clearInterval(st.timer); if (spec.cancel) spec.cancel(st); else if (st.orig) restoreRect(st, st.bbox); } };
     var lp = { x: p.x - st.ox, y: p.y - st.oy };
     if (e.shiftKey && ED.lastPt && ED.lastPt.L === st.L) { st.last = { x: ED.lastPt.x - st.ox, y: ED.lastPt.y - st.oy }; segment(st, lp, st.inp); }
     else { dab(st, lp.x, lp.y, st.inp); st.last = lp; }
@@ -274,7 +283,7 @@
       b = { x: D.x, y: D.y, w: D.s, h: D.s };
     }
     clipSel(st, c, b);
-    st.bbox = PE.union(st.bbox, b);
+    st.bbox = PE.union(st.bbox, b); st.dirty = PE.union(st.dirty, b);
   }
   PP.stamp = stamp;
   function clipSel(st, c, b) {
@@ -303,11 +312,41 @@
     return { pat: st.bctx ? st.bctx.createPattern(m, "repeat") : PE.cx2(PE.mk(1, 1)).createPattern(m, "repeat"), k: PE.clamp(st.o.texScale, 1, 1000) / 100, depth: PE.clamp(st.o.texDepth, 0, 100) / 100, mask: m };
   }
 
+  // ---------- original pixels, read lazily in 128 px tiles (paint and process tools preview into the layer) ----------
+  var LT = 128;
+  function initTiles(st, keepOrig) {
+    var W = st.w, H = st.h;
+    st.cv = st.holder.canvas; st.cx = PE.cx2(st.cv); st.dirty = null;
+    st.img = new ImageData(W, H); st.orig = keepOrig ? new ImageData(W, H) : st.img;
+    st.ltx = Math.ceil(W / LT); st.loaded = new Uint8Array(st.ltx * Math.ceil(H / LT));
+  }
+  function ensureTiles(st, R) {
+    var tx0 = Math.max(0, Math.floor(R.x / LT)), ty0 = Math.max(0, Math.floor(R.y / LT)), tx1 = Math.min(st.ltx - 1, Math.floor((R.x + R.w - 1) / LT)), ty1 = Math.min(Math.ceil(st.h / LT) - 1, Math.floor((R.y + R.h - 1) / LT));
+    for (var ty = ty0; ty <= ty1; ty++) for (var tx = tx0; tx <= tx1; tx++) {
+      var k = ty * st.ltx + tx; if (st.loaded[k]) continue;
+      st.loaded[k] = 1;
+      var x = tx * LT, y = ty * LT, w = Math.min(LT, st.w - x), h = Math.min(LT, st.h - y), t = st.cx.getImageData(x, y, w, h).data;
+      for (var j = 0; j < h; j++) {
+        var row = t.subarray(j * w * 4, (j + 1) * w * 4), at = ((y + j) * st.w + x) * 4;
+        st.img.data.set(row, at); if (st.orig !== st.img) st.orig.data.set(row, at);
+      }
+    }
+  }
+  function regionOf(img, R) {      // copy of rect R of a full-size ImageData
+    var out = new ImageData(R.w, R.h), W = img.width;
+    for (var j = 0; j < R.h; j++) out.data.set(img.data.subarray(((R.y + j) * W + R.x) * 4, ((R.y + j) * W + R.x + R.w) * 4), j * R.w * 4);
+    return out;
+  }
+  function clipR(st, r) { return r && PE.inter(PE.rectI(r), { x: 0, y: 0, w: st.w, h: st.h }); }
+  function restoreRect(st, r) { var R = clipR(st, r); if (!R) return; ensureTiles(st, R); st.cx.putImageData(st.orig, 0, 0, R.x, R.y, R.w, R.h); PE.touch(st.cv); ED.render(); }
+  Object.assign(PP, { initTiles: initTiles, ensureTiles: ensureTiles, regionOf: regionOf, clipR: clipR, restoreRect: restoreRect });
+
   // ---------- compositing the stroke ----------
   var scratch = null;
-  function strokeImage(st) {
-    if (!st.dualBuf && !(st.tex && !st.o.texEach)) return { img: st.buf, x: 0, y: 0 };
-    var bb = PE.inter(PE.rectI(st.bbox || { x: 0, y: 0, w: 1, h: 1 }), { x: 0, y: 0, w: st.w, h: st.h }) || { x: 0, y: 0, w: 1, h: 1 };
+  // The stroke as an image over rect R (default: its bounding box), with the dual tip and texture applied.
+  function strokeImage(st, R) {
+    if (!st.dualBuf && !(st.tex && !st.o.texEach)) return R ? { img: st.buf, sx: R.x, sy: R.y, x: R.x, y: R.y, w: R.w, h: R.h } : { img: st.buf, x: 0, y: 0 };
+    var bb = R || PE.inter(PE.rectI(st.bbox || { x: 0, y: 0, w: 1, h: 1 }), { x: 0, y: 0, w: st.w, h: st.h }) || { x: 0, y: 0, w: 1, h: 1 };
     if (!scratch || scratch.width < bb.w || scratch.height < bb.h) scratch = PE.mk(Math.max(bb.w, scratch ? scratch.width : 0), Math.max(bb.h, scratch ? scratch.height : 0));
     var c = PE.cx2(scratch); c.globalCompositeOperation = "copy"; c.drawImage(st.buf, bb.x, bb.y, bb.w, bb.h, 0, 0, bb.w, bb.h);
     if (st.dualBuf) { c.globalCompositeOperation = "destination-in"; c.drawImage(st.dualBuf, bb.x, bb.y, bb.w, bb.h, 0, 0, bb.w, bb.h); }
@@ -315,9 +354,9 @@
     c.globalCompositeOperation = "source-over";
     return { img: scratch, x: bb.x, y: bb.y, w: bb.w, h: bb.h };
   }
-  function drawImg(c, I) { if (I.w) c.drawImage(I.img, 0, 0, I.w, I.h, I.x, I.y, I.w, I.h); else c.drawImage(I.img, 0, 0); }
-  function applyStroke(c, st) {
-    var I = strokeImage(st), op = PE.clamp(st.o.op, 0, 1);
+  function drawImg(c, I) { if (I.w) c.drawImage(I.img, I.sx || 0, I.sy || 0, I.w, I.h, I.x, I.y, I.w, I.h); else c.drawImage(I.img, 0, 0); }
+  function applyStroke(c, st, R) {
+    var I = strokeImage(st, R), op = PE.clamp(st.o.op, 0, 1);
     c.save();
     if (st.mask && st.spec.fill !== "erase") {
       // masks move towards the foreground's brightness: m' = m (1 - a) + v a
@@ -335,17 +374,18 @@
     pvRaf = requestAnimationFrame(function () {
       pvRaf = 0; var st = ED.stroke; if (!st) return;
       var o;
-      if (st.spec.preview) o = st.spec.preview(st);
-      else {
-        var lc = PE.cx2(st.live); lc.globalCompositeOperation = "copy"; lc.drawImage(st.holder.canvas, 0, 0); lc.globalCompositeOperation = "source-over";
-        applyStroke(lc, st); PE.touch(st.live);
-        o = { canvas: st.live, x: st.ox, y: st.oy };
-      }
+      if (st.spec.preview) o = st.spec.preview(st); else flush(st);
       if (o) { if (st.mask) ED.live.maskOver[st.L.id] = o; else ED.live.over[st.L.id] = o; }
       ED.render();
     });
   }
   PP.preview = preview;
+  // Write the changed rectangle: the original pixels, then the stroke over them.
+  function flush(st) {
+    var R = clipR(st, st.dirty); st.dirty = null; if (!R) return;
+    ensureTiles(st, R); st.cx.putImageData(st.orig, 0, 0, R.x, R.y, R.w, R.h);
+    applyStroke(st.cx, st, R); PE.touch(st.cv);
+  }
   function strokeEnd(p) {
     var st = ED.stroke; ED.drag = null; if (!st) return;
     if (st.timer) clearInterval(st.timer);
@@ -356,9 +396,11 @@
     var bb = st.bbox && PE.inter(PE.rectI(st.bbox), { x: 0, y: 0, w: st.w, h: st.h });
     if (!bb) { ED.stroke = null; ED.push(st.grow); ED.changed(); return; }
     if (st.tool !== "heal") {
-      var e1 = PE.editPixels(ED.doc, label, st.holder, "canvas", bb, function (c) { applyStroke(c, st); });
+      flush(st); ensureTiles(st, bb);
+      var e1 = PE.tileEntry(label, st.cv, bb, regionOf(st.orig, bb));
       ED.stroke = null; ED.push(PE.compound(label, [st.grow, e1])); return;
     }
+    restoreRect(st, bb);      // the preview goes; the healed pixels replace it
     // healing: texture from the source, colour / brightness matched to the surroundings (worker)
     var pad = 6, R = PE.inter({ x: bb.x - pad, y: bb.y - pad, w: bb.w + 2 * pad, h: bb.h + 2 * pad }, { x: 0, y: 0, w: st.w, h: st.h });
     var cv = st.holder.canvas, dst = PE.getData(cv, R), srcC = PE.mk(R.w, R.h);
