@@ -128,6 +128,42 @@
     if (!wideObs) { wideObs = new MutationObserver(function () { if (box.hidden) box.classList.remove("pe-awide"); }); wideObs.observe(box, { attributes: true, attributeFilter: ["hidden"] }); }
   };
 
+  // ---------- a point-curve editor (master + R, G, B), shared by panels ----------
+  // curves = {rgb, r, g, b}: arrays of [x, y] (0..255), edited in place; onChange() after every edit.
+  AUI.curveEditor = function (el, curves, onChange, img) {
+    var K = kit(), ch = "rgb", S = 256, c = h("canvas", { "class": "pe-curve pe-acv", width: String(S), height: String(S), "aria-label": "Curve: drag points, click to add, double-click to remove" }), x = c.getContext("2d");
+    var hist = img ? PIX.histogram(img) : null, drag = -1;
+    function draw() {
+      x.clearRect(0, 0, S, S);
+      if (hist) { var H = hist[ch === "rgb" ? "l" : ch], mx = 1, i; for (i = 0; i < 256; i++) mx = Math.max(mx, H[i]); x.fillStyle = "rgba(127,127,127,.25)"; for (i = 0; i < 256; i++) { var v = Math.log(1 + H[i]) / Math.log(1 + mx) * S; x.fillRect(i, S - v, 1, v); } }
+      x.strokeStyle = "rgba(127,127,127,.35)"; x.lineWidth = 1;
+      for (var g = 1; g < 4; g++) { x.beginPath(); x.moveTo(g * S / 4, 0); x.lineTo(g * S / 4, S); x.moveTo(0, g * S / 4); x.lineTo(S, g * S / 4); x.stroke(); }
+      x.beginPath(); x.moveTo(0, S); x.lineTo(S, 0); x.stroke();
+      var lut = PIX.lutCurve(curves[ch]);
+      x.strokeStyle = ch === "r" ? "#e5484d" : ch === "g" ? "#30a46c" : ch === "b" ? "#3e63dd" : getComputedStyle(document.documentElement).getPropertyValue("--text").trim() || "#eee";
+      x.lineWidth = 2; x.beginPath(); for (var k = 0; k < 256; k++) { if (k) x.lineTo(k, S - lut[k]); else x.moveTo(k, S - lut[k]); } x.stroke();
+      curves[ch].forEach(function (q) { x.beginPath(); x.arc(q[0], S - q[1], 4.5, 0, Math.PI * 2); x.fillStyle = "#fff"; x.fill(); x.strokeStyle = "#000"; x.lineWidth = 1.2; x.stroke(); });
+    }
+    function at(e) { var r = c.getBoundingClientRect(); return [PE.clamp((e.clientX - r.left) / r.width * 255, 0, 255), PE.clamp(255 - (e.clientY - r.top) / r.height * 255, 0, 255)]; }
+    c.addEventListener("pointerdown", function (e) {
+      var q = at(e), pts = curves[ch], best = -1, bd = 1e9;
+      pts.forEach(function (pp, i) { var dd = Math.hypot(pp[0] - q[0], pp[1] - q[1]); if (dd < bd) { bd = dd; best = i; } });
+      if (bd > 12) { if (pts.length >= 14) return; var nx = Math.round(q[0]); if (pts.some(function (pp) { return pp[0] === nx; })) return; pts.push([nx, Math.round(q[1])]); pts.sort(function (a, b) { return a[0] - b[0]; }); best = pts.findIndex(function (pp) { return pp[0] === nx; }); }
+      drag = best; c.setPointerCapture(e.pointerId); draw(); onChange();
+    });
+    c.addEventListener("pointermove", function (e) {
+      if (drag < 0) return; var q = at(e), pts = curves[ch], lo = drag > 0 ? pts[drag - 1][0] + 1 : 0, hi = drag < pts.length - 1 ? pts[drag + 1][0] - 1 : 255;
+      pts[drag] = [Math.round(PE.clamp(q[0], lo, hi)), Math.round(q[1])]; draw(); onChange();
+    });
+    c.addEventListener("pointerup", function () { drag = -1; });
+    c.addEventListener("dblclick", function (e) { var q = at(e), pts = curves[ch]; if (pts.length <= 2) return; var i = pts.findIndex(function (pp) { return Math.hypot(pp[0] - q[0], pp[1] - q[1]) < 12; }); if (i >= 0) { pts.splice(i, 1); draw(); onChange(); } });
+    el.appendChild(K.seg("Channel", [["rgb", "RGB"], ["r", "Red"], ["g", "Green"], ["b", "Blue"]], ch, function (v) { ch = v; draw(); }));
+    el.appendChild(c);
+    el.appendChild(h("div", { "class": "row pe-arow" }, [h("span", { "class": "faint", text: "Drag points; click to add; double-click to remove." }), K.btn("Reset", function () { curves[ch] = [[0, 0], [255, 255]]; draw(); onChange(); }, "ghost small")]));
+    draw();
+    return { redraw: draw };
+  };
+
   // ---------- reduced-size previews ----------
   // Big layers are previewed at about screen resolution (at least ~1.5 MP), so sliders stay responsive.
   function proxyScale(w, hh, mp) {      // mp: preview size in pixels for very heavy ops (spec.mp)

@@ -23,7 +23,8 @@
     var out = PIX.A.devDefaults();
     Object.keys(out).forEach(function (k) {
       var v = src[k];
-      if (Array.isArray(out[k])) { if (Array.isArray(v)) out[k] = out[k].map(function (d0, i) { var x = +v[i]; return isFinite(x) ? x : d0; }); }
+      if (k === "curve") { if (v && typeof v === "object") ["rgb", "r", "g", "b"].forEach(function (c) { var a = v[c]; if (Array.isArray(a) && a.length >= 2 && a.length <= 16) out.curve[c] = a.map(function (q) { return [Math.max(0, Math.min(255, Math.round(+q[0] || 0))), Math.max(0, Math.min(255, Math.round(+q[1] || 0)))]; }); }); }
+      else if (Array.isArray(out[k])) { if (Array.isArray(v)) out[k] = out[k].map(function (d0, i) { var x = +v[i]; return isFinite(x) ? x : d0; }); }
       else if (isFinite(+v) && v !== null && v !== "") out[k] = +v;
     });
     return out;
@@ -79,6 +80,17 @@
       el.textContent = "";
       el.appendChild(presetRow());
       sec("basic", "Basic", function (b) {
+        var wbB = K.btn("Pick neutral", function () {
+          AUI.pick(function (pt) {
+            var im = st.t.img, x0 = Math.floor(pt.x - st.t.r.x), y0 = Math.floor(pt.y - st.t.r.y), s3 = [0, 0, 0], c = 0;
+            for (var yy = y0 - 2; yy <= y0 + 2; yy++) for (var xx = x0 - 2; xx <= x0 + 2; xx++) { if (xx < 0 || yy < 0 || xx >= im.width || yy >= im.height) continue; var j = (yy * im.width + xx) * 4; s3[0] += im.data[j]; s3[1] += im.data[j + 1]; s3[2] += im.data[j + 2]; c++; }
+            if (!c) return;
+            var wb = PIX.A.devNeutral(s3[0] / c, s3[1] / c, s3[2] / c); p.temp = wb.temp; p.tint = wb.tint; build(); st.schedule();
+          }, wbB);
+        }, "ghost", null, "Click something that should be neutral grey or white");
+        wbB.setAttribute("aria-pressed", "false"); wbB.classList.add("pe-apick");
+        var autoB = K.btn("Auto", function () { Object.assign(p, PIX.A.devAuto(st.src, null)); build(); st.schedule(); }, "ghost", null, "Suggested exposure, contrast, highlights, shadows, whites and blacks");
+        b.appendChild(h("div", { "class": "row pe-arow" }, [wbB, autoB]));
         b.appendChild(group("White balance")); rng(b, "Temperature", "temp", -100, 100, 1); rng(b, "Tint", "tint", -100, 100, 1);
         b.appendChild(group("Tone")); rng(b, "Exposure", "exposure", -5, 5, 0.05, function (v) { return (v > 0 ? "+" : "") + v.toFixed(2) + " EV"; });
         ["Contrast:contrast", "Highlights:highlights", "Shadows:shadows", "Whites:whites", "Blacks:blacks"].forEach(function (s) { var a = s.split(":"); rng(b, a[0], a[1], -100, 100, 1); });
@@ -86,8 +98,10 @@
         ["Texture:texture", "Clarity:clarity", "Dehaze:dehaze", "Vibrance:vibrance", "Saturation:saturation"].forEach(function (s) { var a = s.split(":"); rng(b, a[0], a[1], -100, 100, 1); });
       });
       sec("curve", "Tone curve", function (b) {
-        b.appendChild(h("p", { "class": "faint pe-p", text: "Lift or lower four tonal regions." }));
+        b.appendChild(group("Regions"));
         [["Highlights", "tcHigh"], ["Lights", "tcLight"], ["Darks", "tcDark"], ["Shadows", "tcShadow"]].forEach(function (a) { rng(b, a[0], a[1], -100, 100, 1); });
+        b.appendChild(group("Point curve"));
+        AUI.curveEditor(b, p.curve, function () { st.schedule(); }, st.src);
       });
       sec("mixer", "Colour mixer", function (b) {
         var which = st.devMix || "hslH", box = h("div", { "class": "stack pe-asecin" });

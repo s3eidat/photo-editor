@@ -40,12 +40,30 @@
 
   A.devDefaults = function () {
     return { temp: 0, tint: 0, exposure: 0, contrast: 0, highlights: 0, shadows: 0, whites: 0, blacks: 0, texture: 0, clarity: 0, dehaze: 0, vibrance: 0, saturation: 0,
-      tcHigh: 0, tcLight: 0, tcDark: 0, tcShadow: 0,
+      tcHigh: 0, tcLight: 0, tcDark: 0, tcShadow: 0, curve: { rgb: [[0, 0], [255, 255]], r: [[0, 0], [255, 255]], g: [[0, 0], [255, 255]], b: [[0, 0], [255, 255]] },
       hslH: [0, 0, 0, 0, 0, 0, 0, 0], hslS: [0, 0, 0, 0, 0, 0, 0, 0], hslL: [0, 0, 0, 0, 0, 0, 0, 0],
       cgShadow: [0, 0, 0], cgMid: [0, 0, 0], cgHigh: [0, 0, 0], cgGlobal: [0, 0, 0], cgBlend: 50, cgBalance: 0,
       sharpen: 0, sharpRadius: 1, sharpDetail: 25, sharpMask: 0, nrLum: 0, nrColor: 0,
       distort: 0, caRed: 0, caBlue: 0, vignette: 0, vigMid: 50, vigRound: 0, vigFeather: 50,
       grain: 0, grainSize: 25, grainRough: 50 };
+  };
+
+  // White balance that makes a sampled colour (0..255 sRGB) neutral: inverse of the temp / tint gains above.
+  A.devNeutral = function (r, g, b) {
+    var R = Math.max(1e-4, A.S2L[r | 0]), Gg = Math.max(1e-4, A.S2L[g | 0]), B = Math.max(1e-4, A.S2L[b | 0]);
+    return { temp: clamp(Math.round(Math.log2(B / R) / 1.4 * 100), -100, 100), tint: clamp(Math.round(-Math.log2(Math.sqrt(R * B) / Gg) / 0.45 * 100), -100, 100) };
+  };
+  // Suggested basic settings from the image's luminance histogram (exposure to a mid median, whites / blacks to
+  // the ends, highlights / shadows when much of the image sits near them).
+  A.devAuto = function (img, sel) {
+    var H = A.hists(img, sel).l, tot = 0, i; for (i = 0; i < 256; i++) tot += H[i];
+    if (!tot) return {};
+    function pct(f) { var acc = 0; for (var k = 0; k < 256; k++) { acc += H[k]; if (acc >= tot * f) return k; } return 255; }
+    var med = pct(0.5), lo = pct(0.005), hi = pct(0.995), dark = 0, bright = 0;
+    for (i = 0; i < 40; i++) dark += H[i]; for (i = 216; i < 256; i++) bright += H[i];
+    var ev = clamp(Math.log2(A.S2L[118] / Math.max(1e-4, A.S2L[med])) * 0.7, -2, 2);
+    return { exposure: Math.round(ev * 20) / 20, contrast: clamp(Math.round((150 - (hi - lo)) / 6), -20, 25), whites: clamp(Math.round((250 - hi) / 2), -30, 40), blacks: clamp(Math.round((5 - lo) / 2), -40, 20),
+      highlights: -clamp(Math.round(bright / tot * 300), 0, 60), shadows: clamp(Math.round(dark / tot * 250), 0, 60), vibrance: 10 };
   };
 
   // ---------- lens: distortion + lateral chromatic aberration (resample, per channel) ----------
@@ -140,6 +158,18 @@
         if (y0 > 0.02) { var kk = ynew / y0; R[q] *= kk; Gc[q] *= kk; B[q] *= kk; } else { var ad = ynew - y0; R[q] += ad; Gc[q] += ad; B[q] += ad; }
         Y[q] = ynew;
       }
+    }
+
+    // point curve (master + per channel), in display space with interpolation between table entries
+    var cv = p.curve || {}, isId = function (pts) { return !Array.isArray(pts) || pts.length < 2 || pts.every(function (q) { return q[0] === q[1]; }) && pts.length === 2 && pts[0][0] === 0 && pts[1][0] === 255; };
+    if (!(isId(cv.rgb) && isId(cv.r) && isId(cv.g) && isId(cv.b))) {
+      var LM = PIX.lutCurve(isId(cv.rgb) ? null : cv.rgb), LR = PIX.lutCurve(isId(cv.r) ? null : cv.r), LG = PIX.lutCurve(isId(cv.g) ? null : cv.g), LB = PIX.lutCurve(isId(cv.b) ? null : cv.b);
+      var T3 = [new Float32Array(257), new Float32Array(257), new Float32Array(257)];
+      for (var z2 = 0; z2 < 256; z2++) { T3[0][z2] = LM[LR[z2]] / 255; T3[1][z2] = LM[LG[z2]] / 255; T3[2][z2] = LM[LB[z2]] / 255; }
+      T3.forEach(function (T) { T[256] = T[255]; });
+      var look = function (T, v) { if (v <= 0) return T[0] + v; if (v >= 1) return T[255] + (v - 1); var f = v * 255, k = f | 0, t2 = f - k; return T[k] + (T[k + 1] - T[k]) * t2; };
+      for (q = 0; q < n; q++) { R[q] = look(T3[0], R[q]); Gc[q] = look(T3[1], Gc[q]); B[q] = look(T3[2], B[q]); }
+      lum();
     }
 
     // presence: texture (fine detail), clarity (midtone local contrast)

@@ -210,6 +210,13 @@
     ok(hx.join() === "0,255,255" && hb.join() === "255,0,0", "HSB to channels and back");
     var shk = run(gray(10, 10, function () { return 120; }), "shakeReduction", { length: 5 }, null, 10, 10); ok(near(get(shk, 55)[0], 120, 2), "shake reduction keeps a flat area");
     var shp = PIX.A.shapeTaps("heart", 40); ok(shp.length >= 30, "shape blur taps fill the shape");
+
+    // develop: point curve, white-balance picker, auto
+    var dc = get(run([[128, 128, 128]], "develop", Object.assign(PIX.A.devDefaults(), { curve: { rgb: [[0, 0], [128, 192], [255, 255]], r: [[0, 0], [255, 255]], g: [[0, 0], [255, 255]], b: [[0, 0], [255, 255]] } })), 0);
+    ok(near(dc[0], 192, 1.5), "develop point curve (" + dc + ")");
+    var wbp = PIX.A.devNeutral(200, 180, 140), wbi = get(run([[200, 180, 140]], "develop", Object.assign(PIX.A.devDefaults(), wbp)), 0);
+    ok(Math.max.apply(null, wbi) - Math.min.apply(null, wbi) <= 8, "white balance picker neutralises the colour (" + wbi + ")");
+    var au = PIX.A.devAuto(im([[20, 20, 20], [40, 40, 40], [60, 60, 60], [50, 50, 50]]), null); ok(au.exposure > 0, "develop auto brightens a dark image");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };
