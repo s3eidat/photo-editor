@@ -92,6 +92,7 @@
     var tip = pr.s && pr.s.tip; if (tip && PP.tips[tip] && !PP.tips[tip].builtin && !USER.some(function (u) { return u.s.tip === tip; })) { delete PP.tips[tip]; PP.lib.del(tip).catch(function () {}); }
     PP.refreshPanel("brushes");
   }
+  PP.deletePreset = deletePreset;
   // Save a new sampled tip + a preset using it
   function addTip(name, w, hh, gray, spacing) {
     var id = PE.uid("tip"); tipFromGray(id, name, w, hh, gray);
@@ -101,6 +102,15 @@
     return pr;
   }
   PP.addTip = addTip;
+  // For library import: a tip without a preset (returns its new id), and a preset from settings.
+  PP.importTip = function (name, w, hh, gray) { var id = PE.uid("tip"); tipFromGray(id, name, w, hh, gray); PP.lib.put({ id: id, kind: "tip", name: name, w: w, h: hh, data: gray }).catch(function () {}); return id; };
+  PP.addPreset = function (name, s) {
+    var clean = {}; Object.keys(s || {}).forEach(function (k) { if (SAFE.indexOf(k) >= 0 && typeof s[k] === typeof PP.BDEF[k]) clean[k] = s[k]; });
+    PP.clampBrush(clean); if (clean.tip && !PP.tips[clean.tip]) clean.tip = "";
+    var pr = { id: PE.uid("p"), name: String(name || "Brush").slice(0, 60), s: clean }; USER.push(pr);
+    PP.lib.put({ id: pr.id, kind: "brush", name: pr.name, s: clean, order: Date.now() }).catch(function () {}); PP.refreshPanel("brushes");
+    return pr;
+  };
 
   // ---------- thumbnails ----------
   var THUMB = new Map();

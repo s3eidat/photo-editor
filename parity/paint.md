@@ -48,3 +48,4 @@ Worker jobs lock the canvas and are dropped if the document changed; layer growt
 | Colour panel | done | Paint panel › Colour: foreground / background, HSB or RGB sliders with live colour tracks, hex, spectrum strip to click |
 | Brush cursor shows the tip | done | sampled tips are drawn (tinted, rotated, flipped, roundness) under the cursor |
 | Live gradient preview | done | while dragging, a low-resolution preview (selection-clipped, at the tool's opacity) is drawn over the canvas |
+| Paint library backup | done | Edit › Export / Import paint library: one .s3paint file (zip + JSON + PNG) with your presets and their tips, patterns, gradients and swatches; every field and image is checked and clamped on import |

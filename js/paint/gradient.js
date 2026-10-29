@@ -143,6 +143,13 @@
   };
   function setGradient(g) { o.g = cleanG(PE.clone(g)); ED.saveOpts(); if (ED.tool === "gradient") ED.ui.buildOpts(); PP.refreshPanel("gradients"); }
   PP.setGradient = setGradient;
+  PP.gradients = function () { return BUILTIN.concat(USER); };
+  PP.removeGradient = function (id) { USER = USER.filter(function (g) { return g.id !== id; }); PP.lib.del(id).catch(function () {}); PP.refreshPanel("gradients"); };
+  PP.addGradient = function (g) {
+    var p = cleanG(g); if (!p) return null; p.id = PE.uid("g"); USER.push(p);
+    PP.lib.put(Object.assign({}, p, { kind: "gradient", gkind: p.kind, order: Date.now() })).catch(function () {}); PP.refreshPanel("gradients");
+    return p;
+  };
 
   // ---------- gradient editor ----------
   function editor() {

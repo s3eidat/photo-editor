@@ -57,6 +57,7 @@
     return list.filter(function (s) { return s && PE.hex(s.c, null); }).slice(0, 2000).map(function (s) { return { c: PE.hex(s.c, "#000000"), n: String(s.n || "").replace(/[\u0000-\u001f]/g, " ").slice(0, 60) }; });
   }
   PP.swatches = function () { return load(); };
+  PP.addSwatches = function (list) { return load().then(function () { var c = clean(list); SW = SW.concat(c); return save().then(function () { PP.refreshPanel("swatches"); return c.length; }); }); };
   PP.addSwatch = function (hex, name) {
     return load().then(function () { SW.push({ c: PE.hex(hex, "#000000"), n: name || "" }); return save(); }).then(function () { PP.refreshPanel("swatches"); S3.toast("Added " + hex + " to the swatches"); });
   };
