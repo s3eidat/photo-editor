@@ -5,6 +5,10 @@
   "use strict";
   var PE = window.PE, PIX = window.PIX, ED = PE.ed, PP = PE.paint, K = ED.ui.kit, h = S3.h;
 
+  PP.icons({
+    "t-spot": [["rect", { x: "2.5", y: "8.6", width: "19", height: "6.8", rx: "3.4", transform: "rotate(-45 12 12)" }], "M10.6 10.6h.01M13.4 13.4h.01M13.4 10.6h.01M10.6 13.4h.01", "M18.5 2.5v3M17 4h3"]
+  });
+
   // Fill the hole of canvas cv (local coords). mask: Uint8Array cv-sized (>0 = hole, value = blend).
   // opts: {expand px, adapt (match the tone along the edge), quality 1..3, avoid: Uint8Array cv-sized, bbox}
   // Resolves to {rect, img} with the new pixels of rect (ImageData).
@@ -96,4 +100,54 @@
     e.preventDefault(); e.stopImmediatePropagation(); fillDialog();
   }, true);
 
+  // ---------- spot healing brush ----------
+  PP.addTool("spot", "Spot healing brush", "J", "eyedropper", null);
+  PP.engineTool("spot", {
+    label: "Spot healing brush", fill: "color", sym: false, mask: false, noBuildup: true,
+    begin: function (st) { st.fg = [70, 70, 90]; st.o.fgbgJ = st.o.hueJ = st.o.satJ = st.o.briJ = st.o.purity = 0; st.o.op = 1; },
+    preview: function (st) {
+      var lc = PE.cx2(st.live); lc.globalCompositeOperation = "copy"; lc.drawImage(st.holder.canvas, 0, 0);
+      lc.globalCompositeOperation = "source-over"; lc.globalAlpha = 0.55; lc.drawImage(st.buf, 0, 0); lc.globalAlpha = 1; PE.touch(st.live);
+      return { canvas: st.live, x: st.ox, y: st.oy };
+    },
+    commit: function (st, label) {
+      var bb = st.bbox && PE.inter(PE.rectI(st.bbox), { x: 0, y: 0, w: st.w, h: st.h });
+      if (!bb) { ED.stroke = null; ED.push(st.grow); ED.changed(); return; }
+      var md = PE.getData(st.buf, bb).data, m = new Uint8Array(st.w * st.h);
+      for (var y = 0; y < bb.h; y++) for (var x = 0; x < bb.w; x++) { var a = md[(y * bb.w + x) * 4 + 3]; if (a) m[(y + bb.y) * st.w + x + bb.x] = Math.min(255, a * 2); }
+      var job = st.o.type === "proximity" ? proximity(st.holder.canvas, m, bb) : PP.fillHole(st.holder.canvas, m, { bbox: bb, expand: 1, adapt: true, quality: 2 });
+      ED.working(job, "Healing…").then(function (res) {
+        var e = PE.editPixels(ED.doc, label, st.holder, "canvas", res.rect, function (c) { c.putImageData(res.img, res.rect.x, res.rect.y); });
+        ED.stroke = null; ED.push(PE.compound(label, [st.grow, e]));
+      }).catch(function (err) { ED.stroke = null; ED.push(st.grow); ED.changed(); S3.toast(err.message, "error"); });
+    }
+  }, { size: 30, hard: 0.6, type: "content", sizeC: "off" });
+  PP.group("J", ["spot", "heal"]);
+  PP.optsFor.spot = function (items) {
+    var o = ED.o.spot;
+    return PP.brushBar("spot", items, [K.seg("Type", [["content", "Content-aware"], ["proximity", "Proximity match"]], o.type, function (v) { o.type = v; ED.saveOpts(); })],
+      "Paint over a spot or a small object, a little larger than it. It is replaced from the texture around it.", { noOp: true, noFlow: true, noSym: true });
+  };
+  // Proximity match: copy the best-matching nearby patch (judged on the ring around the stroke), then heal.
+  function proximity(cv, m, bb) {
+    var W = cv.width, H = cv.height, pad = Math.max(4, Math.round(Math.max(bb.w, bb.h) * 0.25)), R = PE.inter({ x: bb.x - pad, y: bb.y - pad, w: bb.w + 2 * pad, h: bb.h + 2 * pad }, { x: 0, y: 0, w: W, h: H });
+    var dst = PE.getData(cv, R), ring = [], x, y, best = null, bd = Infinity;
+    for (y = 0; y < R.h; y += 2) for (x = 0; x < R.w; x += 2) if (!m[(y + R.y) * W + x + R.x]) ring.push(y * R.w + x);
+    var step = Math.max(bb.w, bb.h) + pad, cands = [];
+    for (var ring2 = 1; ring2 <= 2; ring2++) for (var a = 0; a < 16; a++) { var t = a / 16 * Math.PI * 2; cands.push({ x: Math.round(Math.cos(t) * step * ring2), y: Math.round(Math.sin(t) * step * ring2) }); }
+    var all = PE.getData(cv).data;
+    cands.forEach(function (o) {
+      if (R.x + o.x < 0 || R.y + o.y < 0 || R.x + o.x + R.w > W || R.y + o.y + R.h > H) return;
+      var s = 0;
+      for (var i = 0; i < ring.length && s < bd; i++) {
+        var p = ring[i], px = p % R.w, py = (p - px) / R.w, a1 = (py * R.w + px) * 4, b1 = ((py + R.y + o.y) * W + px + R.x + o.x) * 4;
+        var e0 = dst.data[a1] - all[b1], e1 = dst.data[a1 + 1] - all[b1 + 1], e2 = dst.data[a1 + 2] - all[b1 + 2]; s += e0 * e0 + e1 * e1 + e2 * e2;
+      }
+      if (s < bd) { bd = s; best = o; }
+    });
+    if (!best) return PP.fillHole(cv, m, { bbox: bb, expand: 1 });
+    var srcC = PE.mk(R.w, R.h); PE.cx2(srcC).drawImage(cv, -(R.x + best.x), -(R.y + best.y));
+    var sm = new Uint8Array(R.w * R.h); for (y = 0; y < R.h; y++) for (x = 0; x < R.w; x++) sm[y * R.w + x] = m[(y + R.y) * W + x + R.x];
+    return PE.work("heal", [{ data: dst.data, width: R.w, height: R.h }, PE.getData(srcC), sm]).then(function (res) { return { rect: R, img: new ImageData(new Uint8ClampedArray(res.data), R.w, R.h) }; });
+  }
 })();
