@@ -436,7 +436,8 @@
       c.globalAlpha = op; c.globalCompositeOperation = "destination-out"; drawImg(c, I);
       c.globalAlpha = op * st.maskV; c.globalCompositeOperation = "lighter"; drawImg(c, I);
     } else {
-      c.globalAlpha = op; c.globalCompositeOperation = st.spec.fill === "erase" ? "destination-out" : "source-over"; drawImg(c, I);
+      // a layer with locked transparency (selection lane's lockA) only takes paint where it already has pixels
+      c.globalAlpha = op; c.globalCompositeOperation = st.spec.fill === "erase" ? "destination-out" : st.L && st.L.lockA ? "source-atop" : "source-over"; drawImg(c, I);
     }
     c.restore();
   }
