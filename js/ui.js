@@ -985,7 +985,7 @@
     ED.emit("tool");
     ED.ready = restoreLast().then(function (ok) { if (!ok) renderEmpty(); return ok; });
   }
-  ED.adjKit = { MENUS: MENUS, QUICK: QUICK, field: field, range: range, check: check, seg: seg, select: select, btn: btn, modal: modal, svg: svg, need: need, K: K, histCanvas: histCanvas, adjTarget: adjTarget, commitAdjusted: commitAdjusted };   // lane:adjust
+  ED.adjKit = { MENUS: MENUS, QUICK: QUICK, SHORTCUTS: SHORTCUTS, field: field, range: range, check: check, seg: seg, select: select, btn: btn, modal: modal, svg: svg, need: need, K: K, histCanvas: histCanvas, adjTarget: adjTarget, commitAdjusted: commitAdjusted };   // lane:adjust
   ED.ui = { openAdjust: openAdjust, closeFloat: closeFloat, quick: quick, exportDialog: exportDialog, newDialog: newDialog, renderLayers: renderLayers, buildOpts: buildOpts, buildProps: buildProps, colors: colors, saveFile: saveFile, openFiles: openFiles, floatState: function () { return floatState; } };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
