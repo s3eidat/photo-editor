@@ -57,8 +57,7 @@ All marked `// lane:selection` (or `<!-- lane:selection -->`).
 Tried on 29 Oct by merging every lane branch onto this one in a scratch worktree:
 - Conflicts are only neighbouring hook lines in `index.html`, `js/ui.js`, `js/editor.js`, `js/core.js`: keep both sides.
   Script order that works: this lane's block right after `js/ui.js`, then paint, vector, files/workspace; the adjust lane loads after `app.js`.
-- With all lanes merged, the self-test passes except the files lane's "custom key runs the command and frees the old one":
-  it assumes nothing else defaults to `B`, but the paint lane adds pencil / colour replacement / mixer brush on `B` (files × paint, not this lane).
+- With all five lanes merged (re-checked 29 Oct, latest heads), `S3_SELFTEST()` returns true and this lane's end-to-end scripts run without console errors.
 - This lane renamed its Properties hook to `ED.ui.propsKind` because the vector lane uses `ED.ui.propsExt` as a list.
 - Adjustment layers accept any colour op in `ED.ADJ`: filters registered in the adjust lane's Filter menu (`PE.adjUI.FILTERS`), `proxy` specs and
   anything that fails a pixel-shuffle test are left out; specs with their own `ui(el, st)` get a "More settings…" dialog (live, Cancel restores).
