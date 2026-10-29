@@ -14,11 +14,18 @@
     return new Response(s.readable).arrayBuffer().then(function (ab) { return new Uint8Array(ab); });
   }
   var job = FX.worker("js/files/enc-worker.js", function (m) {
+    if (m.op === "indexed") return X.indexed(m);
+    if (m.op === "quantize") { var Q = window.FQUANT, q = Q.reduce(m.img, m.o), rgba = Q.toRGBA(q); return { data: rgba.data, width: rgba.width, height: rgba.height, pal: q.pal, transparent: q.transparent }; }
     if (m.op === "tiff") return E.tiff(m.img, m.o, function (u) { return zlib(u); });
     if (m.op === "bmp") return E.bmp(m.img, m.o);
     return E.readTiff(m.bytes, function (u) { return zlib(u, true); }, function (w, hh) { if (w * hh > m.maxPx || w > m.maxSide || hh > m.maxSide) throw new Error("This TIFF is too large (" + w + " × " + hh + ")"); });
   });
 
+  X.indexed = function (m) {      // quantise + encode (same code as the worker)
+    var Q = window.FQUANT, r = Q.reduce(m.img, m.o);
+    return m.fmt === "gif" ? Q.gif(r) : Q.png8(r, function (u) { return zlib(u); }, PE.crc32);
+  };
+  X.job = function (m, tr) { return job(m, tr); };
   // ---------- formats ----------
   function canEncode(mime) { try { return PE.mk(2, 2).toDataURL(mime).indexOf("data:" + mime) === 0; } catch (e) { return false; } }
   var F = X.formats = {
@@ -27,10 +34,12 @@
     webp: { label: "WebP", ext: "webp", mime: "image/webp", alpha: true, q: true, note: "Small, keeps transparency" },
     avif: { label: "AVIF", ext: "avif", mime: "image/avif", alpha: true, q: true, note: "Smallest, newer browsers" },
     tiff: { label: "TIFF", ext: "tif", mime: "image/tiff", alpha: true, note: "Lossless, for print and archives" },
-    bmp: { label: "BMP", ext: "bmp", mime: "image/bmp", alpha: true, note: "Uncompressed" }
+    bmp: { label: "BMP", ext: "bmp", mime: "image/bmp", alpha: true, note: "Uncompressed" },
+    png8: { label: "PNG-8", ext: "png", mime: "image/png", alpha: true, idx: true, note: "Up to 256 colours, small" },
+    gif: { label: "GIF", ext: "gif", mime: "image/gif", alpha: true, idx: true, note: "Up to 256 colours" }
   };
-  X.available = function () { return Object.keys(F).filter(function (k) { var f = F[k]; return k === "tiff" || k === "bmp" || k === "png" || (f.ok == null ? (f.ok = canEncode(f.mime)) : f.ok); }); };
-  var DEF = { fmt: "png", q: 0.9, scale: 1, trans: true, matte: "#ffffff", comp: "lzw", meta: "none", artist: "", copyright: "", smooth: true };
+  X.available = function () { return Object.keys(F).filter(function (k) { var f = F[k]; return k === "tiff" || k === "bmp" || k === "png" || f.idx || (f.ok == null ? (f.ok = canEncode(f.mime)) : f.ok); }); };
+  var DEF = { fmt: "png", q: 0.9, scale: 1, trans: true, matte: "#ffffff", comp: "lzw", meta: "none", artist: "", copyright: "", smooth: true, colors: 256, dither: "diffusion", palette: "adaptive" };
   X.settings = function () { var s = Object.assign({}, DEF, S3.store("pe-exportas") || {}); if (X.available().indexOf(s.fmt) < 0) s.fmt = "png"; return s; };
   function remember(st) { var k = {}; Object.keys(DEF).forEach(function (x) { k[x] = st[x]; }); S3.store("pe-exportas", k); quickLabel(); }
 
@@ -50,6 +59,11 @@
   // Encode a rendered canvas -> Promise<Blob>
   X.encode = function (c, st, doc) {
     var f = F[st.fmt], m = meta(st, doc || ED.doc), dpi = (doc || ED.doc || {}).dpi;
+    if (f.idx) {
+      var im = FX.imageData(c), ka = st.trans && hasAlpha(im.data);
+      return job({ op: "indexed", fmt: st.fmt, img: { data: im.data, width: im.width, height: im.height }, o: { kind: st.palette || "adaptive", colors: PE.clamp(Math.round(st.colors || 256), 2, 256), dither: st.dither || "none", keepAlpha: ka } }, [im.data.buffer])
+        .then(function (u8) { return new Blob([u8], { type: f.mime }); });
+    }
     if (st.fmt === "tiff" || st.fmt === "bmp") {
       var img = FX.imageData(c), alpha = f.alpha && st.trans && hasAlpha(img.data);
       return job({ op: st.fmt, img: { data: img.data, width: img.width, height: img.height }, o: { alpha: alpha, compression: st.comp, dpi: dpi, artist: m && m.artist, copyright: m && m.copyright, description: m && m.title } }, [img.data.buffer])
@@ -80,6 +94,10 @@
     fmtSel.addEventListener("change", function () { st.fmt = fmtSel.value; sync(); update(); });
     var qR = W.range("Quality", st.q, 0.05, 1, 0.01, function (v) { st.q = v; update(); }, W.pct);
     var comp = W.seg("Compression", [["none", "None"], ["lzw", "LZW"], ["zip", "ZIP"]], st.comp, function (v) { st.comp = v; update(); });
+    var colI = h("input", { type: "number", "class": "input", min: "2", max: "256", value: String(st.colors || 256) });
+    colI.addEventListener("change", function () { st.colors = PE.clamp(Math.round(+colI.value || 256), 2, 256); colI.value = st.colors; update(); });
+    var idxBox = h("div", { "class": "stack" }, [h("div", { "class": "pe-custom" }, [W.field("Colours", colI), W.select("Palette", [["adaptive", "Adaptive"], ["web", "Web"], ["uniform", "Uniform"], ["grey", "Greys"], ["bw", "Black & white"]], st.palette || "adaptive", function (v) { st.palette = v; update(); })]),
+      W.seg("Dither", [["none", "None"], ["diffusion", "Diffusion"], ["pattern", "Pattern"]], st.dither || "diffusion", function (v) { st.dither = v; update(); })]);
     var trans = W.check("Transparency", st.trans, function (v) { st.trans = v; sync(); update(); });
     var matte = h("input", { type: "color", value: PE.hex(st.matte, "#ffffff"), "aria-label": "Matte colour" });
     matte.addEventListener("input", function () { st.matte = matte.value; update(); });
@@ -102,12 +120,12 @@
     var metaNote = h("p", { "class": "faint pe-p" });
     function sync() {
       var f = F[st.fmt];
-      qR.hidden = !f.q; comp.hidden = st.fmt !== "tiff"; trans.hidden = !f.alpha; matteF.hidden = f.alpha && st.trans;
+      qR.hidden = !f.q; comp.hidden = st.fmt !== "tiff"; idxBox.hidden = !f.idx; trans.hidden = !f.alpha; matteF.hidden = f.alpha && st.trans;
       metaBox.hidden = st.meta !== "copyright";
       metaNote.textContent = st.meta === "none" ? "No metadata: camera, location and editing details are never written." : (st.fmt === "webp" || st.fmt === "avif" || st.fmt === "bmp") ? f.label + " files here carry no metadata; choose JPG, PNG or TIFF to include it." : "Writes the author and copyright into the file (XMP" + (st.fmt === "tiff" ? " and TIFF tags" : st.fmt === "png" ? " and PNG text" : "") + ").";
     }
     var right = h("div", { "class": "fx-side stack" }, [
-      h("label", { "class": "pe-of" }, [h("span", { text: "Format" }), fmtSel]), qR, comp, trans, matteF,
+      h("label", { "class": "pe-of" }, [h("span", { text: "Format" }), fmtSel]), qR, comp, idxBox, trans, matteF,
       h("h3", { text: "Image size" }), h("div", { "class": "pe-custom" }, [W.field("Width", wI), W.field("Height", hI), W.field("Percent", pI)]), presets, smooth, selChk,
       h("h3", { text: "Metadata" }), metaSeg, metaBox, metaNote]);
     var body = h("div", { "class": "fx-exp" }, [h("div", { "class": "fx-left" }, [pbox, h("div", { "class": "row fx-irow" }, [info, busy])]), right]);
@@ -121,7 +139,7 @@
     }, "primary", "i-download");
     var dlg = W.modal(selOnly ? "Export selection" : "Export as", body, [h("span", { "class": "faint", text: "Nothing is uploaded." }), h("span", { "class": "grow" }), W.btn("Cancel", function () { dlg.close(); }, "ghost"), go], true);
     dlg.el.querySelector(".pe-sheet").classList.add("fx-wide");
-    function sig() { return JSON.stringify([st.fmt, st.q, st.scale, st.trans, st.matte, st.comp, st.meta, st.artist, st.copyright, st.smooth, only]); }
+    function sig() { return JSON.stringify([st.fmt, st.q, st.scale, st.trans, st.matte, st.comp, st.meta, st.artist, st.copyright, st.smooth, only, st.colors, st.dither, st.palette]); }
     function draw() {
       var src = lastCanvas; if (!src) return;
       var bw = pbox.clientWidth || 400, bh = pbox.clientHeight || 300, k = fit ? Math.min(1, bw / src.width, bh / src.height) : 1;
@@ -139,7 +157,7 @@
           if (t !== token) return;
           lastBlob = { b: b, sig: key };
           info.textContent = c.width + " × " + c.height + " px · " + F[st.fmt].label + " · " + S3.fmtBytes(b.size);
-          var show = st.fmt === "tiff" ? Promise.resolve(c) : createImageBitmap(b).catch(function () { return c; });
+          var show = createImageBitmap(b).catch(function () { return c; });
           return show.then(function (bm) { if (t !== token) return; lastCanvas = bm; draw(); busy.textContent = ""; });
         }).catch(function (e) { if (t === token) { busy.textContent = ""; info.textContent = e.message; } });
       }, 0);
