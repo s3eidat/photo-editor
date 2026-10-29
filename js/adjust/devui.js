@@ -225,7 +225,20 @@
         var keep = list.filter(function (u) { return u.name !== name; }); if (keep.length === list.length) return;
         S3.store("pe-dev-presets", keep); build();
       }, "ghost icon", "i-trash", "Delete a saved preset");
-      return h("div", { "class": "row pe-arow pe-apresets" }, [sel, save, del]);
+      var lutB = K.btn("LUT", function () {
+        var txt = PIX.A.opToCube("Develop look", 33, "develop", JSON.parse(JSON.stringify(p)));
+        S3.download(new Blob([txt], { type: "text/plain" }), "develop-look.cube", "text/plain"); S3.toast("Saved the colour part of these settings as a .cube LUT");
+      }, "ghost icon", "i-download", "Export the colour settings (white balance, tone, curves, colour) as a 33-point .cube LUT");
+      var exp = K.btn("", function () { S3.download(new Blob([JSON.stringify({ format: "s3develop", version: 1, settings: cleanParams(p) })], { type: "application/json" }), "develop-settings.json", "application/json"); }, "ghost icon", "i-copy", "Save these settings to a file");
+      var impF = h("input", { type: "file", accept: ".json,application/json", hidden: true });
+      impF.addEventListener("change", function () {
+        var f = impF.files[0]; impF.value = ""; if (!f) return;
+        if (f.size > 4e6) { S3.toast("That file is too large", "error"); return; }
+        f.text().then(function (t) { var j = JSON.parse(t); if (!j || j.format !== "s3develop" || typeof j.settings !== "object") throw new Error("not a Develop settings file"); Object.assign(p, cleanParams(Object.assign(PIX.A.devDefaults(), j.settings))); build(); st.schedule(); S3.toast("Settings loaded"); })
+          .catch(function (e) { S3.toast("Could not read it: " + e.message, "error"); });
+      });
+      var imp = K.btn("", function () { impF.click(); }, "ghost icon", "i-upload", "Load settings from a file");
+      return h("div", { "class": "stack pe-asecin" }, [h("div", { "class": "row pe-arow pe-apresets" }, [sel]), h("div", { "class": "row pe-arow" }, [save, del, exp, imp, lutB, impF])]);
     }
     build();
     AUI.handles(st, function () { return localHandles(st); });

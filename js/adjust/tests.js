@@ -264,6 +264,12 @@
     var lg2 = run(gray(10, 10, function () { return 120; }), "lighting", { light: "point", x: 50, y: 50, intensity: 30, ambient: 0, bump: 0, lights: [{ light: "point", x: 50, y: 50, intensity: 30 }, { light: "point", x: 50, y: 50, intensity: 30 }], lightIdx: 0 }, null, 10, 10);
     var lg1 = run(gray(10, 10, function () { return 120; }), "lighting", { light: "point", x: 50, y: 50, intensity: 30, ambient: 0, bump: 0 }, null, 10, 10);
     ok(get(lg2, 55)[0] > get(lg1, 55)[0] + 20, "lighting: two lights add up");
+
+    // .3dl import, LUT export round trip
+    var t3 = "0 1023\n"; for (var r3 = 0; r3 < 2; r3++) for (var g3 = 0; g3 < 2; g3++) for (var b3 = 0; b3 < 2; b3++) t3 += (b3 * 1023) + " " + (g3 * 1023) + " " + (r3 * 1023) + "\n";
+    var L3 = PIX.A.parse3dl(t3); ok(L3.n === 2 && lk(L3, [10, 128, 250]).join() === "250,128,10", ".3dl import (blue fastest, 10-bit)");
+    var cube = PIX.A.opToCube("t", 9, "develop", Object.assign(PIX.A.devDefaults(), { exposure: 1 })), Lc = PIX.A.parseCube(cube), lc1 = lk(Lc, [128, 128, 128]), dv1 = get(run([[128, 128, 128]], "develop", Object.assign(PIX.A.devDefaults(), { exposure: 1 })), 0);
+    ok(Lc.n === 9 && near(lc1[0], dv1[0], 3), "develop look exported as .cube (" + lc1[0] + " vs " + dv1[0] + ")");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };

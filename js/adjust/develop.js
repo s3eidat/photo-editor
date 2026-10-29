@@ -129,7 +129,8 @@
   A.reg("develop", function (img, p, sel) {
     var w = img.width, h = img.height, n = w * h, d = img.data, diag = Math.sqrt(w * w + h * h), i, q, PS = clamp(num(p._scale, 1), 0.01, 1);
     var before = sel ? PIX.copyImg(img) : null;
-    var dist = n100(p.distort), caR = n100(p.caRed), caB = n100(p.caBlue);
+    var PW = !!p._pointwise;      // LUT export: colour-only stages
+    var dist = PW ? 0 : n100(p.distort), caR = PW ? 0 : n100(p.caRed), caB = PW ? 0 : n100(p.caBlue);
     if (dist || caR || caB) lens(img, dist, caR, caB);
 
     // ---- linear light: white balance, exposure ----
@@ -140,7 +141,7 @@
     for (q = 0, i = 0; q < n; q++, i += 4) { R[q] = S2L[d[i]] * gr; Gc[q] = S2L[d[i + 1]] * gg; B[q] = S2L[d[i + 2]] * gb; }
 
     // ---- dehaze (linear): haze = smooth estimate of the darkest channel; remove (or add) it ----
-    var dh = n100(p.dehaze);
+    var dh = PW ? 0 : n100(p.dehaze);
     if (dh) {
       var dark = new Float32Array(n), Y0 = new Float32Array(n), hist = new Uint32Array(1024), amb = 0;
       for (q = 0; q < n; q++) { dark[q] = Math.min(R[q], Gc[q], B[q]); Y0[q] = 0.2126 * R[q] + 0.7152 * Gc[q] + 0.0722 * B[q]; }
@@ -175,7 +176,7 @@
     // ---- display space ----
     for (q = 0; q < n; q++) { R[q] = toDisp(R[q]); Gc[q] = toDisp(Gc[q]); B[q] = toDisp(B[q]); }
     // defringe: take the colour out of purple / green fringes next to strong edges
-    var dfp = clamp(num(p.defringePurple, 0), 0, 100) / 100, dfg = clamp(num(p.defringeGreen, 0), 0, 100) / 100;
+    var dfp = PW ? 0 : clamp(num(p.defringePurple, 0), 0, 100) / 100, dfg = PW ? 0 : clamp(num(p.defringeGreen, 0), 0, 100) / 100;
     if (dfp || dfg) {
       var Ye = new Float32Array(n); for (q = 0; q < n; q++) Ye[q] = 0.2126 * R[q] + 0.7152 * Gc[q] + 0.0722 * B[q];
       var Eg = new Float32Array(n);
@@ -193,7 +194,7 @@
     lum();
 
     // noise reduction: luminance through an edge-aware smoother, colour by blurring the chroma
-    var nl = clamp(num(p.nrLum, 0), 0, 100) / 100, nc = clamp(num(p.nrColor, 0), 0, 100) / 100;
+    var nl = PW ? 0 : clamp(num(p.nrLum, 0), 0, 100) / 100, nc = PW ? 0 : clamp(num(p.nrColor, 0), 0, 100) / 100;
     if (nl) {
       var base = A.guided(Y, Y, w, h, Math.max(1, Math.round((1 + nl * 3) * PS)), Math.pow(0.004 + nl * 0.05, 2)), Yn = new Float32Array(n);
       for (q = 0; q < n; q++) Yn[q] = Y[q] + (base[q] - Y[q]) * Math.min(1, nl * 1.5);
@@ -210,7 +211,7 @@
     var sh = n100(p.shadows), hl = n100(p.highlights), wv = n100(p.whites), bv = n100(p.blacks), ct = n100(p.contrast);
     var tc = [n100(p.tcShadow), n100(p.tcDark), n100(p.tcLight), n100(p.tcHigh)];
     if (sh || hl || wv || bv || ct || tc[0] || tc[1] || tc[2] || tc[3]) {
-      var Bs = sh || hl ? A.guided(Y, Y, w, h, Math.max(3, Math.round(diag * 0.015)), 0.012) : Y, Yt = new Float32Array(n);
+      var Bs = (sh || hl) && !PW ? A.guided(Y, Y, w, h, Math.max(3, Math.round(diag * 0.015)), 0.012) : Y, Yt = new Float32Array(n);
       for (q = 0; q < n; q++) {
         var y = Y[q], b0 = Bs[q], y1 = y;
         if (sh && b0 > 1e-4) {
@@ -247,7 +248,7 @@
     }
 
     // presence: texture (fine detail), clarity (midtone local contrast)
-    var tx = n100(p.texture), cl = n100(p.clarity);
+    var tx = PW ? 0 : n100(p.texture), cl = PW ? 0 : n100(p.clarity);
     if (tx || cl) {
       var Y2 = new Float32Array(Y);
       if (cl) {
@@ -304,7 +305,7 @@
     }
 
     // sharpening on luminance: amount, radius, detail (halo limit), masking (only edges)
-    var sa = clamp(num(p.sharpen, 0), 0, 150) / 100;
+    var sa = PW ? 0 : clamp(num(p.sharpen, 0), 0, 150) / 100;
     if (sa) {
       var sr = clamp(num(p.sharpRadius, 1), 0.5, 3) * PS, sd = clamp(num(p.sharpDetail, 25), 0, 100) / 100, sm = clamp(num(p.sharpMask, 0), 0, 100) / 100;
       var bl = A.blur(new Float32Array(Y), w, h, sr), lim = 0.02 + sd * 0.25, Ys = new Float32Array(n), em = null;
@@ -317,7 +318,7 @@
     }
 
     // local adjustments: linear / radial gradient masks, each with its own small set of settings
-    var LOC = Array.isArray(p.locals) ? p.locals.slice(0, 12) : [], showM = p.localShow != null ? +p.localShow : -1, maskShown = null;
+    var LOC = Array.isArray(p.locals) && !PW ? p.locals.slice(0, 12) : [], showM = p.localShow != null ? +p.localShow : -1, maskShown = null;
     if (LOC.length) {
       var Yl = null, Bl = null, Bc = null;
       LOC.forEach(function (L0, li) {
@@ -346,7 +347,7 @@
     }
 
     // vignette (midpoint, roundness, feather) and grain
-    var va = n100(p.vignette), ga = clamp(num(p.grain, 0), 0, 100) / 100, gn = null;
+    var va = PW ? 0 : n100(p.vignette), ga = PW ? 0 : clamp(num(p.grain, 0), 0, 100) / 100, gn = null;
     if (ga) {
       var gsz = (0.25 + clamp(num(p.grainSize, 25), 0, 100) / 100 * 2.2) * PS, rough = clamp(num(p.grainRough, 50), 0, 100) / 100, rnd = A.rng(4242);
       gn = new Float32Array(n);

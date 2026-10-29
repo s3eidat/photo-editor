@@ -71,6 +71,43 @@
     return { kind: "3d", n: n, data: d, min: [0, 0, 0], max: [1, 1, 1] };
   };
 
+
+  // .3dl (mesh header line of N input values, then N³ integer triples, blue changing fastest)
+  A.parse3dl = function (text) {
+    var rows = [], mesh = null;
+    String(text).split(/\r?\n/).forEach(function (ln, i) {
+      ln = ln.replace(/#.*/, "").trim(); if (!ln) return;
+      var t = ln.split(/\s+/).map(Number);
+      if (t.some(function (x) { return !isFinite(x); })) { if (/^[A-Za-z]/.test(ln)) return; throw new Error("Unexpected text on line " + (i + 1)); }
+      if (t.length !== 3 && !mesh && !rows.length) { mesh = t; return; }
+      if (t.length !== 3) throw new Error("Expected three numbers on line " + (i + 1));
+      rows.push(t);
+    });
+    if (!mesh) { var c1 = Math.round(Math.cbrt(rows.length - 1)); if (rows.length > 1 && c1 * c1 * c1 === rows.length - 1 && c1 === 3) mesh = rows.shift(); }   // a 3-entry mesh line looks like a colour
+    var N = mesh ? mesh.length : Math.round(Math.cbrt(rows.length));
+    if (N < 2 || N > 129 || rows.length !== N * N * N) throw new Error("Expected " + (N * N * N) + " colours, found " + rows.length);
+    var mx = 0; rows.forEach(function (r) { mx = Math.max(mx, r[0], r[1], r[2]); });
+    var depth = mx <= 1.0001 ? 1 : mx <= 1023 ? 1023 : mx <= 4095 ? 4095 : 65535, d = new Float32Array(N * N * N * 3);
+    for (var k = 0; k < rows.length; k++) {
+      var r = Math.floor(k / (N * N)), g = Math.floor(k / N) % N, b = k % N, o = ((b * N + g) * N + r) * 3;
+      d[o] = rows[k][0] / depth; d[o + 1] = rows[k][1] / depth; d[o + 2] = rows[k][2] / depth;
+    }
+    return { kind: "3d", n: N, data: d, min: [0, 0, 0], max: [1, 1, 1], title: "" };
+  };
+  // Write a 3D LUT as .cube text from f(r, g, b) -> [r, g, b] (0..1), N points per axis.
+  A.cubeText = function (title, N, f) {
+    var out = ["# Made with the S3eidat Photo Editor", "TITLE \"" + String(title || "Look").replace(/["\r\n]/g, "").slice(0, 60) + "\"", "LUT_3D_SIZE " + N, "DOMAIN_MIN 0 0 0", "DOMAIN_MAX 1 1 1"];
+    for (var b = 0; b < N; b++) for (var g = 0; g < N; g++) for (var r = 0; r < N; r++) { var o = f(r / (N - 1), g / (N - 1), b / (N - 1)); out.push(o[0].toFixed(6) + " " + o[1].toFixed(6) + " " + o[2].toFixed(6)); }
+    return out.join("\n") + "\n";
+  };
+  // Run a pixel op on every point of an N³ grid -> .cube text (only colour-only stages make sense).
+  A.opToCube = function (title, N, op, p) {
+    var n = N * N * N, img = { data: new Uint8ClampedArray(n * 4), width: N * N, height: N }, q = 0;
+    for (var b = 0; b < N; b++) for (var g = 0; g < N; g++) for (var r = 0; r < N; r++, q += 4) { img.data[q] = Math.round(r / (N - 1) * 255); img.data[q + 1] = Math.round(g / (N - 1) * 255); img.data[q + 2] = Math.round(b / (N - 1) * 255); img.data[q + 3] = 255; }
+    PIX.adjust(img, op, Object.assign({}, p, { _pointwise: true, _scale: 1 }), null);
+    var k = 0;
+    return A.cubeText(title, N, function () { var o = [img.data[k] / 255, img.data[k + 1] / 255, img.data[k + 2] / 255]; k += 4; return o; });
+  };
   // ---------- built-in looks ----------
   function lum(r, g, b) { return 0.2126 * r + 0.7152 * g + 0.0722 * b; }
   function sat(c, k) { var y = lum(c[0], c[1], c[2]); return [y + (c[0] - y) * k, y + (c[1] - y) * k, y + (c[2] - y) * k]; }

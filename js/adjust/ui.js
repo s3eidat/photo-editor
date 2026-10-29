@@ -481,7 +481,7 @@
   AUI.loadCube = function (file) {
     if (file.size > 25e6) return Promise.reject(new Error("That LUT file is too large (over 25 MB)"));
     return file.text().then(function (txt) {
-      var L = PIX.A.parseCube(txt), name = (L.title || file.name.replace(/\.cube$/i, "")).slice(0, 60) || "LUT";
+      var L = /\.3dl$/i.test(file.name) ? PIX.A.parse3dl(txt) : PIX.A.parseCube(txt), name = (L.title || file.name.replace(/\.(cube|3dl)$/i, "")).slice(0, 60) || "LUT";
       var it = { id: "f" + (LUTS.length + 1), name: name, packed: PIX.A.packLut(L) }; LUTS.push(it); return it;
     });
   };
@@ -491,14 +491,15 @@
     function opts() { return Object.keys(PIX.A.LOOKS).map(function (k) { return ["b:" + k, PIX.A.LOOKS[k][0]]; }).concat(LUTS.map(function (l) { return ["f:" + l.id, "File: " + l.name]; })); }
     function pick(v) { if (v.charAt(0) === "b") { p.look = v.slice(2); p.lut = null; } else { var l = LUTS.filter(function (x) { return "f:" + x.id === v; })[0]; if (l) { p.lut = l.packed; p.look = null; } } st.schedule(); }
     function draw(cur) { box.textContent = ""; box.appendChild(K.select("Look", opts(), cur, pick)); }
-    var file = h("input", { type: "file", accept: ".cube,text/plain", hidden: true });
+    var file = h("input", { type: "file", accept: ".cube,.3dl,text/plain", hidden: true });
     file.addEventListener("change", function () {
       var f = file.files[0]; file.value = ""; if (!f) return;
       AUI.loadCube(f).then(function (it) { draw("f:" + it.id); pick("f:" + it.id); S3.toast("Loaded “" + it.name + "” (" + it.packed.n + (it.packed.kind === "3d" ? "³" : "") + " points)"); })
         .catch(function (e) { S3.toast("Could not read that LUT: " + e.message, "error"); });
     });
     el.insertBefore(box, el.firstChild);
-    el.insertBefore(h("div", { "class": "row pe-arow" }, [K.btn("Load .cube file…", function () { file.click(); }, "ghost", "i-upload", "Load a 3D or 1D colour lookup table (.cube); it stays on this device"), file]), box.nextSibling);
+    el.insertBefore(h("div", { "class": "row pe-arow" }, [K.btn("Load .cube / .3dl…", function () { file.click(); }, "ghost", "i-upload", "Load a colour lookup table (.cube 3D or 1D, .3dl); it stays on this device"),
+      K.btn("Export .cube", function () { var nm = (p.lut ? "Loaded LUT" : PIX.A.LOOKS[p.look][0]); S3.download(new Blob([PIX.A.opToCube(nm, 33, "colorLookup", JSON.parse(JSON.stringify(p)))], { type: "text/plain" }), nm.replace(/[^\w -]+/g, "").trim().replace(/\s+/g, "-").toLowerCase() + ".cube", "text/plain"); }, "ghost", "i-download", "Save this look (with its amount) as a 33-point .cube file"), file]), box.nextSibling);
     draw("b:tealOrange");
   } });
   AUI.more("Colour lookup…", "colorLookup");
