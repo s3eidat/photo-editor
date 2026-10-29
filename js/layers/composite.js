@@ -76,6 +76,7 @@
   }
   SX.devRect = devRect;
 
+  var nesting = 0;      // a render started while another is running (e.g. a group's pixels) uses its own canvases
   PE.drawHook = function (ctx, doc, opts) {
     var sp = special(doc);
     if (!sp) return false;
@@ -88,7 +89,7 @@
   function makeR(ctx, doc, opts, sp) {
     var M = ctx.getTransform(), cv = ctx.canvas, region = PE.inter(devRect(M, { x: 0, y: 0, w: doc.w, h: doc.h }), { x: 0, y: 0, w: cv.width, h: cv.height });
     if (!region) return null;
-    var T = tree(doc), R = { doc: doc, opts: opts, M: M, region: region, tree: T, smooth: ctx.imageSmoothingEnabled, quality: ctx.imageSmoothingQuality, gpu: sp < 2 };
+    var T = tree(doc), R = { doc: doc, opts: opts, M: M, region: region, tree: T, smooth: ctx.imageSmoothingEnabled, quality: ctx.imageSmoothingQuality, gpu: sp < 2, pfx: "" };
     if (opts.only) {      // only these layers: a group in the list brings its contents; groups above them are pass-through containers
       var self = {}, anc = {};
       opts.only.forEach(function (id) { self[id] = 1; for (var p = T.byId[id] && T.parentOf(T.byId[id]); p; p = T.parentOf(p)) anc[p.id] = 1; });
@@ -98,6 +99,11 @@
     return R;
   }
   function run(R, ctx, list) {
+    R.pfx = nesting ? "n" + nesting + "-" : "";
+    nesting++;
+    try { run1(R, ctx, list); } finally { nesting--; }
+  }
+  function run1(R, ctx, list) {
     ctx.save();
     if (R.gpu) renderList(R, { c: ctx, ox: 0, oy: 0, d: 0 }, list);
     else {           // pixel work: build the picture in a CPU canvas, then hand it to the target in one draw
@@ -126,7 +132,7 @@
     var k = -1, i;
     for (i = 0; i < list.length; i++) if (needsPixels(list[i], R) || (list[i + 1] && list[i + 1].clip)) k = i;
     while (k >= 0 && k + 1 < list.length && list[k + 1].clip) k++;
-    if (k < 0 || list !== R.tree.roots) { renderList(R, root, list); return; }
+    if (k < 0 || list !== R.tree.roots || R.pfx) { renderList(R, root, list); return; }
     var M = R.M, rg = R.region, key = [M.a, M.b, M.c, M.d, M.e, M.f, rg.x, rg.y, rg.w, rg.h, R.doc.w, R.doc.h, R.smooth].join(",") + "#" + list.slice(0, k + 1).map(function (L) { return sig(L, R); }).join("\n");
     if (CACHE.key === key && CACHE.c) root.c.drawImage(CACHE.c, 0, 0);
     else {
@@ -200,7 +206,7 @@
   SX.posOf = posOf;
   // Render doc-space pixels into device rect rr; returns the RGBA bytes.
   function toDevice(R, P, rr, key) {
-    var t = pooled("dev-" + key, rr.w, rr.h, false), c = PE.cx2(t);
+    var t = pooled(R.pfx + "dev-" + key, rr.w, rr.h, false), c = PE.cx2(t);
     c.imageSmoothingEnabled = R.smooth; c.imageSmoothingQuality = R.quality;
     setT(c, { ox: rr.x, oy: rr.y }, R.M); if (P.m) c.transform(P.m[0], P.m[1], P.m[2], P.m[3], P.m[4], P.m[5]);
     c.drawImage(P.img, P.x, P.y);
@@ -209,7 +215,7 @@
   SX.toDevice = toDevice;
   // A full-region buffer for depth d (groups, clipping).
   function buffer(R, name, d) {
-    var b = pooled(name + d, R.region.w, R.region.h, R.gpu), c = PE.cx2(b);
+    var b = pooled(R.pfx + name + d, R.region.w, R.region.h, R.gpu), c = PE.cx2(b);
     c.imageSmoothingEnabled = R.smooth; c.imageSmoothingQuality = R.quality;
     return { c: c, ox: R.region.x, oy: R.region.y, d: d, canvas: b };
   }

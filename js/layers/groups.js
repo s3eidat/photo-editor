@@ -191,6 +191,16 @@
     if (L.kind === "group" && need === "pixels" && !(ED.maskEdit && L.mask)) { S3.toast("“" + L.name + "” is a group: pick a layer inside it to paint or adjust", "error"); return false; }
     return true;
   };
+  // Drawing: pass-through groups draw their members straight onto what is below; otherwise the members are
+  // composited in their own buffer (with the group mask) and the result blends with the group's mode and opacity.
+  SX.drawExt.group = function (R, tgt, G) {
+    var kids = R.tree.kids[G.id] || [], o = R.opts.over && R.opts.over[G.id], blend = G.blend === "pass" ? "normal" : G.blend;
+    if (o) { SX.compositeDoc(R, tgt, { img: o.canvas, x: o.x, y: o.y, m: o.m }, blend, G.opacity); return; }
+    if (R.container && R.container(G)) { SX.renderList(R, tgt, kids); return; }
+    if (G.blend === "pass" && G.opacity >= 1 && !(G.mask && G.maskOn)) { SX.renderList(R, tgt, kids); return; }
+    var b = SX.buffer(R, "grp", tgt.d + 1); SX.groupInto(R, b, G);
+    SX.compositeBuf(R, tgt, b, blend, G.opacity);
+  };
   // Pixels of a group (members composited, group mask applied, without the group's own opacity / blend). Cached.
   var GC = new WeakMap();
   function sigOf(G, t) {
@@ -317,5 +327,13 @@
     ok(og && og.blend === "pass" && od.layers.filter(function (L) { return L.parent === og.id; }).length === 2, "groups round-trip through projects");
     ED.setActive(G.id); SX.mergeGroup(G); ok(d.layers.length === 2 && d.layers[0].kind === "raster" && SX.px(d.layers[0].canvas, 3, 1)[0] === 255, "merge group");
     SX.picked = {};
+    // pass-through vs isolated blending, also when the picture is built in the CPU path (adjustment layer above)
+    var g2 = PE.newLayer("group", { name: "G", blend: "pass" }); g2.canvas = null;
+    var bgL = PE.rasterFromCanvas(SX.solid(2, 1, "#808080"), "bg"), red2 = PE.rasterFromCanvas(SX.solid(2, 1, "#ff0000"), "r"); red2.blend = "multiply"; red2.parent = g2.id;
+    var d2 = SX.scratch(2, 1, [bgL, red2, g2]);
+    ok(SX.px(PE.flatten(d2), 0, 0).join() === "128,0,0,255", "pass-through group: members blend with what is below");
+    g2.blend = "normal"; ok(SX.px(PE.flatten(d2), 0, 0).join() === "255,0,0,255", "normal group: members blend inside the group first");
+    g2.blend = "pass"; var inv = PE.newLayer("adjust", { name: "inv" }); inv.canvas = null; inv.adj = { op: "invert", p: {} }; d2.layers.push(inv);
+    ok(SX.px(PE.flatten(d2), 0, 0).join() === "127,255,255,255", "groups render right in the pixel path too");
   });
 })();
