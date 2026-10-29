@@ -336,3 +336,15 @@
     ED.maskEdit = false;
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, ED = PE.ed, PP = PE.paint;
+  PP.test("background eraser clean edges", function (ok) {
+    // an edge pixel that is half red object, half blue background
+    var s = PP.scratch(40, 20, "#0000ff"), c = PE.cx2(s.L.canvas); c.fillStyle = "#ff0000"; c.fillRect(30, 0, 10, 20); c.fillStyle = "rgb(128,0,128)"; c.fillRect(29, 0, 1, 20); PE.touch(s.L.canvas);
+    Object.assign(ED.o.bgerase, PP.BDEF, { size: 30, hard: 1, sample: "once", limits: "dis", tol: 45, protect: false, clean: true, sizeC: "off" });
+    PP.drive("bgerase", [{ x: 15, y: 10 }]);
+    var e = PP.px(s.L.canvas, 29, 10);
+    ok(PP.px(s.L.canvas, 10, 10)[3] === 0 && e[3] > 20 && e[3] < 240 && e[0] > 170 && e[2] < 90, "the half-blue edge keeps only its red, partly see-through (" + e + ")");
+  });
+})();

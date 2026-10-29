@@ -80,9 +80,16 @@
   PP.covTool("bgerase", {
     label: "Background eraser", fill: "color", mask: false,
     begin: function (st) { st.smp = null; st.o.op = 1; st.strength = 1; return true; },
-    perDab: LIMIT.perDab, weight: LIMIT.weight,
-    effect: function (st, px) { return [px[0], px[1], px[2], 0]; }
-  }, { size: 60, hard: 0.9, spacing: 15, sample: "cont", limits: "contig", tol: 50, protect: false });
+    perDab: LIMIT.perDab, weight: LIMIT.weight, keepSample: true,
+    effect: function (st, px) { return [px[0], px[1], px[2], 0]; },
+    // half-erased edge pixels lose the erased colour too (clean edges): C = c B + (1 - c) F, so F = (C - c B) / (1 - c)
+    mix: function (st, px, c, i, o, oq) {
+      var a = px[3] * (1 - c);
+      o[oq + 3] = a;
+      var B = st.o.clean ? PP.sampleOf(st, i) : null;
+      for (var k = 0; k < 3; k++) o[oq + k] = B && c < 0.98 ? PE.clamp((px[k] - c * B[k]) / (1 - c), 0, 255) : px[k];
+    }
+  }, { size: 60, hard: 0.9, spacing: 15, sample: "cont", limits: "contig", tol: 50, protect: false, clean: true });
   PP.addTool("bgerase", "Background eraser", "E", "eraser", ED.TOOLS.bgerase);
   PP.groups.forEach(function (g) { if (g.key === "E") g.ids.splice(1, 0, "bgerase"); });
   PP.optsFor.bgerase = function (items) {
@@ -91,7 +98,7 @@
       K.select("Sampling", [["cont", "Continuous"], ["once", "Once"], ["swatch", "Background colour"]], o.sample, function (v) { o.sample = v; sv(); }),
       K.select("Limits", [["contig", "Contiguous"], ["dis", "Discontiguous"]], o.limits, function (v) { o.limits = v; sv(); }),
       K.range("Tolerance", o.tol, 0, 100, 1, function (v) { o.tol = v; sv(); }, function (v) { return v + "%"; }),
-      K.check("Protect foreground colour", o.protect, function (v) { o.protect = v; sv(); })],
+      K.check("Protect foreground colour", o.protect, function (v) { o.protect = v; sv(); }), K.check("Clean edges", o.clean, function (v) { o.clean = v; sv(); })],
       "Keep the centre of the tip on the background: only colours like the one under it are erased.", { noOp: true, noFlow: true, noSym: true });
   };
 

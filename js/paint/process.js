@@ -55,7 +55,7 @@
   function covTile(st, i, make) {
     var x = i % st.w, y = (i - x) / st.w, ti = Math.floor(y / T) * st.tx + Math.floor(x / T), t = st.cov[ti];
     if (!t && make) t = st.cov[ti] = new Float32Array(T * T);
-    return t ? { t: t, j: (y % T) * T + (x % T) } : null;
+    return t ? { t: t, j: (y % T) * T + (x % T), ti: ti } : null;
   }
   function covGet(st, i) { var c = covTile(st, i, false); return c ? c.t[c.j] : 0; }
   // Render rect R of the result (orig blended towards the effect by coverage) into an ImageData.
@@ -66,12 +66,14 @@
       var i = (y + R.y) * W + x + R.x, q = i * 4, oq = (y * R.w + x) * 4, c = covGet(st, i) * k;
       if (c <= 0) { o[oq] = s[q]; o[oq + 1] = s[q + 1]; o[oq + 2] = s[q + 2]; o[oq + 3] = s[q + 3]; continue; }
       px[0] = s[q]; px[1] = s[q + 1]; px[2] = s[q + 2]; px[3] = s[q + 3];
+      if (st.spec.mix) { st.spec.mix(st, px, c, i, o, oq); continue; }
       var e = eff(st, px, i);
       o[oq] = s[q] + (e[0] - s[q]) * c; o[oq + 1] = s[q + 1] + (e[1] - s[q + 1]) * c; o[oq + 2] = s[q + 2] + (e[2] - s[q + 2]) * c; o[oq + 3] = s[q + 3] + (e[3] - s[q + 3]) * c;
     }
     return out;
   }
   PP.covRender = covRender;
+  PP.sampleOf = function (st, i) { var c = covTile(st, i, false); if (!c || !st.sampT || !st.sampT[c.ti]) return null; var a = st.sampT[c.ti]; return [a[c.j * 3], a[c.j * 3 + 1], a[c.j * 3 + 2]]; };
   function covTool(id, spec, defs) {
     spec.process = true; spec.mode = "cov";
     spec.begin = (function (inner) {
@@ -86,6 +88,9 @@
       dabEach(st, x, y, d, ang, rnd, a, function (i, w) {
         if (cond) { w *= cond(st, i); if (w <= 0) return; }
         var c = covTile(st, i, true); c.t[c.j] += w * (1 - c.t[c.j]);
+        if (spec.keepSample && st.cur) {      // the colour sampled when this pixel was erased (for clean edges)
+          var S = st.sampT || (st.sampT = []), a = S[c.ti] || (S[c.ti] = new Uint8Array(T * T * 3)); a[c.j * 3] = st.cur[0]; a[c.j * 3 + 1] = st.cur[1]; a[c.j * 3 + 2] = st.cur[2];
+        }
       });
     };
     spec.preview = function (st) {
