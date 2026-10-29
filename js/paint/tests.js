@@ -72,4 +72,14 @@
     pk.setWeb(false); pk.ok();
     ok(s.d.fg === "#0099ff" && !document.querySelector(".s3-modal"), "OK sets the foreground and closes");
   });
+  PP.test("palette files", function (ok) {
+    var list = [{ c: "#ff8000", n: "Orange" }, { c: "#123456", n: "" }, { c: "#000000", n: "Black ✓" }];
+    var back = PP.readAco(PP.writeAco(list));
+    ok(back.length === 3 && back[0].c === "#ff8000" && back[0].n === "Orange" && back[2].n === "Black ✓" && back[1].c === "#123456", "aco round trip (v2 names)");
+    var v1 = new Uint8Array([0, 1, 0, 1, 0, 1, 0, 0, 0x80, 0, 0xff, 0xff, 0, 0]);    // one HSB colour: h=0 s=50% b=100%
+    var r1 = PP.readAco(v1); ok(r1.length === 1 && /^#ff(7f7f|8080)$/.test(r1[0].c), "aco HSB colour (got " + (r1[0] && r1[0].c) + ")");
+    var g = PP.readGpl(PP.writeGpl(list, "t")); ok(g.length === 3 && g[0].c === "#ff8000" && g[0].n === "Orange", "gpl round trip");
+    ok(PP.readGpl("#aabbcc, #001122").length === 2, "plain hex lists");
+    var threw = false; try { PP.readAco(new Uint8Array([0, 9, 0, 1])); } catch (e) { threw = true; } ok(threw, "rejects a non-palette");
+  });
 })();
