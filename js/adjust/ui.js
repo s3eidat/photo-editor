@@ -107,6 +107,9 @@
     AUI.panelKeys = function (e) {
       if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); AUI.closePanel(false); return; }
       if (e.key === "Enter" && !ED.isTyping(e) && !(e.target && e.target.tagName === "BUTTON")) { e.preventDefault(); e.stopPropagation(); AUI.closePanel(true); return; }
+      if (e.key === "\\" && !ED.isTyping(e)) {        // before / after
+        var pv = $("#float .pe-ffoot input[type=checkbox]"); if (pv) { e.preventDefault(); e.stopPropagation(); pv.click(); return; }
+      }
       if (!ED.isTyping(e) && e.key !== "Tab") e.stopPropagation();     // no tool shortcuts while the panel is open
     };
     build(body);
@@ -247,6 +250,7 @@
         if (st.closed) return;
         sctx.putImageData(new ImageData(new Uint8ClampedArray(res.data), w, hh), 0, 0);
         st.shown = sig; show();
+        if (spec.onPreview) try { spec.onPreview(res, st); } catch (er) { console.error(er); }
       }).catch(function (e) { S3.toast(e.message, "error"); }).then(function () {
         st.busy = false; if (st.pn) st.pn.busy.textContent = "";
         if (st.again && !st.closed) run();

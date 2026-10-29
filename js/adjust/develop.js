@@ -108,6 +108,18 @@
     var R = Math.max(1e-4, A.S2L[r | 0]), Gg = Math.max(1e-4, A.S2L[g | 0]), B = Math.max(1e-4, A.S2L[b | 0]);
     return { temp: clamp(Math.round(Math.log2(B / R) / 1.4 * 100), -100, 100), tint: clamp(Math.round(-Math.log2(Math.sqrt(R * B) / Gg) / 0.45 * 100), -100, 100) };
   };
+  // Auto white balance: average of the mid-bright pixels (grey world, highlights and shadows left out) made neutral.
+  A.devAutoWB = function (img, sel) {
+    var d = img.data, s = [0, 0, 0], c = 0, step = Math.max(1, Math.floor(d.length / 4 / 200000)) * 4;
+    for (var i = 0; i < d.length; i += step) {
+      if (d[i + 3] < 128 || (sel && sel[i >> 2] < 128)) continue;
+      var l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; if (l < 30 || l > 235) continue;
+      s[0] += A.S2L[d[i]]; s[1] += A.S2L[d[i + 1]]; s[2] += A.S2L[d[i + 2]]; c++;
+    }
+    if (!c) return { temp: 0, tint: 0 };
+    var nb = A.devNeutral(A.l2s(s[0] / c), A.l2s(s[1] / c), A.l2s(s[2] / c));      // grey world over-corrects strong scenes: go 70% of the way
+    return { temp: clamp(Math.round(nb.temp * 0.7), -70, 70), tint: clamp(Math.round(nb.tint * 0.7), -70, 70) };
+  };
   // Suggested basic settings from the image's luminance histogram (exposure to a mid median, whites / blacks to
   // the ends, highlights / shadows when much of the image sits near them).
   A.devAuto = function (img, sel) {
@@ -386,6 +398,9 @@
       }
     }
 
+    if (p.clipView) for (q = 0; q < n; q++) {       // clipping warning (view only): red = blown highlights, blue = crushed shadows
+      if (R[q] >= 0.998 || Gc[q] >= 0.998 || B[q] >= 0.998) { R[q] = 1; Gc[q] = 0.1; B[q] = 0.1; } else if (R[q] <= 0.002 && Gc[q] <= 0.002 && B[q] <= 0.002) { R[q] = 0.1; Gc[q] = 0.35; B[q] = 1; }
+    }
     if (maskShown) for (q = 0; q < n; q++) { var mw = maskShown[q] * 0.6; R[q] += (1 - R[q]) * mw; Gc[q] *= 1 - mw; B[q] *= 1 - mw; }     // red overlay
     for (q = 0, i = 0; q < n; q++, i += 4) { d[i] = R[q] * 255; d[i + 1] = Gc[q] * 255; d[i + 2] = B[q] * 255; }
     return before ? PIX.mixSel(before, img, sel) : img;

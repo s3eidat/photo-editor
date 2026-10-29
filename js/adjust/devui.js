@@ -84,12 +84,16 @@
   };
 
   // ---------- the panel ----------
-  AUI.adj("develop", { t: "Develop", proxy: true, previewOnly: ["localShow"], ui: function (el, st) {
+  AUI.adj("develop", { t: "Develop", proxy: true, previewOnly: ["localShow", "clipView"], onPreview: drawHist, ui: function (el, st) {
     var p = st.p, K = kit(), open = { basic: true };
     Object.assign(p, PIX.A.devDefaults());
     AUI.wide();
+    var histC = h("canvas", { "class": "pe-acv pe-ahist", width: "256", height: "64", "aria-label": "Histogram of the result" });
+    st.devHist = histC;
     function build() {
       el.textContent = "";
+      el.appendChild(histC);
+      el.appendChild(h("div", { "class": "row pe-arow" }, [K.check("Show clipping", !!p.clipView, function (v) { p.clipView = v; st.schedule(); })]));
       el.appendChild(presetRow());
       sec("basic", "Basic", function (b) {
         var wbB = K.btn("Pick neutral", function () {
@@ -101,8 +105,9 @@
           }, wbB);
         }, "ghost", null, "Click something that should be neutral grey or white");
         wbB.setAttribute("aria-pressed", "false"); wbB.classList.add("pe-apick");
+        var awb = K.btn("Auto WB", function () { var wb = PIX.A.devAutoWB((st.src || st.t.img), null); p.temp = wb.temp; p.tint = wb.tint; build(); st.schedule(); }, "ghost", null, "Neutral white balance worked out from the picture");
         var autoB = K.btn("Auto", function () { Object.assign(p, PIX.A.devAuto((st.src || st.t.img), null)); build(); st.schedule(); }, "ghost", null, "Suggested exposure, contrast, highlights, shadows, whites and blacks");
-        b.appendChild(h("div", { "class": "row pe-arow" }, [wbB, autoB]));
+        b.appendChild(h("div", { "class": "row pe-arow" }, [wbB, awb, autoB]));
         b.appendChild(group("White balance")); rng(b, "Temperature", "temp", -100, 100, 1); rng(b, "Tint", "tint", -100, 100, 1);
         b.appendChild(group("Tone")); rng(b, "Exposure", "exposure", -5, 5, 0.05, function (v) { return (v > 0 ? "+" : "") + v.toFixed(2) + " EV"; });
         ["Contrast:contrast", "Highlights:highlights", "Shadows:shadows", "Whites:whites", "Blacks:blacks"].forEach(function (s) { var a = s.split(":"); rng(b, a[0], a[1], -100, 100, 1); });
@@ -260,6 +265,19 @@
     build();
     AUI.handles(st, function () { return localHandles(st); });
   } });
+  // RGB histogram of the latest preview (log scale, the three channels overlaid)
+  function drawHist(res, st) {
+    var c = st.devHist; if (!c) return;
+    var x = c.getContext("2d"), H = PIX.histogram(res), W = c.width, Hh = c.height, mx = 1, i;
+    ["r", "g", "b"].forEach(function (k) { for (i = 1; i < 255; i++) mx = Math.max(mx, H[k][i]); });
+    x.clearRect(0, 0, W, Hh); x.globalCompositeOperation = "lighter";
+    [["r", "rgba(229,72,77,.75)"], ["g", "rgba(48,164,108,.75)"], ["b", "rgba(62,99,221,.8)"]].forEach(function (cfg) {
+      x.fillStyle = cfg[1]; x.beginPath(); x.moveTo(0, Hh);
+      for (i = 0; i < 256; i++) x.lineTo(i * W / 255, Hh - Math.min(1, Math.log(1 + H[cfg[0]][i]) / Math.log(1 + mx)) * Hh);
+      x.lineTo(W, Hh); x.closePath(); x.fill();
+    });
+    x.globalCompositeOperation = "source-over";
+  }
   // on-canvas handles of the local adjustment being edited
   function localHandles(st) {
     var model = { handles: [] };
