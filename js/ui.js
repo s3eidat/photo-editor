@@ -167,6 +167,7 @@
       items.push(btn("Fit", function () { ED.fit(true); }, "ghost"), btn("100%", function () { ED.zoomAt(1); }, "ghost"));
       items.push(h("span", { "class": "pe-hint", text: "Click to zoom in, Alt+click to zoom out. " + K("Alt+wheel or Ctrl+wheel zooms anywhere.") }));
     } else if (t === "hand") items.push(h("span", { "class": "pe-hint", text: "Drag to pan. Hold Space with any tool. Double-click fits the screen." }));
+    (ED.ui.optsTail || []).forEach(function (f) { f(t, items); });   // lane:selection (lanes add tool options: f(tool, items))
     items.forEach(function (x) { bar.appendChild(x); });
   }
   function textLive(fn) {

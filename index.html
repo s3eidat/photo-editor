@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' data: blob:; connect-src 'self' data: blob:; worker-src 'self' blob:; manifest-src 'self'; form-action 'none'; base-uri 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' data: blob:; connect-src 'self' data: blob:; worker-src 'self' blob:; manifest-src 'self'; form-action 'none'; base-uri 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <title>Photo Editor — Free Online Layered Photo Editor, No Sign-up | S3eidat Tools</title>
 <meta name="description" content="A free layered photo editor in your browser: layers and masks, selections and magic wand, healing and clone stamp, levels, curves, hue/saturation, filters, text (Arabic too), PNG/JPG/WebP export. No ads, no sign-up, nothing uploaded.">
@@ -173,6 +173,7 @@
 <!-- lane:selection -->
 <script src="js/select/selpix.js"></script>
 <script src="js/select/sel.js"></script>
+<script src="js/select/subject.js"></script>
 <script src="js/layers/model.js"></script>
 <script src="js/layers/blend.js"></script>
 <script src="js/layers/composite.js"></script>

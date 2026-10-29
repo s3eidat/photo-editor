@@ -121,6 +121,44 @@
     return out;
   };
 
+  // ---------- AI subject mask post-processing ----------
+  // Bilinear resize of a float plane, pixel-centre aligned, edges clamped.
+  function bilinear(src, sw, sh, dw, dh) {
+    var out = new Float32Array(dw * dh), x0 = new Int32Array(dw), x1 = new Int32Array(dw), wx = new Float32Array(dw), x, y;
+    for (x = 0; x < dw; x++) { var sx = Math.max(0, (x + 0.5) * sw / dw - 0.5), a = Math.min(sw - 1, Math.floor(sx)); x0[x] = a; x1[x] = Math.min(sw - 1, a + 1); wx[x] = Math.min(1, sx - a); }
+    for (y = 0; y < dh; y++) {
+      var sy = Math.max(0, (y + 0.5) * sh / dh - 0.5), b = Math.min(sh - 1, Math.floor(sy)), r0 = b * sw, r1 = Math.min(sh - 1, b + 1) * sw, wy = Math.min(1, sy - b), row = y * dw;
+      for (x = 0; x < dw; x++) {
+        var t = src[r0 + x0[x]] + (src[r0 + x1[x]] - src[r0 + x0[x]]) * wx[x], u = src[r1 + x0[x]] + (src[r1 + x1[x]] - src[r1 + x0[x]]) * wx[x];
+        out[row + x] = t + (u - t) * wy;
+      }
+    }
+    return out;
+  }
+  PIXS.bilinear = bilinear;
+  function boxCopy(a, w, h, r) { return box(Float32Array.from(a), w, h, r); }
+  // Guided filter (He, Sun & Tang): smooths p but follows the edges of the guide I. Both 0..1 float planes.
+  function guided(I, p, w, h, r, eps) {
+    var n = w * h, Ip = new Float32Array(n), II = new Float32Array(n), i;
+    for (i = 0; i < n; i++) { Ip[i] = I[i] * p[i]; II[i] = I[i] * I[i]; }
+    var mI = boxCopy(I, w, h, r), mP = boxCopy(p, w, h, r), mIp = box(Ip, w, h, r), mII = box(II, w, h, r);
+    for (i = 0; i < n; i++) { var A = (mIp[i] - mI[i] * mP[i]) / (mII[i] - mI[i] * mI[i] + eps); mIp[i] = A; mII[i] = mP[i] - A * mI[i]; }
+    box(mIp, w, h, r); box(mII, w, h, r);
+    var q = new Float32Array(n);
+    for (i = 0; i < n; i++) q[i] = clamp(mIp[i] * I[i] + mII[i], 0, 1);
+    return q;
+  }
+  PIXS.guided = guided;
+  PIXS.luma = function (img) { var d = img.data, n = img.width * img.height, g = new Float32Array(n); for (var p = 0, i = 0; p < n; p++, i += 4) g[p] = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) / 255; return g; };
+  // raw: model output (sw x sh, 0..1) -> selection mask at the guide image's size, edges snapped to the photo.
+  PIXS.subject = function (raw, sw, sh, guide, threshold, band) {
+    var w = guide.width, h = guide.height, m = bilinear(raw, sw, sh, w, h), scale = Math.max(w, h) / Math.max(sw, sh);
+    if (scale > 1.4) m = guided(PIXS.luma(guide), m, w, h, clamp(Math.round(scale * 2), 2, 24), 2e-3);
+    var t = threshold == null ? 0.5 : threshold, bd = band || 0.16, o = new Uint8Array(w * h);
+    for (var i = 0; i < m.length; i++) o[i] = Math.round(clamp((m[i] - t) / bd + 0.5, 0, 1) * 255);
+    return o;
+  };
+
   // ---------- dispatcher for js/select/worker.js ----------
   PIXS.call = function (fn, args) {
     if (["edt", "call"].indexOf(fn) >= 0 || typeof PIXS[fn] !== "function") throw new Error("Not allowed: " + fn);
