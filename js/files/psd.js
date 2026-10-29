@@ -183,13 +183,23 @@
     return K.map(function (q) { return [].concat(T(q[0], q[1]), T(q[2], q[3]), T(q[4], q[5])); });
   }
   P.shapeKnots = shapeKnots;
+  function pathsFor(S) {      // [{open, op, knots:[[in, anchor, out]]}] in document px
+    var ext = P.ext && P.ext.shapeKnots(S);
+    return ext && ext.length ? ext : [{ open: S.type === "line", op: "combine", knots: shapeKnots(S) }];
+  }
+  P.pathsFor = pathsFor;
   function shapeOut(S) {
-    var line = S.type === "line", knots = shapeKnots(S), sw = line ? Math.max(1, S.sw || S.h) : S.sw || 0;
-    var out = { vectorMask: { paths: [{ open: line, operation: "combine", fillRule: "non-zero", knots: knots.map(function (p) { return { linked: true, points: p }; }) }] },
+    var line = S.type === "line", sw = line ? Math.max(1, S.sw || S.h) : S.sw || 0;
+    var out = { vectorMask: { paths: pathsFor(S).map(function (q, i) { return { open: q.open, operation: i ? q.op : "combine", fillRule: "non-zero", knots: q.knots.map(function (p) { return { linked: true, points: p }; }) }; }) },
       vectorFill: { type: "color", color: rgb(S.fill || S.stroke || "#000000") },
       vectorStroke: { strokeEnabled: sw > 0, fillEnabled: !line && !!S.fill, lineWidth: { units: "Pixels", value: sw }, lineDashOffset: { units: "Points", value: 0 }, miterLimit: 100,
         lineCapType: "round", lineJoinType: "round", lineAlignment: "center", scaleLock: false, strokeAdjust: false, lineDashSet: [], blendMode: "normal", opacity: 1,
         content: { type: "color", color: rgb(S.stroke || "#000000") }, resolution: 72 } };
+    var vs = out.vectorStroke, dashes = PE.VX && PE.VX.DASHES;
+    if (S.cap) vs.lineCapType = ["butt", "round", "square"].indexOf(S.cap) >= 0 ? S.cap : "round";
+    if (S.join) vs.lineJoinType = ["miter", "round", "bevel"].indexOf(S.join) >= 0 ? S.join : "round";
+    if (S.align) vs.lineAlignment = ["inside", "center", "outside"].indexOf(S.align) >= 0 ? S.align : "center";
+    if (S.dash && dashes && dashes[S.dash]) vs.lineDashSet = dashes[S.dash].map(function (v) { return { units: "None", value: v }; });
     if (!S.rot && !S.flipX && !S.flipY && (S.type === "rect" || S.type === "ellipse")) {
       var r = S.type === "rect" && S.radius > 0 ? Math.min(S.radius, S.w / 2, S.h / 2) : 0, U = function (v) { return { units: "Pixels", value: v }; };
       var kd = { keyOriginType: S.type === "ellipse" ? 5 : r > 0 ? 2 : 1, keyOriginResolution: 72,
@@ -263,14 +273,31 @@
       var raw = JSON.parse(unb64(m[1])), out = {};
       if (!raw || typeof raw !== "object") return {};
       Object.keys(raw).slice(0, LIM.layers * 4).forEach(function (id) {
-        var l = raw[id]; if (!l || (l.kind !== "text" && l.kind !== "shape") || !/^\d{1,6}$/.test(id)) return;
-        // run it through the project validator so nothing unchecked gets in
-        var v = PE.parseProjectJson(JSON.stringify({ format: "s3photo", version: 1, w: W, h: H, layers: [{ kind: l.kind, text: l.text, shape: l.shape }] })).layers[0];
-        out[id] = { kind: l.kind, text: v.text, shape: v.shape, src: typeof l.src === "string" ? l.src.slice(0, LIM.text) : null };
+        var l = raw[id]; if (!l || typeof l !== "object" || !/^\d{1,6}$/.test(id)) return;
+        try {
+          // run it through the project validator (with the other lanes' field checks) so nothing unchecked gets in
+          var kinds = ["text", "shape"].concat(PE.kindsExt || []).filter(function (k) { return k !== "smart"; }), carrier = kinds.indexOf(l.kind) >= 0 ? l.kind : "shape";
+          var e = Object.assign({}, l.ext && typeof l.ext === "object" && !Array.isArray(l.ext) ? l.ext : {}, { kind: carrier, text: l.text, shape: l.shape });
+          delete e.uid; delete e.parent; delete e.src; delete e.mask;
+          var v = PE.parseProjectJson(JSON.stringify({ format: "s3photo", version: 1, w: W, h: H, layers: [e] })).layers[0];
+          var o = { kind: l.kind, text: carrier === "text" ? v.text : null, shape: carrier === "shape" && l.kind === "shape" ? v.shape : null, ext: {}, sig: typeof l.sig === "string" ? l.sig.slice(0, 200000) : "" };
+          EXT_KEYS().forEach(function (k) { if (v[k] !== undefined) o.ext[k] = v[k]; });
+          out[id] = o;
+        } catch (err) { /* a bad entry is ignored */ }
       });
       return out;
     } catch (e) { return {}; }
   }
+
+  // extension fields worth restoring exactly (structure such as groups comes from the file itself)
+  function EXT_KEYS() { return ((sx() && sx().KEYS) || []).concat(["blendIf"]).filter(function (k) { return ["parent", "open", "link", "smart", "uid"].indexOf(k) < 0; }); }
+  // what the file says about a layer's styles / adjustment / fill / vector mask, in our terms (for comparisons)
+  function sigOf(c) {
+    var X = P.ext; if (!X) return "";
+    var f = c.effects ? X.fxIn(c.effects) : null;
+    return JSON.stringify(X.norm({ a: c.adjustment ? X.adjIn(c.adjustment) : null, f: f && f.fx, fl: c.vectorFill && !c.vectorMask ? X.fillIn(c.vectorFill) : null, v: c.vectorMask && !c.vectorFill ? X.vmaskIn(c.vectorMask) : null }));
+  }
+  P.sigOf = sigOf;
 
   // saved settings are used only while the file's own data still matches them (another app may have edited the layer)
   function textSame(T, t) {
@@ -279,9 +306,13 @@
     return m.length === 6 && Math.abs(a.transform[4] - m[4]) < 1 && Math.abs(a.transform[5] - m[5]) < 1 && Math.abs(a.transform[0] - m[0]) < 1e-3 && Math.abs(a.transform[1] - m[1]) < 1e-3 && Math.abs((st.fontSize || 0) - T.size) < 0.01;
   }
   function shapeSame(S, c) {
-    var p = c.vectorMask && c.vectorMask.paths && c.vectorMask.paths[0], K = shapeKnots(S);
-    if (!p || !p.knots || p.knots.length !== K.length || c.vectorMask.paths.length !== 1) return false;
-    for (var i = 0; i < K.length; i++) if (Math.abs(K[i][2] - p.knots[i].points[2]) > 0.5 || Math.abs(K[i][3] - p.knots[i].points[3]) > 0.5) return false;
+    var F = c.vectorMask && c.vectorMask.paths, M = pathsFor(S);
+    if (!F || F.length !== M.length) return false;
+    for (var j = 0; j < M.length; j++) {
+      var p = F[j], K = M[j].knots;
+      if (!p.knots || p.knots.length !== K.length) return false;
+      for (var i = 0; i < K.length; i++) if (Math.abs(K[i][2] - p.knots[i].points[2]) > 0.5 || Math.abs(K[i][3] - p.knots[i].points[3]) > 0.5) return false;
+    }
     return true;
   }
 
@@ -293,8 +324,8 @@
     for (var i = 0; i < n; i++) { od[i * 4] = od[i * 4 + 1] = od[i * 4 + 2] = 255; od[i * 4 + 3] = d[i * 4]; }
     return o;
   }
-  function maskIn(c, layerR, doc) {
-    var m = c.mask, vm = c.vectorMask && !c.vectorMask.disable && !c.vectorFill ? c.vectorMask : null;
+  function maskIn(c, layerR, doc, liveVm) {
+    var m = c.mask, vm = !liveVm && c.vectorMask && !c.vectorMask.disable && !c.vectorFill ? c.vectorMask : null;
     if ((!m || m.fromVectorData) && !vm) return null;
     var docR = { x: 0, y: 0, w: doc.w, h: doc.h }, area = PE.union(layerR && layerR.w ? layerR : null, docR), R, cv, x;
     if (m && !m.fromVectorData) {
@@ -330,16 +361,42 @@
       var L = PE.newLayer(kind, o);
       if (S && c.fillOpacity != null && c.fillOpacity < 1) L.fillOp = clamp(c.fillOpacity, 0, 1);
       if (S && c.clipping) L.clip = true;
-      if (c.effects && !c.effects.disabled) note("styles");
       return L;
+    }
+    function kindOn(k) { return (PE.kindsExt || []).indexOf(k) >= 0; }
+    var X = P.ext, stylesOn = !!(S && S.FX_DEF && X), vmOn = !!(S && S.vmaskCanvas && X);
+    // styles, vector mask, pixel mask and the other exact settings, for any layer or group
+    function decorate(c, L, saved, same, r) {
+      if (c.effects) {
+        if (stylesOn) { var f = same && saved.ext.fx ? { fx: saved.ext.fx } : X.fxIn(c.effects); if (f && f.fx) L.fx = f.fx; if (!f || f.partial || (!f.fx && !c.effects.disabled)) note("styles"); }
+        else if (!c.effects.disabled) note("styles");
+      }
+      var live = false;
+      if (c.vectorMask && !c.vectorFill && vmOn) { var vm = same && saved.ext.vmask ? saved.ext.vmask : X.vmaskIn(c.vectorMask); if (vm) { L.vmask = vm; live = true; } }
+      var mk = maskIn(c, L.kind === "raster" ? { x: L.x, y: L.y, w: L.canvas.width, h: L.canvas.height } : r, doc, live);
+      if (mk) { L.mask = mk.mask; L.maskOn = mk.on; }
+      if (same) EXT_KEYS().forEach(function (k) { if (saved.ext[k] !== undefined && L[k] === undefined && ["fx", "adj", "fillSpec", "vmask"].indexOf(k) < 0) L[k] = PE.clone(saved.ext[k]); });
+    }
+    function fillPixels(fs) {     // a fill layer drawn as pixels when fill layers are not available here
+      var cv = PE.mk(W, H), x = PE.cx2(cv);
+      if (fs.type === "gradient") { var a = (fs.angle || 0) * RAD, hw = (Math.abs(Math.cos(a)) * W + Math.abs(Math.sin(a)) * H) / 2, g = x.createLinearGradient(W / 2 - Math.cos(a) * hw, H / 2 + Math.sin(a) * hw, W / 2 + Math.cos(a) * hw, H / 2 - Math.sin(a) * hw); g.addColorStop(0, fs.reverse ? fs.to : fs.from); g.addColorStop(1, fs.reverse ? fs.from : fs.to); x.fillStyle = g; }
+      else x.fillStyle = fs.color;
+      x.fillRect(0, 0, W, H); return PE.touch(cv);
     }
     function layerOf(c, parent, ph, pop) {
       var r = rectOf(c), cv = null, L;
-      if (c.adjustment) { note("adjust"); return null; }
-      var saved = c.id != null ? xmp[String(c.id)] : null;
-      if (c.text) {
+      var saved = c.id != null ? xmp[String(c.id)] : null, same = !!(saved && saved.sig && saved.sig === sigOf(c));
+      if (c.adjustment) {
+        var a = same && saved.ext.adj ? saved.ext.adj : X ? X.adjIn(c.adjustment) : null;
+        if (!a || !kindOn("adjust")) { note("adjust"); return null; }
+        L = common(c, "adjust", {}, ph, pop); L.canvas = null; L.adj = a;
+      } else if (c.text) {
         var T = saved && saved.kind === "text" && textSame(saved.text, c.text) ? saved.text : textIn(c.text);
         if (T) L = common(c, "text", { text: T }, ph, pop); else note("text");
+      } else if (c.vectorFill && !c.vectorMask) {
+        var fs = same && saved.ext.fillSpec ? saved.ext.fillSpec : X ? X.fillIn(c.vectorFill) : null;
+        if (fs && kindOn("fill")) { L = common(c, "fill", {}, ph, pop); L.canvas = null; L.fillSpec = fs; }
+        else if (fs && !(c.imageData && c.imageData.width)) { L = common(c, "raster", { canvas: fillPixels(fs), x: 0, y: 0 }, ph, pop); note("fill"); }
       } else if (c.vectorFill || (c.vectorMask && c.vectorStroke)) {
         var Sh = saved && saved.kind === "shape" && shapeSame(saved.shape, c) ? saved.shape : shapeIn(c, doc.dpi);
         if (Sh) L = common(c, "shape", { shape: Sh }, ph, pop); else note("vector");
@@ -351,8 +408,7 @@
         L = common(c, "raster", { canvas: cv, x: r.x, y: r.y }, ph, pop);
         if (c.placedLayer) note("smart");
       }
-      var mk = maskIn(c, L.kind === "raster" ? { x: L.x, y: L.y, w: L.canvas.width, h: L.canvas.height } : r, doc);
-      if (mk) { L.mask = mk.mask; L.maskOn = mk.on; }
+      decorate(c, L, saved, same, r);
       if (parent) L.parent = parent.id;
       return L;
     }
@@ -360,8 +416,9 @@
       (list || []).forEach(function (c) {
         if (c.children) {
           if (G) {
-            var g = common(c, "group", { blend: c.blendMode === "pass through" ? "pass" : blendIn(c.blendMode) }, false, 1);
+            var g = common(c, "group", { blend: c.blendMode === "pass through" ? "pass" : blendIn(c.blendMode) }, false, 1), gs = c.id != null ? xmp[String(c.id)] : null;
             g.open = c.opened !== false; if (parent) g.parent = parent.id;
+            decorate(c, g, gs, !!(gs && gs.sig && gs.sig === sigOf(c)), { x: 0, y: 0, w: W, h: H });
             walk(c.children, g, false, 1); out.push(g);
           } else {      // no group support yet: children go to the top level, the group's visibility and opacity folded in
             walk(c.children, null, ph || !!c.hidden, pop * (c.opacity == null ? 1 : c.opacity));
@@ -379,7 +436,7 @@
       out = [PE.rasterFromCanvas(comp ? FX.toCanvas(comp) : PE.touch(PE.mk(W, H)), "Background")];
     }
     doc.layers = out; doc.active = out[out.length - 1].id;
-    var N = { adjust: " adjustment layer(s) were left out", styles: " layer(s) have styles that were not imported", text: " text layer(s) with mixed styles, warps or vertical text are kept as pixels",
+    var N = { fill: " fill layer(s) were turned into pixels", adjust: " adjustment layer(s) were left out", styles: " layer(s) have styles that were not imported", text: " text layer(s) with mixed styles, warps or vertical text are kept as pixels",
       vector: " vector shape(s) are kept as pixels", groups: " group(s) were flattened into plain layers", big: " oversized layer(s) were left empty", smart: " smart layer(s) are kept as pixels",
       toomany: "More than " + LIM.layers + " layers: only the merged image was opened" };
     return { doc: doc, notes: Object.keys(notes).map(function (k) { return k === "toomany" ? N[k] : notes[k] + N[k]; }) };
@@ -389,10 +446,11 @@
   function layerPixels(L, doc) {
     if (L.kind === "raster") return { canvas: L.canvas, x: L.x, y: L.y };
     if (L.kind === "text" || L.kind === "shape") return PE.surface(L, doc);
-    var keep = { o: L.opacity, b: L.blend, v: L.visible, m: L.maskOn, f: L.fillOp };      // other kinds: render the layer alone
-    L.opacity = 1; L.blend = "normal"; L.visible = true; L.maskOn = false; if (L.fillOp != null) L.fillOp = 1;
+    // other kinds (fill, smart…): render the layer alone, without its opacity, blend, masks or styles (those are written separately)
+    var keep = { o: L.opacity, b: L.blend, v: L.visible, m: L.maskOn, f: L.fillOp, fx: L.fx, vm: L.vmask, c: L.clip };
+    L.opacity = 1; L.blend = "normal"; L.visible = true; L.maskOn = false; if (L.fillOp != null) L.fillOp = 1; if (L.fx) L.fx = null; if (L.vmask) L.vmask = null; if (L.clip) L.clip = false;
     try { return { canvas: PE.flatten(doc, { only: [L.id] }), x: 0, y: 0 }; }
-    finally { L.opacity = keep.o; L.blend = keep.b; L.visible = keep.v; L.maskOn = keep.m; if (keep.f != null) L.fillOp = keep.f; }
+    finally { L.opacity = keep.o; L.blend = keep.b; L.visible = keep.v; L.maskOn = keep.m; if (keep.f != null) L.fillOp = keep.f; if (keep.fx) L.fx = keep.fx; if (keep.vm) L.vmask = keep.vm; if (keep.c) L.clip = keep.c; }
   }
   function maskOut(M) {
     var c = M.canvas, d = FX.imageData(c), px = d.data, o = new ImageData(c.width, c.height), od = o.data;
@@ -400,33 +458,56 @@
     return { left: M.x, top: M.y, right: M.x + c.width, bottom: M.y + c.height, defaultColor: 0, imageData: o };
   }
   P.fromDoc = function (doc) {
-    var map = {}, nextId = 1, S = sx(), T = groupsOn() ? S.tree(doc) : null, kids = {}, roots = [];
+    var map = {}, nextId = 1, S = sx(), T = groupsOn() ? S.tree(doc) : null, kids = {}, roots = [], X = P.ext, notes = {};
     if (T) { doc.layers.forEach(function (L) { var p = T.parentOf(L); if (p) (kids[p.id] = kids[p.id] || []).push(L); else roots.push(L); }); }
     else roots = doc.layers.slice();
+    function note(k) { notes[k] = (notes[k] || 0) + 1; }
+    function extOf(L) { var l = {}; if (PE.saveExt) { try { PE.saveExt(L, l, 0, [], []); } catch (e) { /* ignore */ } } var o = {}; EXT_KEYS().forEach(function (k) { if (l[k] !== undefined) o[k] = l[k]; }); return o; }
+    function decorate(L, c) {      // styles, vector mask, pixel mask
+      if (L.fx && X) { var ef = X.fxOut(L.fx); if (ef) c.effects = ef; if (L.fx.patternOverlay && L.fx.patternOverlay.on) note("pattern"); }
+      if (L.vmask && X && L.kind !== "shape") { var vm = X.vmaskOut(L.vmask); if (vm) c.vectorMask = vm; }
+      if (L.mask) { c.mask = maskOut(L.mask); c.mask.disabled = !L.maskOn; }
+    }
+    function remember(L, c) {
+      var e = extOf(L), keep = L.kind === "text" || L.kind === "shape" || L.kind === "adjust" || L.kind === "fill" || Object.keys(e).length;
+      if (!keep) return;
+      var m = { kind: L.kind, ext: e, sig: sigOf(c) };
+      if (L.kind === "text") m.text = L.text; if (L.kind === "shape") m.shape = L.shape;
+      map[c.id] = m;
+    }
     function one(L) {
       var c = { id: nextId++, name: L.name, hidden: !L.visible, opacity: clamp(L.opacity, 0, 1), blendMode: blendOut(L.blend) };
       if (L.locked) c.protected = { transparency: true, composite: true, position: true };
       if (L.fillOp != null && L.fillOp < 1) c.fillOpacity = L.fillOp;
       if (L.clip) c.clipping = true;
-      if (L.kind === "group") { c.opened = L.open !== false; c.children = (kids[L.id] || []).map(one); if (c.blendMode === "normal" && L.blend === "pass") c.blendMode = "pass through"; return c; }
+      if (L.kind === "group") { c.opened = L.open !== false; c.children = (kids[L.id] || []).map(one); if (c.blendMode === "normal" && L.blend === "pass") c.blendMode = "pass through"; decorate(L, c); remember(L, c); return c; }
+      if (L.kind === "adjust") {
+        c.adjustment = X ? X.adjOut(L.adj) : null; c.left = 0; c.top = 0;
+        if (!c.adjustment) { delete c.adjustment; note("adjust"); }
+        decorate(L, c); remember(L, c); return c;
+      }
+      if (L.kind === "fill" && X) { var vf = X.fillOut(L.fillSpec); if (vf) c.vectorFill = vf; else note("fillpx"); }
+      if (L.kind === "smart") note("smart");
       var s = layerPixels(L, doc);
       if (s && s.canvas && s.canvas.width * s.canvas.height > 1) { c.left = s.x; c.top = s.y; c.imageData = FX.imageData(s.canvas); }
       else { c.left = 0; c.top = 0; }
-      if (L.kind === "text") { c.text = textOut(L.text); map[c.id] = { kind: "text", text: L.text }; }
-      if (L.kind === "shape") { Object.assign(c, shapeOut(L.shape)); map[c.id] = { kind: "shape", shape: L.shape }; }
-      if (L.mask) { c.mask = maskOut(L.mask); c.mask.disabled = !L.maskOn; }
+      if (L.kind === "text") { c.text = textOut(L.text); if (X && PE.VX) X.textOut(L.text, c.text); }
+      if (L.kind === "shape") Object.assign(c, shapeOut(L.shape));
+      decorate(L, c); remember(L, c);
       return c;
     }
     var children = roots.map(one), dpi = doc.dpi || 72;
     var res = { resolutionInfo: { horizontalResolution: dpi, horizontalResolutionUnit: "PPI", widthUnit: "Inches", verticalResolution: dpi, verticalResolutionUnit: "PPI", heightUnit: "Inches" },
       xmpMetadata: xmpOut(map) };
-    var notes = (doc.notes || []).map(function (n) {
+    var anns = (doc.notes || []).map(function (n) {
       return { type: "text", open: false, iconLocation: { left: Math.round(n.x), top: Math.round(n.y), right: Math.round(n.x) + 24, bottom: Math.round(n.y) + 24 },
         popupLocation: { left: Math.round(n.x) + 30, top: Math.round(n.y), right: Math.round(n.x) + 330, bottom: Math.round(n.y) + 200 }, color: rgb(PE.hex(n.color, "#f5c518")), author: n.author || "", name: "", date: n.date || "", data: String(n.text || "").replace(/\n/g, "\r") };
     });
     if (doc.guides && doc.guides.length) res.gridAndGuidesInformation = { grid: { horizontal: 18 * 32, vertical: 18 * 32 }, guides: doc.guides.map(function (g) { return { location: g.pos, direction: g.dir === "h" ? "horizontal" : "vertical" }; }) };
     var out = { width: doc.w, height: doc.h, children: children, imageData: FX.imageData(PE.flatten(doc)), imageResources: res };
-    if (notes.length) out.annotations = notes;
+    if (anns.length) out.annotations = anns;
+    var NN = { adjust: " adjustment layer(s) have no PSD equivalent: other apps will not see them", smart: " smart layer(s) were written as pixels", pattern: " pattern overlay style(s) are only kept for this app", fillpx: " pattern fill layer(s) were written as pixels" };
+    P.lastNotes = Object.keys(notes).map(function (k) { return notes[k] + NN[k]; });
     return out;
   };
 
@@ -468,6 +549,7 @@
     ED.working(P.save(ED.doc), "Writing PSD…").then(function (u8) {
       var b = new Blob([u8], { type: "image/vnd.adobe.photoshop" });
       FX.download(b, FX.fname("psd")); S3.done(); S3.toast("Saved " + FX.fname("psd") + " (" + S3.fmtBytes(b.size) + ")");
+      (P.lastNotes || []).forEach(function (n) { S3.toast(n); });
     }).catch(function (e) { S3.toast("Could not write the PSD: " + e.message, "error"); });
   };
   FX.menu("File", ["Save as PSD…", "", P.saveFile, FX.has], "Save project (.s3photo)");
