@@ -225,6 +225,15 @@
   } });
   AUI.more("Desaturate…", "desatMethod");
 
+  // ---------- posterize / equalize ----------
+  AUI.adj("posterize", { t: "Posterize", c: [sl("levels", "Levels", 2, 64, 1, 4)] });
+  AUI.more("Posterize…", "posterize");
+  AUI.adj("equalize", { t: "Equalize", ui: function (el, st) {
+    st.p.basis = "sel";
+    el.appendChild(kit().seg("", [["sel", "Selected area only"], ["image", "Whole layer, from the selection"]], "sel", function (v) { st.p.basis = v; st.schedule(); }));
+  } });
+  AUI.more("Equalize", function () { if (ED.doc && ED.doc.sel) AUI.open("equalize"); else AUI.quick("equalize", "Equalize"); });
+
   // ---------- auto tone / contrast / colour ----------
   var AUTO = [["autoTone", "Auto tone", "Ctrl+Shift+L"], ["autoContrast", "Auto contrast", "Ctrl+Alt+Shift+L"], ["autoColor", "Auto colour", "Ctrl+Shift+B"]];
   AUI.addMenu("Image", AUTO.map(function (a) { return [a[1], a[2], function () { AUI.quick(a[0], a[1]); }, has]; }).concat(["-"]), "Vibrance");

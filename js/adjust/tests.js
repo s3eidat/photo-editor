@@ -45,6 +45,15 @@
     // desaturate methods
     function ds(m, k) { return get(run([[200, 100, 40]], "desatMethod", { method: m, amount: k == null ? 100 : k }), 0); }
     ok(ds("average")[0] === 113 && ds("lightness")[1] === 120 && ds("max")[2] === 200 && ds("min")[0] === 40 && ds("green")[0] === 100 && near(ds("lum709")[0], 117) && ds("average", 50).join() === "157,107,77", "desaturate methods");
+
+    // posterize / equalize
+    var ps = run([[0, 60, 100], [180, 200, 255]], "posterize", { levels: 3 });
+    ok(get(ps, 0).join() === "0,0,128" && get(ps, 1).join() === "128,255,255", "posterize to 3 levels");
+    var eqi = []; for (i = 0; i < 4; i++) eqi.push([100 + i, 100 + i, 100 + i]);
+    var eq = run(eqi, "equalize", {});
+    ok(get(eq, 0)[0] === 0 && near(get(eq, 1)[0], 85) && near(get(eq, 2)[0], 170) && get(eq, 3)[0] === 255, "equalize spreads a narrow range");
+    var eq2 = run([[10, 10, 10], [20, 20, 20], [200, 200, 200]], "equalize", { basis: "image" }, new Uint8Array([255, 255, 0]));
+    ok(get(eq2, 0)[0] === 0 && get(eq2, 1)[0] === 255 && get(eq2, 2)[0] === 255, "equalize whole layer from the selection");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };
