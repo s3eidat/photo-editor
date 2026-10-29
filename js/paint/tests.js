@@ -110,3 +110,27 @@
     ED.undo(); ok(PP.px(s.L.canvas, 31, 23)[1] === 0, "undo fill");
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, ED = PE.ed, PP = PE.paint, PPX = window.PPX;
+  function near(a, b, e) { return Math.abs(a - b) <= (e == null ? 1 : e); }
+  PP.test("dodge / burn / sponge", function (ok) {
+    ok(near(PPX.tone("dodge", "mid", 0.5), 0.75, 1e-9) && near(PPX.tone("burn", "mid", 0.5), 0.25, 1e-9), "midtone maths");
+    ok(PPX.tone("dodge", "highlights", 0.1) - 0.1 < PPX.tone("dodge", "shadows", 0.1) - 0.1 && PPX.tone("burn", "highlights", 0.9) < PPX.tone("burn", "shadows", 0.9), "ranges weight the right tones");
+    var pr = PPX.toneRGB("dodge", "mid", true, 200, 60, 60), hsb0 = PPX.rgb2hsb(200, 60, 60), hsb1 = PPX.rgb2hsb(pr[0], pr[1], pr[2]);
+    ok(near(hsb0[0], hsb1[0], 0.5) && PPX.lumF([pr[0] / 255, pr[1] / 255, pr[2] / 255]) > PPX.lumF([200 / 255, 60 / 255, 60 / 255]), "protect tones keeps the hue");
+    ok(PPX.sponge("desat", false, 255, 0, 0).every(function (v) { return near(v, 76.5, 0.5); }), "sponge desaturates to grey of equal luminosity");
+    var sp = PPX.sponge("sat", false, 150, 110, 110); ok(PPX.satF(sp.map(function (v) { return v / 255; })) > PPX.satF([150 / 255, 110 / 255, 110 / 255]), "sponge saturates");
+    var s = PP.scratch(80, 40, "#808080"), px = PP.px;
+    Object.assign(ED.o.dodge, { size: 16, hard: 1, op: 0.5, flow: 1, range: "mid", protect: true });
+    PP.drive("dodge", [{ x: 20, y: 20 }, { x: 22, y: 20 }, { x: 20, y: 20 }]);
+    ok(near(px(s.L.canvas, 20, 20)[0], 160, 3), "dodge 50% on mid grey (got " + px(s.L.canvas, 20, 20)[0] + "), scrubbing does not compound");
+    PP.drive("burn", [{ x: 60, y: 20 }]);
+    Object.assign(ED.o.burn, { size: 16, hard: 1, op: 0.5 }); ED.undo(); PP.drive("burn", [{ x: 60, y: 20 }]);
+    ok(near(px(s.L.canvas, 60, 20)[0], 96, 3) && px(s.L.canvas, 40, 20)[0] === 128, "burn 50% (got " + px(s.L.canvas, 60, 20)[0] + ")");
+    ED.undo(); ED.undo(); ok(px(s.L.canvas, 20, 20)[0] === 128, "undo dodge");
+    ED.tool = "burn"; ED.TOOLS.burn.down({ x: 40, y: 20 }, PP.ev()); ED.TOOLS.burn.move({ x: 50, y: 20 }, PP.ev()); ED.stroke.spec.preview(ED.stroke);
+    var mid = px(s.L.canvas, 45, 20)[0]; ED.cancelDrag();
+    ok(mid < 128 && px(s.L.canvas, 45, 20)[0] === 128 && ED.hist.pos === 0, "Esc mid-stroke puts the pixels back");
+  });
+})();

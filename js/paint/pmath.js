@@ -82,6 +82,27 @@
     return [o[0] * 255, o[1] * 255, o[2] * 255];
   };
 
+  // ---------- dodge / burn / sponge ----------
+  // How much a tone range applies at lightness l (0..1).
+  PPX.toneW = function (range, l) { return range === "shadows" ? (1 - l) * (1 - l) : range === "highlights" ? l * l : 4 * l * (1 - l); };
+  // Full-strength dodge / burn of lightness l (the tool blends towards this by exposure x coverage).
+  PPX.tone = function (kind, range, l) { var w = PPX.toneW(range, l) * 0.5; return kind === "burn" ? l - l * w : l + (1 - l) * w; };
+  // protect: change lightness only (hue and saturation kept); otherwise each channel on its own.
+  PPX.toneRGB = function (kind, range, protect, r, g, b) {
+    var c = [r / 255, g / 255, b / 255];
+    if (!protect) return c.map(function (v) { return PPX.tone(kind, range, v) * 255; });
+    var o = setLum(c, PPX.tone(kind, range, lumF(c)));
+    return [o[0] * 255, o[1] * 255, o[2] * 255];
+  };
+  // Sponge at full strength: mode "sat" | "desat"; vibrance goes easy on colours that are already strong / weak.
+  PPX.sponge = function (mode, vib, r, g, b) {
+    var c = [r / 255, g / 255, b / 255], s = satF(c), l = lumF(c), s2;
+    if (mode === "sat") { if (s <= 0) return [r, g, b]; s2 = s + (1 - s) * (vib ? 0.6 * (1 - s) : 0.6); }
+    else s2 = vib ? s * s : 0;
+    var o = setLum(s2 > 0 ? setSat(c, s2) : [0, 0, 0], l);
+    return [o[0] * 255, o[1] * 255, o[2] * 255];
+  };
+
   // ---------- fill a hole from its surroundings (multi-scale PatchMatch + voting) ----------
   // img: {data RGBA, width, height}; hole: Uint8Array (>0 = fill; the value blends the result in);
   // opts: {patch (odd, 7), avoid: Uint8Array of pixels never to copy from, seed, quality 1..3}.
