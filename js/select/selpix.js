@@ -350,6 +350,104 @@
     return PIXS.smooth(m, w, h, Math.max(2, Math.round(Math.max(w, h) / 100)));
   };
 
+  // ---------- sky: smooth area reached from the top edge, plus sky seen through gaps (branches, wires) ----------
+  // small: RGBA analysis image (about 512 px), guide: RGBA at the output size (null = small). opt {shift -100..100}.
+  // Returns Uint8 mask at the guide's size (all zero when no sky is found).
+  PIXS.skyMap = function (small) {
+    var w = small.width, h = small.height, n = w * h, d = small.data, L = new Float32Array(n), A = new Float32Array(n), B = new Float32Array(n), T = new Float32Array(n), p, q, i, k, x, y;
+    for (p = 0, i = 0; p < n; p++, i += 4) { var lab = PIXS.lab(d[i], d[i + 1], d[i + 2]); L[p] = lab[0]; A[p] = lab[1]; B[p] = lab[2]; }
+    function dE(p, q) { return Math.abs(L[p] - L[q]) + 0.7 * (Math.abs(A[p] - A[q]) + Math.abs(B[p] - B[q])); }
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++) { p = y * w + x; T[p] = (x < w - 1 ? dE(p, p + 1) : 0) + (y < h - 1 ? dE(p, p + w) : 0); }
+    box(T, w, h, 1);
+    function skyish(p) { return L[p] > 25 && !(A[p] < -10 && B[p] > 10); }   // not black, not foliage green
+    var TS = 4, reach = new Uint8Array(n), queue = new Int32Array(n), qt = 0, band = Math.max(1, Math.round(h * 0.03)), seeds = 0, out = new Float32Array(n);
+    for (y = 0; y < band; y++) for (x = 0; x < w; x++) { p = y * w + x; if (T[p] < TS && skyish(p)) { reach[p] = 1; queue[qt++] = p; seeds++; } }
+    if (seeds < band * w * 0.08) return out;
+    // grow(test): breadth-first from everything in the queue into 4-neighbours that pass test(from, to)
+    function grow(test) {
+      for (var qh = 0; qh < qt; qh++) {
+        p = queue[qh]; x = p % w; y = (p - x) / w;
+        for (k = 0; k < 4; k++) {
+          q = k === 0 ? (x > 0 ? p - 1 : -1) : k === 1 ? (x < w - 1 ? p + 1 : -1) : k === 2 ? (y > 0 ? p - w : -1) : (y < h - 1 ? p + w : -1);
+          if (q < 0 || reach[q] || !test(p, q)) continue; reach[q] = 1; queue[qt++] = q;
+        }
+      }
+    }
+    function requeue() { qt = 0; for (p = 0; p < n; p++) if (reach[p]) queue[qt++] = p; }
+    // 1. the sure sky: smooth, and every step close to the pixel it comes from
+    grow(function (p, q) { return T[q] < TS * 1.5 && dE(p, q) < 3 && skyish(q); });
+    // sky colour per row (mean of the sure sky; rows below it keep the last colour)
+    var rl = new Float32Array(h), ra = new Float32Array(h), rb = new Float32Array(h), rc = new Float32Array(h), last = -1;
+    for (p = 0; p < n; p++) if (reach[p]) { y = (p / w) | 0; rl[y] += L[p]; ra[y] += A[p]; rb[y] += B[p]; rc[y]++; }
+    for (y = 0; y < h; y++) { if (rc[y] > 0) { rl[y] /= rc[y]; ra[y] /= rc[y]; rb[y] /= rc[y]; last = y; } else if (last >= 0) { rl[y] = rl[last]; ra[y] = ra[last]; rb[y] = rb[last]; } }
+    for (y = 0; y < h && rc[y] === 0; y++);
+    for (var y0 = y - 1; y0 >= 0; y0--) { rl[y0] = rl[y]; ra[y0] = ra[y]; rb[y0] = rb[y]; }
+    // colours of the sure sky per band of rows (Lab bins of 5), with the distance in bins (0..3) to the nearest one
+    var sure = new Uint8Array(reach), NB = 12, bandOf = new Int32Array(h), CL = 21, CA = 32, cells = CL * CA * CA, grids = [], has = [], lv = new Uint8Array(n), bi;
+    for (y = 0; y < h; y++) bandOf[y] = Math.min(NB - 1, Math.floor(y * NB / h));
+    function bin(p) { return (clamp(Math.round(L[p] / 5), 0, CL - 1) * CA + clamp(Math.round((A[p] + 80) / 5), 0, CA - 1)) * CA + clamp(Math.round((B[p] + 80) / 5), 0, CA - 1); }
+    for (bi = 0; bi < NB; bi++) { grids.push(new Uint8Array(cells).fill(255)); has.push(false); }
+    for (p = 0; p < n; p++) if (sure[p]) { var cb = bin(p), yb = bandOf[(p / w) | 0]; for (bi = Math.max(0, yb - 1); bi <= Math.min(NB - 1, yb + 1); bi++) { grids[bi][cb] = 0; has[bi] = true; } }
+    function dt1(g, stride, len, outer, inner, innerStride) {   // f'(i) = min over |i-j| <= 3 of max(|i-j|, f(j)), along one axis
+      var tmp = new Uint8Array(len);
+      for (var o = 0; o < outer; o++) for (var u = 0; u < inner; u++) {
+        var base = o * len * stride + u * innerStride, j2, i2;
+        for (i2 = 0; i2 < len; i2++) tmp[i2] = g[base + i2 * stride];
+        for (i2 = 0; i2 < len; i2++) { var m = tmp[i2]; for (j2 = Math.max(0, i2 - 3); j2 <= Math.min(len - 1, i2 + 3); j2++) { var v = Math.max(Math.abs(i2 - j2), tmp[j2]); if (v < m) m = v; } g[base + i2 * stride] = m; }
+      }
+    }
+    for (bi = 0; bi < NB; bi++) {
+      if (!has[bi]) continue;
+      var g = grids[bi];
+      dt1(g, 1, CA, CL * CA, 1, 0); dt1(g, CA, CA, CL, CA, 1); dt1(g, CA * CA, CL, 1, CA * CA, 1);
+    }
+    for (bi = 0; bi < NB; bi++) if (!has[bi]) { for (k = 1; k < NB; k++) { if (bi - k >= 0 && has[bi - k]) { grids[bi] = grids[bi - k]; break; } if (bi + k < NB && has[bi + k]) { grids[bi] = grids[bi + k]; break; } } }
+    for (p = 0; p < n; p++) lv[p] = grids[bandOf[(p / w) | 0]][bin(p)];
+    function cloud(p) {                              // between the sky colour and grey/white, not darker than the sky
+      y = (p / w) | 0; var c2 = ra[y] * ra[y] + rb[y] * rb[y]; if (L[p] < rl[y] - 5 || c2 < 1) return false;
+      var t = (A[p] * ra[y] + B[p] * rb[y]) / c2, ea = A[p] - t * ra[y], eb = B[p] - t * rb[y];
+      return t > -0.15 && t < 1.15 && Math.abs(ea) + Math.abs(eb) < 6;
+    }
+    // 2. sky seen past thin things (branches, wires): sky-coloured pixels, closed by 2 px so thin gaps connect
+    var C = new Float32Array(n), r = Math.max(1, Math.round(Math.max(w, h) / 256));
+    for (p = 0; p < n; p++) C[p] = lv[p] <= 2 ? 1 : 0;
+    box(C, w, h, r); for (p = 0; p < n; p++) C[p] = C[p] > 1e-3 ? 1 : 0;
+    box(C, w, h, r); for (p = 0; p < n; p++) C[p] = C[p] > 0.999 || lv[p] <= 2 ? 1 : 0;
+    requeue(); grow(function (p, q) { return C[q] > 0; });
+    // 3. clouds and haze: soft steps into sky-coloured or cloud-coloured pixels
+    requeue(); grow(function (p, q) { return dE(p, q) < 6 && (lv[q] <= 2 || cloud(q)); });
+    for (p = 0; p < n; p++) if (reach[p]) out[p] = sure[p] || cloud(p) || lv[p] <= 1 ? 1 : lv[p] === 2 ? 0.6 : lv[p] === 3 ? 0.25 : 0;
+    // 4. small sky-coloured holes (sky through leaves) above the horizon of nearby columns
+    var hz = new Int32Array(w).fill(-1), hw = new Int32Array(w), R = Math.max(2, Math.round(w / 10)), lab2 = new Int32Array(n), cmp = [];
+    for (p = 0; p < n; p++) if (reach[p]) { x = p % w; y = (p - x) / w; if (y > hz[x]) hz[x] = y; }
+    for (x = 0; x < w; x++) { var mh = -1; for (var j = Math.max(0, x - R); j <= Math.min(w - 1, x + R); j++) if (hz[j] > mh) mh = hz[j]; hw[x] = mh; }
+    function hole(q) { var qx = q % w; return !reach[q] && lv[q] <= 1 && (q - qx) / w <= hw[qx]; }
+    for (var p0 = 0; p0 < n; p0++) {
+      if (lab2[p0] || !hole(p0)) continue;
+      cmp.length = 0; cmp.push(p0); lab2[p0] = 1;
+      for (var ci = 0; ci < cmp.length; ci++) {
+        p = cmp[ci]; x = p % w; y = (p - x) / w;
+        for (k = 0; k < 4; k++) {
+          q = k === 0 ? (x > 0 ? p - 1 : -1) : k === 1 ? (x < w - 1 ? p + 1 : -1) : k === 2 ? (y > 0 ? p - w : -1) : (y < h - 1 ? p + w : -1);
+          if (q >= 0 && !lab2[q] && hole(q)) { lab2[q] = 1; cmp.push(q); }
+        }
+      }
+      if (cmp.length <= n * 0.01) for (ci = 0; ci < cmp.length; ci++) out[cmp[ci]] = lv[cmp[ci]] === 0 ? 1 : 0.8;
+    }
+    return out;
+  };
+  PIXS.sky = function (small, guide, opt) {
+    var f = PIXS.skyMap(small), sw = small.width, sh = small.height, any = false, p;
+    for (p = 0; p < f.length; p++) if (f[p] > 0.5) { any = true; break; }
+    var g = guide || small, w = g.width, h = g.height, o = new Uint8Array(w * h);
+    if (!any) return o;
+    var m = w === sw && h === sh ? f : bilinear(f, sw, sh, w, h), scale = Math.max(w, h) / Math.max(sw, sh);
+    if (scale > 1.4) m = guidedColor(g, m, clamp(Math.round(scale * 2), 2, 16), 1e-3);
+    var t = 0.5 - clamp((opt && opt.shift) || 0, -100, 100) / 250;
+    for (p = 0; p < m.length; p++) o[p] = Math.round(clamp((m[p] - t) / 0.2 + 0.5, 0, 1) * 255);
+    return o;
+  };
+
   // ---------- dispatcher for js/select/worker.js ----------
   PIXS.call = function (fn, args) {
     if (["edt", "call"].indexOf(fn) >= 0 || typeof PIXS[fn] !== "function") throw new Error("Not allowed: " + fn);
