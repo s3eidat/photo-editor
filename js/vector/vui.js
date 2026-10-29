@@ -104,9 +104,15 @@
     plabel = label; fn(); ED.render(); ED.renderOvl();
     clearTimeout(pt); pt = setTimeout(UI.flush, 450);
   };
-  UI.flush = function () { if (!pb) return; clearTimeout(pt); var b = pb; pb = null; ED.push(PE.metaEntry(plabel, ED.doc, b)); };
+  var flushing = false;
+  UI.flush = function () { if (!pb) return; clearTimeout(pt); var b = pb; pb = null; flushing = true; try { ED.push(PE.metaEntry(plabel, ED.doc, b)); } finally { flushing = false; } };
   var flushProps0 = ED.flushProps;
   ED.flushProps = function () { UI.flush(); if (flushProps0) flushProps0(); };
+  // any other history step first records a pending live edit, so steps stay in order
+  var push0 = ED.push;
+  ED.push = function (e) { if (pb && !flushing && e) UI.flush(); return push0(e); };
+  var undo0 = ED.undo;
+  ED.undo = function () { UI.flush(); return undo0.apply(ED, arguments); };
 
   // ---------- menus ----------
   // add(menuName, item, afterLabel?) where item = [label, shortcut, fn, enabled?] or "-"

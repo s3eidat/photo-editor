@@ -272,3 +272,26 @@
     ok(!VX.pwSession(), "cancel ends the session");
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, VX = PE.VX;
+  VX.test("character runs", function (ok) {
+    var T = { text: "Hello brave world", font: "Inter", size: 20, weight: 400, color: "#000000", align: "left", dir: "ltr", lh: 1.2, ax: 0, ay: 0, rot: 0 };
+    VX.setRange(T, 6, 11, "color", "#ff0000");
+    ok(T.runs.length === 1 && T.runs[0].a === 6 && T.runs[0].b === 11, "a range becomes a run");
+    VX.setRange(T, 8, 15, "size", 40);
+    ok(T.runs.length === 3 && T.runs[1].a === 8 && T.runs[1].s.size === 40 && T.runs[1].s.color === "#ff0000" && T.runs[2].s.size === 40 && !T.runs[2].s.color, "overlapping ranges split into runs");
+    VX.setRange(T, 0, 17, "size", 20); VX.setRange(T, 0, 17, "color", "#000000");
+    ok(!T.runs, "setting the layer's own values clears the runs");
+    VX.setRange(T, 6, 11, "weight", 700);
+    var old = T.text; T.text = "Hello very brave world"; VX.shiftRuns(T, old, T.text);
+    ok(T.runs[0].a === 11 && T.runs[0].b === 16, "typing before a run moves it");
+    old = T.text; T.text = "Hello very braver world"; VX.shiftRuns(T, old, T.text);
+    ok(T.runs[0].b === 17, "typing at the end of a run extends it");
+    old = T.text; T.text = "Hello world"; VX.shiftRuns(T, old, T.text);
+    ok(!T.runs, "deleting the styled text removes its run");
+    var U = Object.assign({}, T, { text: "ab cd" }), w0 = PE.textLayout(Object.assign({}, U, { track: 1 })).w;
+    VX.setRange(U, 3, 5, "size", 40); var lay = PE.textLayout(U);
+    ok(lay.runs && lay.w > w0 * 1.2 && lay.items[0].big === 40, "a bigger run widens the line and sets its height");
+  });
+})();

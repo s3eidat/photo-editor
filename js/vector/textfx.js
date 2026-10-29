@@ -117,6 +117,7 @@
     var a = P.pts[lo], b = P.pts[hi] || a, t = (s - L[lo]) / ((L[hi] - L[lo]) || 1);
     return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, a: Math.atan2(b.y - a.y, b.x - a.x) };
   }
+  VX.pathPoly = poly; VX.pathAt = at;
   var LC = new Map();
   VX.pathLayout = function (T) {
     var key = JSON.stringify(T), hit = LC.get(key); if (hit) return hit;
@@ -144,8 +145,10 @@
     VX.setFont(c, T); c.textBaseline = "alphabetic"; c.fillStyle = PE.hex(T.color, "#111111");
     if (T.fbold) { c.strokeStyle = c.fillStyle; c.lineWidth = VX.effSize(T) * 0.035; c.lineJoin = "round"; }
     lay.glyphs.forEach(function (g) {
+      var st = g.st || T, sh = g.st ? -(st.base || 0) + (st.sup === "sup" ? -st.size * 0.33 : st.sup === "sub" ? st.size * 0.18 : 0) : shift;
+      if (g.st) { VX.setFont(c, st); c.fillStyle = PE.hex(st.color, "#111111"); c.textBaseline = "alphabetic"; if (st.fbold) { c.strokeStyle = c.fillStyle; c.lineWidth = VX.effSize(st) * 0.035; } }
       c.save(); c.translate(g.x, g.y); c.rotate(g.a);
-      VX.drawRun(c, T, g.u, -g.w / 2, shift, g.w, false);
+      VX.drawRun(c, st, g.u, -g.w / 2, sh, g.w, false);
       c.restore();
     });
     return true;

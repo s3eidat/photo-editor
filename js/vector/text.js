@@ -14,7 +14,7 @@
 
   function isExt(T) {
     return !!(T.box || T.track || T.base || (T.hs && T.hs !== 100) || (T.vs && T.vs !== 100) || T.caps || T.under || T.strike || T.fbold || T.sup || T.indL || T.indR || T.indF ||
-      T.spB || T.spA || T.align && T.align.indexOf("justify") === 0 || T.kern === "none" || (T.weight && T.weight !== 400 && T.weight !== 700) || T.path || T.warp);
+      T.spB || T.spA || T.align && T.align.indexOf("justify") === 0 || T.kern === "none" || (T.weight && T.weight !== 400 && T.weight !== 700) || T.path || T.warp || (T.runs && T.runs.length));
   }
   VX.isExtText = isExt;
   function effSize(T) { return Math.max(1, T.size) * (T.sup ? 0.62 : 1); }
@@ -36,6 +36,7 @@
   function layout(T) {
     if (!isExt(T)) return null;
     if (T.path && VX.pathLayout) return VX.pathLayout(T);
+    if (T.runs && T.runs.length && VX.layoutRuns) return VX.layoutRuns(T);
     var key = JSON.stringify(T), hit = LCACHE.get(key);
     if (hit) return hit;
     var c = mctx(); setFont(c, T);
@@ -116,6 +117,7 @@
     return true;
   };
   function drawLaid(c, T, lay) {
+    if (lay.runs && VX.drawRuns) { VX.drawRuns(c, T, lay); return; }
     var rtl = PE.textDir(T) === "rtl", size = effSize(T), shift = -(T.base || 0) + (T.sup === "sup" ? -T.size * 0.33 : T.sup === "sub" ? T.size * 0.18 : 0);
     setFont(c, T); c.textBaseline = "middle"; c.fillStyle = PE.hex(T.color, "#111111");
     if (T.fbold) { c.strokeStyle = c.fillStyle; c.lineWidth = size * 0.035; c.lineJoin = "round"; }
@@ -281,34 +283,44 @@
     b.addEventListener("click", function () { var v = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", String(v)); f(v); });
     return b;
   }
+  // a character setting: on the selected characters if some are selected, else on the whole layer
+  function setC(label, key, value, dflt) {
+    var L = textLayer(); if (!L) return;
+    var r = VX.selRange && VX.selRange(L);
+    if (r && VX.setRange) { setT(label + " (selection)", function (t) { VX.setRange(t, r.a, r.b, key, value); }); return; }
+    setT(label, function (t) { if (dflt !== undefined && value === dflt) delete t[key]; else t[key] = value; });
+  }
+  VX.setChar = setC;
   function buildChar() {
     cbody.textContent = "";
     var L = textLayer(); if (!L) return;
-    var T = L.text, w = ED.ui.w;
+    var T0 = L.text, w = ED.ui.w, r = VX.selRange && VX.selRange(L), T = r && VX.styleAt ? VX.styleAt(T0, r.a) : T0;
+    if (r) cbody.appendChild(h("p", { "class": "pe-p pe-vsel", text: "Styling " + (r.b - r.a) + " selected character" + (r.b - r.a > 1 ? "s" : "") + " · “" + T0.text.slice(r.a, Math.min(r.b, r.a + 24)) + (r.b - r.a > 24 ? "…" : "") + "”" }));
     var fonts = PE.deviceFonts().slice(); if (fonts.indexOf(T.font) < 0) fonts.unshift(T.font);
     cbody.appendChild(h("div", { "class": "pe-pgrid" }, [
-      h("div", { "class": "pe-span2" }, [UI.psel("Font", fonts.map(function (f) { return [f, f]; }), T.font, function (v) { setT("Font", function (t) { t.font = v; }); })]),
-      UI.psel("Weight", WEIGHTS, T.weight || 400, function (v) { setT("Font weight", function (t) { t.weight = +v; }); }),
-      UI.pnum("Size (px)", T.size, function (v) { setT("Font size", function (t) { t.size = v; }); }, 1, 1, 2000),
-      UI.pnum("Leading (px)", Math.round(T.size * (T.lh || 1.2) * 10) / 10, function (v) { setT("Leading", function (t) { t.lh = PE.clamp(v / t.size, 0.3, 6); }); }, 1, 1, 12000),
-      UI.pnum("Tracking (‰ em)", T.track || 0, function (v) { setT("Tracking", function (t) { t.track = v; if (!v) delete t.track; }); }, 10, -1000, 10000),
-      UI.psel("Kerning", [["metrics", "Font metrics"], ["none", "None"]], T.kern || "metrics", function (v) { setT("Kerning", function (t) { if (v === "none") t.kern = "none"; else delete t.kern; }); }),
-      UI.pnum("Baseline shift (px)", T.base || 0, function (v) { setT("Baseline shift", function (t) { t.base = v; if (!v) delete t.base; }); }, 1, -2000, 2000),
-      UI.pnum("Horizontal scale %", T.hs || 100, function (v) { setT("Horizontal scale", function (t) { t.hs = v; if (v === 100) delete t.hs; }); }, 1, 1, 1000),
-      UI.pnum("Vertical scale %", T.vs || 100, function (v) { setT("Vertical scale", function (t) { t.vs = v; if (v === 100) delete t.vs; }); }, 1, 1, 1000),
-      UI.pcolor("Colour", T.color, function (v) { setT("Text colour", function (t) { t.color = v; }); })
+      h("div", { "class": "pe-span2" }, [UI.psel("Font", fonts.map(function (f) { return [f, f]; }), T.font, function (v) { setC("Font", "font", v); })]),
+      UI.psel("Weight", WEIGHTS, T.weight || 400, function (v) { setC("Font weight", "weight", +v); }),
+      UI.pnum("Size (px)", T.size, function (v) { setC("Font size", "size", v); }, 1, 1, 2000),
+      UI.pnum("Leading (px)", Math.round(T0.size * (T0.lh || 1.2) * 10) / 10, function (v) { setT("Leading", function (t) { t.lh = PE.clamp(v / t.size, 0.3, 6); }); }, 1, 1, 12000),
+      UI.pnum("Tracking (‰ em)", T.track || 0, function (v) { setC("Tracking", "track", v, 0); }, 10, -1000, 10000),
+      UI.psel("Kerning", [["metrics", "Font metrics"], ["none", "None"]], T0.kern || "metrics", function (v) { setT("Kerning", function (t) { if (v === "none") t.kern = "none"; else delete t.kern; }); }),
+      UI.pnum("Baseline shift (px)", T.base || 0, function (v) { setC("Baseline shift", "base", v, 0); }, 1, -2000, 2000),
+      UI.pnum("Horizontal scale %", T.hs || 100, function (v) { setC("Horizontal scale", "hs", v, 100); }, 1, 1, 1000),
+      UI.pnum("Vertical scale %", T.vs || 100, function (v) { setC("Vertical scale", "vs", v, 100); }, 1, 1, 1000),
+      UI.pcolor("Colour", T.color, function (v) { setC("Text colour", "color", v); })
     ]));
     cbody.appendChild(h("div", { "class": "pe-prow pe-vtogs" }, [
-      tog("B", T.fbold, function (v) { setT("Faux bold", function (t) { if (v) t.fbold = true; else delete t.fbold; }); }, "Faux bold"),
-      tog("I", T.fital, function (v) { setT("Faux italic", function (t) { if (v) t.fital = true; else delete t.fital; }); }, "Faux italic (slant)"),
-      tog("TT", T.caps === "all", function (v) { setT("All caps", function (t) { if (v) t.caps = "all"; else delete t.caps; }); buildChar(); }, "All caps"),
-      tog("Tt", T.caps === "small", function (v) { setT("Small caps", function (t) { if (v) t.caps = "small"; else delete t.caps; }); buildChar(); }, "Small caps"),
-      tog("T¹", T.sup === "sup", function (v) { setT("Superscript", function (t) { if (v) t.sup = "sup"; else delete t.sup; }); buildChar(); }, "Superscript"),
-      tog("T₁", T.sup === "sub", function (v) { setT("Subscript", function (t) { if (v) t.sup = "sub"; else delete t.sup; }); buildChar(); }, "Subscript"),
-      tog("U", T.under, function (v) { setT("Underline", function (t) { if (v) t.under = true; else delete t.under; }); }, "Underline"),
-      tog("S", T.strike, function (v) { setT("Strikethrough", function (t) { if (v) t.strike = true; else delete t.strike; }); }, "Strikethrough"),
-      w.check("Italic", T.italic, function (v) { setT("Italic", function (t) { t.italic = v; }); })
+      tog("B", T.fbold, function (v) { setC("Faux bold", "fbold", v, false); }, "Faux bold"),
+      tog("I", T.fital, function (v) { setC("Faux italic", "fital", v, false); }, "Faux italic (slant)"),
+      tog("TT", T.caps === "all", function (v) { setC("All caps", "caps", v ? "all" : null, null); buildChar(); }, "All caps"),
+      tog("Tt", T.caps === "small", function (v) { setC("Small caps", "caps", v ? "small" : null, null); buildChar(); }, "Small caps"),
+      tog("T¹", T.sup === "sup", function (v) { setC("Superscript", "sup", v ? "sup" : null, null); buildChar(); }, "Superscript"),
+      tog("T₁", T.sup === "sub", function (v) { setC("Subscript", "sup", v ? "sub" : null, null); buildChar(); }, "Subscript"),
+      tog("U", T.under, function (v) { setC("Underline", "under", v, false); }, "Underline"),
+      tog("S", T.strike, function (v) { setC("Strikethrough", "strike", v, false); }, "Strikethrough"),
+      w.check("Italic", T.italic, function (v) { setC("Italic", "italic", v); })
     ]));
+    if (!r) cbody.appendChild(h("p", { "class": "faint pe-p", text: "Select characters while editing to style only those." }));
   }
   function buildPara() {
     pbody.textContent = "";
