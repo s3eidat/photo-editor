@@ -57,6 +57,16 @@
     if (how !== "none") S3.toast((Object.keys(SX.picked).length + (a ? 1 : 0)) + " layers selected: move, align, group or link them together");
   };
 
+  // Next layer above / below the active one in panel order (Alt+] / Alt+[; Shift adds it to the picked layers).
+  SX.stepLayer = function (dir, add) {
+    var d = ED.doc; if (!d) return;
+    var order = topFirst(T(), true).map(function (r) { return r.L; }).filter(pickable), i = order.indexOf(ED.layer());
+    var L = dir === "top" ? order[0] : dir === "bottom" ? order[order.length - 1] : order[i < 0 ? 0 : i + (dir > 0 ? -1 : 1)];
+    if (!L) return;
+    if (add) { if (d.active) SX.picked[d.active] = 1; SX.picked[L.id] = 1; } else SX.picked = {};
+    ED.setActive(L.id, false);
+  };
+
   function nextName(prefix) { var d = ED.doc, n = 1; while (d.layers.some(function (L) { return L.name === prefix + " " + n; })) n++; return prefix + " " + n; }
   function newGroupLayer(name) { var G = PE.newLayer("group", { name: name || nextName("Group"), blend: "pass" }); G.canvas = null; G.open = true; return G; }
 
@@ -309,6 +319,10 @@
   SX.menu("Select", ["-", ["All layers", "Ctrl+Alt+A", function () { SX.pickLayers("all"); }, has], ["Similar layers", "", function () { SX.pickLayers("similar"); }, has], ["Deselect layers", "", function () { SX.pickLayers("none"); }, function () { return has() && Object.keys(SX.picked).length > 0; }], "-"], "Inverse");
   SX.menu("Layer", [["New group", "", SX.newGroup, has], ["Group layers", "Ctrl+G", SX.groupLayers, has], ["Ungroup layers", "Ctrl+Shift+G", function () { SX.ungroup(); }, inGroup]], "Delete layer");
   (ED.ui.keys = ED.ui.keys || []).push(function (e) {
+    if (!e.altKey || e.ctrlKey || e.metaKey || !ED.doc || ["BracketLeft", "BracketRight", "Period", "Comma"].indexOf(e.code) < 0) return false;
+    e.preventDefault(); SX.stepLayer(e.code === "BracketRight" ? 1 : e.code === "BracketLeft" ? -1 : e.code === "Period" ? "top" : "bottom", e.shiftKey); return true;
+  });
+  (ED.ui.keys = ED.ui.keys || []).push(function (e) {
     if (!(e.ctrlKey || e.metaKey) || !e.altKey || e.shiftKey || e.code !== "KeyA" || !ED.doc || ED.isTyping(e)) return false;
     e.preventDefault(); SX.pickLayers("all"); return true;
   });
@@ -317,6 +331,11 @@
     e.preventDefault(); if (e.shiftKey) SX.ungroup(); else SX.groupLayers(); return true;
   });
 
+  SX.tests.push(async function (ok) {
+    var a = PE.rasterFromCanvas(SX.solid(2, 2, "#ff0000"), "a"), b = PE.rasterFromCanvas(SX.solid(2, 2, "#00ff00"), "b"), c = PE.rasterFromCanvas(SX.solid(2, 2, "#0000ff"), "c"), d = SX.scratch(2, 2, [a, b, c]);
+    d.active = a.id; SX.stepLayer(1); var up = ED.layer().name; SX.stepLayer(1, true); var picked = SX.pickedList().length; SX.stepLayer("bottom"); var bottom = ED.layer().name;
+    ok(up === "b" && picked === 2 && bottom === "a", "Alt+] / Alt+[ step through layers (Shift adds)");
+  });
   SX.tests.push(async function (ok) {
     var a = PE.rasterFromCanvas(SX.solid(2, 2, "#ff0000"), "a"), b = PE.rasterFromCanvas(SX.solid(2, 2, "#00ff00"), "b"), t = PE.newLayer("text", { name: "t", text: { text: "x" } }), d = SX.scratch(2, 2, [a, b, t]);
     d.active = a.id; SX.pickLayers("similar"); var sim = SX.pickedList().map(function (L) { return L.name; }).sort().join();

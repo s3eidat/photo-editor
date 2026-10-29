@@ -65,6 +65,13 @@
       e.preventDefault(); SX.openLayerMenu(r.L, e.clientX, e.clientY, r.row);
     });
     list.addEventListener("keydown", function (e) {
+      if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !e.altKey && !e.ctrlKey && !e.metaKey && rowLayer(e.target) && e.target.classList.contains("pe-layer")) {   // move through the rows
+        e.preventDefault(); e.stopPropagation(); var id = e.target.getAttribute("data-id");
+        if (ED.doc.active !== id) SX.pickLayer(PE.findLayer(ED.doc, id), null, false);
+        SX.stepLayer(e.key === "ArrowUp" ? 1 : -1, e.shiftKey); SX.renderPanel();
+        var r = document.querySelector('#layerList .pe-layer[data-id="' + ED.doc.active + '"]'); if (r) r.focus();
+        return;
+      }
       if (!(e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey))) return;
       var r = rowLayer(e.target); if (!r || !r.L) return;
       e.preventDefault(); e.stopPropagation(); var b = r.row.getBoundingClientRect(); SX.openLayerMenu(r.L, b.left + 24, b.bottom - 4, r.row);

@@ -93,6 +93,6 @@
   "use strict";
   var ED = window.PE.ed, S = ED.ui.SHORTCUTS; if (!S) return;
   S.push(["Quick selection / magic wand", "W (press again to switch)"], ["Quick mask", "Q"], ["Refine selection", "Ctrl+Alt+R"],
-    ["Group / ungroup layers", "Ctrl+G · Ctrl+Shift+G"], ["Clipping mask", "Ctrl+Alt+G (or Alt+click a layer)"], ["Pick several layers", "Ctrl+click · Shift+click in Layers · Ctrl+Alt+A all"],
+    ["Group / ungroup layers", "Ctrl+G · Ctrl+Shift+G"], ["Clipping mask", "Ctrl+Alt+G (or Alt+click a layer)"], ["Pick several layers", "Ctrl+click · Shift+click in Layers · Ctrl+Alt+A all"], ["Layer above / below / top / bottom", "Alt+] · Alt+[ · Alt+. · Alt+, (Shift adds)"],
     ["Layer blend mode", "Shift+Alt+letter (M multiply, S screen, O overlay…) · Shift++ / Shift+-"], ["Merge copy / stamp visible", "Ctrl+Alt+E · Ctrl+Shift+Alt+E"]);
 })();
