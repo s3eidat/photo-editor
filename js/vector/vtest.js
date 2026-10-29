@@ -115,3 +115,31 @@
     ok(msk[20 * 40 + 20] === 0 && msk[10 * 40 + 10] === 255 && msk[2 * 40 + 2] === 0, "make selection respects subtract");
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, VX = PE.VX, ED = PE.ed;
+  VX.test("type", async function (ok) {
+    var T = { text: "one two three four five six seven eight nine ten eleven twelve", font: "Inter", size: 20, weight: 400, italic: false, color: "#000000", align: "justify-left", dir: "ltr", lh: 1.2, ax: 10, ay: 10, rot: 0, box: { w: 150, h: 400 } };
+    var lay = PE.textLayout(T);
+    ok(lay.lines.length >= 3 && lay.items.every(function (it) { return it.w <= 150 + 0.5; }), "paragraph wraps inside its box (" + lay.lines.length + " lines)");
+    ok(lay.items.slice(0, -1).every(function (it) { return it.gap > 0 || !/\s/.test(it.s); }) && lay.items[lay.items.length - 1].gap == null, "justified lines spread, last line does not");
+    ok(lay.box.x === 10 && lay.box.w === 150 && lay.box.h === 400, "paragraph box is the layout box");
+    var w0 = PE.textLayout(Object.assign({}, T, { box: null, align: "left", track: 1 })).w, w1 = PE.textLayout(Object.assign({}, T, { box: null, align: "left", track: 101 })).w;
+    ok(VX.near(w1 - w0, 100 / 1000 * 20 * Array.from(T.text).length, 0.5), "tracking adds track/1000 em per character");
+    var small = PE.textLayout(Object.assign({}, T, { box: { w: 150, h: 30 } }));
+    ok(small.overflow && small.items.filter(function (i) { return !i.hidden; }).length === 1, "lines past the box are hidden and flagged");
+    // non-uniform scaling becomes character scale; boxes scale with it
+    var T2 = Object.assign({}, T, { box: { w: 100, h: 50 }, size: 20 }), c = { x: 50, y: 50 };
+    T2.size = 20 * Math.sqrt(2); VX.xfText(T2, c, 2, 1);
+    ok(VX.near(T2.box.w, 200) && VX.near(T2.box.h, 50) && VX.near(T2.hs, 100 * 2 / Math.sqrt(2)) && VX.near(T2.ax, -50), "transform scales the box and character width");
+    // drawn: underline adds ink below the text
+    var d = PE.newDoc(200, 80, "t"), L = PE.newLayer("text", { text: { text: "Hi", size: 40, color: "#000000", ax: 10, ay: 10 } }); d.layers = [L];
+    function ink() { var px = PE.cx2(PE.flatten(d)).getImageData(0, 0, 200, 80).data, n = 0; for (var i = 3; i < px.length; i += 4) n += px[i]; return n; }
+    var a = ink(); L.text.under = true; var b = ink();
+    ok(b > a * 1.05, "underline draws");
+    // save / open keeps the settings
+    L.text = Object.assign({}, T, { weight: 300, track: 50, caps: "small", sup: "sup", fbold: true, indF: 12, spA: 4, kern: "none", hs: 90 });
+    var od = await PE.openProject(new Uint8Array(await (await PE.saveProject(d)).arrayBuffer())), t2 = od.layers[0].text;
+    ok(t2.weight === 300 && t2.align === "justify-left" && t2.box.w === 150 && t2.track === 50 && t2.caps === "small" && t2.sup === "sup" && t2.fbold === true && t2.indF === 12 && t2.spA === 4 && t2.kern === "none" && t2.hs === 90, "type settings round-trip");
+  });
+})();

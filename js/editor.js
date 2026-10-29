@@ -713,6 +713,7 @@
       if (sx < 0) S.flipX = !S.flipX; S.sw = S.sw * Math.sqrt(Math.abs(sx * sy));
     } else {
       var T = L.text; T.size = PE.clamp(T.size * Math.sqrt(Math.abs(sx * sy)), 1, 2000); T.rot = rot; if (sx < 0) T.flipX = !T.flipX;
+      if (PE.VX && PE.VX.xfText && PE.VX.xfText(T, c, sx, sy)) return;   // lane:vector (paragraph boxes, character scale)
       var lay = PE.textLayout(T); T.ax = c.x + (T.align === "left" ? -lay.w / 2 : T.align === "right" ? lay.w / 2 : 0); T.ay = c.y - lay.h / 2;
     }
   }
@@ -808,6 +809,7 @@
         if (L.mask) { var mb = PE.bake(L.mask.canvas, L.mask.x, L.mask.y, m); L.mask = { canvas: mb.canvas, x: mb.x, y: mb.y }; }
         if (L.kind === "raster") { var r = PE.bake(L.canvas, L.x, L.y, m); L.canvas = r.canvas; L.x = r.x; L.y = r.y; }
         if (L.text) { var T = L.text, k = Math.sqrt(kx * ky); T.ax *= kx; T.ay *= ky; T.size = PE.clamp(T.size * k, 1, 2000); }
+        if (L.text && PE.VX && PE.VX.scaleText) PE.VX.scaleText(L.text, kx, ky);   // lane:vector
         if (L.shape) { var S = L.shape; S.x *= kx; S.y *= ky; S.w *= kx; S.h *= ky; S.sw *= Math.sqrt(kx * ky); }
       });
       d.w = w; d.h = h; d.sel = null;
@@ -858,6 +860,7 @@
     var left = T.align === "center" ? s.x + b.w * z / 2 - w / 2 : T.align === "right" ? s.x + b.w * z - w + 4 : s.x - 4;
     ta.style.left = left + "px"; ta.style.top = s.y + "px"; ta.style.width = w + "px"; ta.style.height = (lay.h * z + 6) + "px";
     ta.style.transform = "rotate(" + (T.rot || 0) + "deg)" + (T.flipX ? " scaleX(-1)" : "");
+    if (PE.VX && PE.VX.placeText) PE.VX.placeText(ta, L);   // lane:vector
   }
   ED.placeText = placeText;
   function finishText() {

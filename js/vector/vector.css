@@ -39,3 +39,6 @@
   .pe-vws-side { border-left: 0; border-top: 1px solid var(--line); max-height: 34vh; }
   .pe-vlib { grid-template-columns: repeat(5, 40px); position: fixed; left: 8px; top: auto; }
 }
+.pe-vtogs { gap: 3px; }
+.pe-vtog { min-width: 32px; justify-content: center; padding: 0 7px; font-weight: 700; }
+.pe-vtog[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
