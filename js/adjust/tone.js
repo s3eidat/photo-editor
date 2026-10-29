@@ -311,4 +311,10 @@
       o[0] = (Y + 0.956 * I + 0.621 * Q) * 255; o[1] = (Y - 0.272 * I - 0.647 * Q) * 255; o[2] = (Y - 1.106 * I + 1.703 * Q) * 255;
     });
   });
+
+  // ---------- the editor's own filters, with pixel sizes that follow p._scale (for reduced-size previews) ----------
+  A.reg("blurS", A.filter(function (img, p) { return PIX.gaussian(img, clamp(num(p.radius, 4), 0, 250) * clamp(num(p._scale, 1), 0.01, 1)); }));
+  A.reg("unsharpS", A.filter(function (img, p) { var S = clamp(num(p._scale, 1), 0.01, 1); return PIX.unsharp(img, num(p.amount, 120), Math.max(0.1, num(p.radius, 2) * S), num(p.threshold, 0)); }));
+  A.reg("pixelateS", A.filter(function (img, p) { return PIX.pixelate(img, Math.max(1, Math.round(num(p.size, 12) * clamp(num(p._scale, 1), 0.01, 1)))); }));
+  A.reg("colorBalancePlus", function (img, p, sel) { return PIX.adjust(img, "colorBalance", p, sel); });
 })(typeof self !== "undefined" ? self : this);

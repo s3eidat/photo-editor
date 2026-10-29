@@ -156,6 +156,26 @@
       }, "ghost", null, "Suggested brightness and contrast for this image"));
     } });
 
+  // ---------- the editor's simpler panels through the faster engine (same sliders; sizes follow the preview scale) ----------
+  function clone(op, as, extra) { var s0 = ED.ADJ[op]; if (!s0) return null; var s1 = Object.assign({}, s0, extra || {}); delete s1.custom; AUI.adj(as, s1); return as; }
+  [["exposure", "Exposure…"], ["vibrance", "Vibrance…"], ["threshold", "Threshold…"]].forEach(function (a) { replaceItem("Image", a[1], function () { AUI.open(a[0]); }); });
+  if (clone("blur", "blurS")) replaceItem("Filter", "Gaussian blur…", function () { AUI.open("blurS"); });
+  if (clone("unsharp", "unsharpS")) replaceItem("Filter", "Unsharp mask…", function () { AUI.open("unsharpS"); });
+  if (clone("pixelate", "pixelateS")) replaceItem("Filter", "Pixelate…", function () { AUI.open("pixelateS"); });
+  replaceItem("Filter", "Add noise…", function () { AUI.open("noise"); });
+  replaceItem("Filter", "Vignette…", function () { AUI.open("vignette"); });
+  AUI.adj("colorBalancePlus", { t: "Colour balance", ui: function (el, st) {
+    var p = st.p, tone = "mid", rs = [];
+    p.sh = [0, 0, 0]; p.mid = [0, 0, 0]; p.hi = [0, 0, 0]; p.keepLum = true;
+    el.appendChild(K().seg("Tone", [["sh", "Shadows"], ["mid", "Midtones"], ["hi", "Highlights"]], tone, function (v) { tone = v; rs.forEach(function (r, i) { r._set(p[tone][i]); }); }));
+    ["Cyan ↔ Red", "Magenta ↔ Green", "Yellow ↔ Blue"].forEach(function (lab, i) { var r = K().range(lab, 0, -100, 100, 1, function (v) { p[tone][i] = v; st.schedule(); }); rs.push(r); el.appendChild(r); });
+    el.appendChild(K().check("Preserve luminosity", true, function (v) { p.keepLum = v; st.schedule(); }));
+  } });
+  replaceItem("Image", "Colour balance…", function () { AUI.open("colorBalancePlus"); });
+  AUI.key("Ctrl+B", function () { AUI.open("colorBalancePlus"); });
+  // the Mosaic item in Filter › Pixelate goes to the same faster panel
+  (AUI.FILTERS.pixelate || []).forEach(function (it) { if (it !== "-" && it[0] === "Mosaic…") it[2] = function () { AUI.open("pixelateS"); }; });
+
   // menu items and shortcuts now open these panels
   replaceItem("Image", "Brightness / Contrast…", function () { AUI.open("brightnessPlus"); });
   replaceItem("Image", "Levels…", function () { AUI.open("levelsPlus"); });
