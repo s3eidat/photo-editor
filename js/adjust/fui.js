@@ -17,7 +17,7 @@
 
   // blur
   AUI.filter("blur", "Motion blur…", "motionBlur", { t: "Motion blur", c: [sl("angle", "Angle", -180, 180, 1, 0, deg), sl("distance", "Distance", 1, 2000, 1, 20, pxf)] });
-  AUI.filter("blur", "Radial blur…", "radialBlur", { t: "Radial blur", c: [sl("amount", "Amount", 1, 100, 1, 10), sl("cx", "Centre X", 0, 100, 1, 50, pc), sl("cy", "Centre Y", 0, 100, 1, 50, pc)],
+  AUI.filter("blur", "Radial blur…", "radialBlur", { t: "Radial blur", handles: AUI.H.point("cx", "cy"), c: [sl("amount", "Amount", 1, 100, 1, 10), sl("cx", "Centre X", 0, 100, 1, 50, pc), sl("cy", "Centre Y", 0, 100, 1, 50, pc)],
     sel: [["mode", "Method", [["spin", "Spin"], ["zoom", "Zoom"]], "spin"], ["quality", "Quality", [["draft", "Draft"], ["good", "Good"], ["best", "Best"]], "good"]] });
   AUI.filter("blur", "Surface blur…", "surfaceBlur", { t: "Surface blur", c: [sl("radius", "Radius", 1, 100, 1, 5, pxf), sl("threshold", "Threshold (levels)", 2, 255, 1, 15)] });
   AUI.filter("blur", "Smart blur…", "smartBlur", { t: "Smart blur", c: [sl("radius", "Radius", 0.5, 100, 0.5, 3, pxf), sl("threshold", "Threshold", 1, 100, 1, 25)],
@@ -85,13 +85,13 @@
     b.setAttribute("aria-pressed", "false"); b.classList.add("pe-apick"); el.appendChild(b);
   }
   F.blur.push("-");
-  AUI.filter("blur", "Tilt-shift…", "tiltShift", { t: "Tilt-shift", mp: 8e5, c: [sl("blur", "Blur", 0, 200, 1, 15, pxf), sl("cy", "Focus line position", 0, 100, 1, 50, pc), sl("angle", "Angle", -90, 90, 1, 0, deg),
+  AUI.filter("blur", "Tilt-shift…", "tiltShift", { t: "Tilt-shift", mp: 8e5, handles: AUI.H.tilt, c: [sl("blur", "Blur", 0, 200, 1, 15, pxf), sl("cy", "Focus line position", 0, 100, 1, 50, pc), sl("angle", "Angle", -90, 90, 1, 0, deg),
     sl("focus", "Sharp band", 0, 100, 1, 12, pc), sl("transition", "Fade", 1, 100, 1, 18, pc), sl("bokeh", "Light bokeh", 0, 100, 1, 0, pc)], chk: [["symmetric", "Blur both sides", true]], sel: [IRIS[1]],
     ui: function (el, st) { st.p.cx = 50; placeCentre(el, st, "Place the focus line"); } });
-  AUI.filter("blur", "Iris blur…", "irisBlur", { t: "Iris blur", mp: 8e5, c: [sl("blur", "Blur", 0, 200, 1, 15, pxf), sl("cx", "Centre X", 0, 100, 1, 50, pc), sl("cy", "Centre Y", 0, 100, 1, 50, pc),
+  AUI.filter("blur", "Iris blur…", "irisBlur", { t: "Iris blur", mp: 8e5, handles: AUI.H.iris, c: [sl("blur", "Blur", 0, 200, 1, 15, pxf), sl("cx", "Centre X", 0, 100, 1, 50, pc), sl("cy", "Centre Y", 0, 100, 1, 50, pc),
     sl("rx", "Width", 1, 150, 1, 30, pc), sl("ry", "Height", 1, 150, 1, 30, pc), sl("rotation", "Rotation", -180, 180, 1, 0, deg), sl("sharp", "Sharp area", 0, 99, 1, 50, pc), sl("bokeh", "Light bokeh", 0, 100, 1, 0, pc)], sel: [IRIS[1]],
     ui: function (el, st) { placeCentre(el, st); } });
-  AUI.filter("blur", "Field blur…", "fieldBlur", { t: "Field blur", mp: 8e5, c: [sl("bokeh", "Light bokeh", 0, 100, 1, 0, pc)], sel: [IRIS[1]], ui: function (el, st) {
+  AUI.filter("blur", "Field blur…", "fieldBlur", { t: "Field blur", mp: 8e5, handles: AUI.H.field, c: [sl("bokeh", "Light bokeh", 0, 100, 1, 0, pc)], sel: [IRIS[1]], ui: function (el, st) {
     var p = st.p, K = ED.adjKit, box = h("div", { "class": "stack pe-asecin" });
     p.pins = [[50, 50, 15]];
     function draw() {
@@ -107,7 +107,9 @@
       AUI.pick(function (pt) { if (p.pins.length >= 32) return; p.pins.push([Math.round((pt.x - st.t.r.x) / st.t.r.w * 100), Math.round((pt.y - st.t.r.y) / st.t.r.h * 100), 0]); draw(); st.schedule(); }, add);
     }, "ghost", "i-plus", "Click the image to add a pin (Shift-click adds several); set each pin's blur");
     add.setAttribute("aria-pressed", "false"); add.classList.add("pe-apick");
+    st.redrawPins = draw;
     el.insertBefore(box, el.firstChild); el.insertBefore(add, box.nextSibling); draw();
+    el.appendChild(h("p", { "class": "faint pe-p", text: "On the image: drag pins, click to add one, double-click a pin to remove it." }));
   } });
 
   // more blurs
@@ -118,7 +120,7 @@
   AUI.filter("blur", "Box blur…", "boxBlur", { t: "Box blur", c: [sl("radius", "Radius", 1, 999, 1, 10, pxf)] });
   AUI.filter("blur", "Shape blur…", "shapeBlur", { t: "Shape blur", mp: 8e5, c: [sl("radius", "Radius", 1, 500, 1, 10, pxf)],
     sel: [["shape", "Shape", [["heart", "Heart"], ["star", "Star"], ["ring", "Ring"], ["disc", "Disc"], ["diamond", "Diamond"], ["square", "Square"], ["cross", "Cross"], ["line", "Line"]], "heart"]] });
-  AUI.filter("blur", "Spin blur…", "spinBlur", { t: "Spin blur", c: [sl("angle", "Blur angle", 1, 90, 1, 15, deg), sl("cx", "Centre X", 0, 100, 1, 50, pc), sl("cy", "Centre Y", 0, 100, 1, 50, pc),
+  AUI.filter("blur", "Spin blur…", "spinBlur", { t: "Spin blur", handles: AUI.H.ring("cx", "cy", "size", true), c: [sl("angle", "Blur angle", 1, 90, 1, 15, deg), sl("cx", "Centre X", 0, 100, 1, 50, pc), sl("cy", "Centre Y", 0, 100, 1, 50, pc),
     sl("size", "Size", 1, 150, 1, 30, pc), sl("aspect", "Height : width", 10, 300, 1, 100, pc)], ui: function (el, st) { placeCentre(el, st); } });
 
   // sharpen
@@ -191,9 +193,9 @@
   AUI.filter("render", "Clouds", "clouds", { t: "Clouds", proxy: true, c: [sl("size", "Cloud size", 8, 2048, 1, 256, pxf)], ui: colorsSeed });
   AUI.filter("render", "Difference clouds", "differenceClouds", { t: "Difference clouds", c: [sl("size", "Cloud size", 8, 2048, 1, 256, pxf)], ui: colorsSeed });
   AUI.filter("render", "Fibers…", "fibers", { t: "Fibers", c: [sl("variance", "Variance", 1, 64, 1, 16), sl("strength", "Strength", 1, 64, 1, 4)], ui: colorsSeed });
-  AUI.filter("render", "Lens flare…", "lensFlare", { t: "Lens flare", c: [sl("brightness", "Brightness", 10, 300, 1, 100, pc), sl("x", "Centre X", 0, 100, 1, 30, pc), sl("y", "Centre Y", 0, 100, 1, 30, pc)],
+  AUI.filter("render", "Lens flare…", "lensFlare", { t: "Lens flare", handles: AUI.H.point("x", "y"), c: [sl("brightness", "Brightness", 10, 300, 1, 100, pc), sl("x", "Centre X", 0, 100, 1, 30, pc), sl("y", "Centre Y", 0, 100, 1, 30, pc)],
     sel: [["lens", "Lens", [["zoom", "Zoom lens"], ["prime", "Prime lens"], ["movie", "Wide movie lens"]], "zoom"]], ui: function (el, st) { placeBtn(el, st, "x", "y", "Place on the image"); } });
-  AUI.filter("render", "Lighting effects…", "lighting", { t: "Lighting effects", c: [sl("intensity", "Intensity", -100, 100, 1, 35), sl("x", "Light X", -50, 150, 1, 50, pc), sl("y", "Light Y", -50, 150, 1, 35, pc),
+  AUI.filter("render", "Lighting effects…", "lighting", { t: "Lighting effects", handles: AUI.H.ring("x", "y", "size"), c: [sl("intensity", "Intensity", -100, 100, 1, 35), sl("x", "Light X", -50, 150, 1, 50, pc), sl("y", "Light Y", -50, 150, 1, 35, pc),
     sl("height", "Light height", 1, 100, 1, 50, pc), sl("size", "Spread", 1, 200, 1, 60, pc), sl("focus", "Focus", 1, 100, 1, 50, pc), sl("angle", "Direction (infinite light)", -180, 180, 1, -45, deg),
     sl("ambient", "Ambience", -100, 100, 1, 15), sl("gloss", "Gloss", -100, 100, 1, 0), sl("metallic", "Metallic", -100, 100, 1, 0), sl("bump", "Texture height (from brightness)", 0, 100, 1, 30)],
     sel: [["light", "Light", [["spot", "Spot"], ["point", "Point"], ["infinite", "Infinite"]], "spot"]],

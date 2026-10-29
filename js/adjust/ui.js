@@ -117,8 +117,11 @@
     var pn = panel; if (!pn) return;
     panel = null; AUI.panelKeys = null; ED.modal = false;
     var box = $("#float"); box.hidden = true; box.textContent = "";
+    (pn.cleanups || []).forEach(function (f) { try { f(); } catch (e) { console.error(e); } });
+    AUI.stopPick();
     try { if (ok) pn.onOk(); else if (pn.onCancel) pn.onCancel(); } finally { ED.render(); }
   };
+  AUI.onPanelClose = function (f) { if (panel) (panel.cleanups = panel.cleanups || []).push(f); };
   document.addEventListener("click", function (e) { if (panel && e.target.closest && e.target.closest("#menus")) AUI.closePanel(false); }, true);
 
   // Wider floating panel while one of the big panels is open (removed when the panel closes).
@@ -214,7 +217,9 @@
       for (var i = 0, q = 0; q < t.sel.length; q++, i += 4) sd.data[i + 3] = t.sel[q];
       sx.putImageData(sd, 0, 0);
     }
-    var st = { op: op, t: t, p: p, key: key, busy: false, again: false, shown: null, previewOn: true, scale: s, live: true, src: src };
+    var st = { op: op, t: t, p: p, key: key, busy: false, again: false, shown: null, previewOn: true, scale: s, live: true, src: src, ctrl: {} };
+    // set a slider's value from elsewhere (on-canvas handles), keeping its control in step
+    st.set = function (k, v) { p[k] = v; if (st.ctrl[k]) st.ctrl[k]._set(Math.round(v * 100) / 100); st.schedule(); };
     function show() {
       if (!st.previewOn || !st.shown) { delete ED.live.over[L.id]; ED.render(); return; }
       var c = small;
@@ -243,10 +248,11 @@
     }
     st.schedule = S3.debounce(run, w * hh > 2e6 ? 120 : 40); st.run = run;
     st.pn = AUI.panel(spec.t, function (el) {
-      (spec.c || []).forEach(function (c) { el.appendChild(K.range(c.label, p[c.k], c.min, c.max, c.step, function (v) { p[c.k] = v; st.schedule(); }, c.fmt)); });
+      (spec.c || []).forEach(function (c) { var r = K.range(c.label, p[c.k], c.min, c.max, c.step, function (v) { p[c.k] = v; st.schedule(); }, c.fmt); st.ctrl[c.k] = r; el.appendChild(r); });
       (spec.sel || []).forEach(function (c) { var f = function (v) { p[c[0]] = v; st.schedule(); }; el.appendChild(c[2].length <= 3 ? K.seg(c[1], c[2], p[c[0]], f) : K.select(c[1], c[2], p[c[0]], f)); });
       (spec.chk || []).forEach(function (c) { el.appendChild(K.check(c[1], !!p[c[0]], function (v) { p[c[0]] = v; st.schedule(); })); });
       if (spec.ui) spec.ui(el, st);
+      if (spec.handles && AUI.handles) AUI.handles(st, spec.handles);
       if (t.sel) el.appendChild(h("p", { "class": "faint pe-p", text: "Applies inside the selection only." }));
       if (s < 1) el.appendChild(h("p", { "class": "faint pe-p", text: "Preview at " + Math.round(s * 100) + "% size for speed; OK applies it at full size." }));
     }, function () {
