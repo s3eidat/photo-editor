@@ -388,3 +388,27 @@
     ED.o.spot.type = "content";
   });
 })();
+(function () {
+  "use strict";
+  var PPX = window.PPX, PP = window.PE.paint;
+  // a .pat with one 2x2 RGB pattern (raw channels) and one 4x1 grey pattern (PackBits)
+  function pat() {
+    var b = [];
+    function u8(v) { b.push(v & 255); } function u16(v) { u8(v >> 8); u8(v); } function u32(v) { u8(v >>> 24); u8(v >>> 16); u8(v >>> 8); u8(v); }
+    function name(s) { u32(s.length); for (var i = 0; i < s.length; i++) u16(s.charCodeAt(i)); }
+    function chan(w, h, comp, data) { u32(1); var at = b.length; u32(0); u32(8); u32(0); u32(0); u32(h); u32(w); u16(8); u8(comp); data.forEach(u8); var len = b.length - at - 4; b[at] = len >>> 24 & 255; b[at + 1] = len >>> 16 & 255; b[at + 2] = len >>> 8 & 255; b[at + 3] = len & 255; }
+    function vmal(w, h, chans) { u32(3); var at = b.length; u32(0); u32(0); u32(0); u32(h); u32(w); u32(chans.length); chans.forEach(function (c) { c(); }); var len = b.length - at - 4; b[at] = len >>> 24 & 255; b[at + 1] = len >>> 16 & 255; b[at + 2] = len >>> 8 & 255; b[at + 3] = len & 255; }
+    "8BPT".split("").forEach(function (c) { u8(c.charCodeAt(0)); }); u16(1); u32(2);
+    u32(1); u32(3); u16(2); u16(2); name("Tiles"); u8(2); u8(65); u8(66);
+    vmal(2, 2, [function () { chan(2, 2, 0, [255, 0, 0, 255]); }, function () { chan(2, 2, 0, [0, 255, 0, 0]); }, function () { chan(2, 2, 0, [0, 0, 255, 0]); }]);
+    u32(1); u32(1); u16(1); u16(4); name("Grey"); u8(0);
+    vmal(4, 1, [function () { chan(4, 1, 1, [0, 2, 0xFD, 77]); }]);
+    return new Uint8Array(b);
+  }
+  PP.test(".pat patterns", function (ok) {
+    var list = PPX.readPat(pat());
+    ok(list.length === 2 && list[0].name === "Tiles" && list[0].w === 2 && Array.prototype.slice.call(list[0].data, 0, 8).join() === "255,0,0,255,0,255,0,255", "RGB pattern");
+    ok(list[1].name === "Grey" && list[1].w === 4 && list[1].data[4] === 77 && list[1].data[7] === 255, "grey PackBits pattern");
+    var threw = false; try { PPX.readPat(pat().slice(0, 50)); } catch (e) { threw = true; } ok(threw, "rejects a truncated file");
+  });
+})();

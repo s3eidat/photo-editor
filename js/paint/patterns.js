@@ -48,6 +48,12 @@
     PP.setPattern(id);
     return p;
   };
+  PP.importPat = function (u8) {
+    return PP.work("readPat", [u8]).then(function (list) {
+      list.forEach(function (p) { var c = PE.mk(p.w, p.h); PE.cx2(c).putImageData(new ImageData(new Uint8ClampedArray(p.data), p.w, p.h), 0, 0); PP.addPattern(c, String(p.name).replace(/[\u0000-\u001f]/g, " ").slice(0, 60)); });
+      return list.length;
+    });
+  };
   PP.removePattern = function (id) {
     if (!BY[id] || BY[id].builtin) return;
     LIST = LIST.filter(function (x) { return x.id !== id; }); delete BY[id]; PP.lib.del(id).catch(function () {});
@@ -65,8 +71,16 @@
   var file = null;
   function importImage() {
     if (!file) {
-      file = h("input", { type: "file", accept: "image/*", hidden: true }); document.body.appendChild(file);
-      file.addEventListener("change", function () { var f = file.files[0]; file.value = ""; if (!f) return; PE.decodeImage(f).then(function (img) { PP.addPattern(img.canvas, String(f.name).replace(/\.[^.]+$/, "").slice(0, 60) || "Pattern"); S3.toast("Pattern added"); }).catch(function (e) { S3.toast(e.message, "error"); }); });
+      file = h("input", { type: "file", accept: "image/*,.pat", hidden: true }); document.body.appendChild(file);
+      file.addEventListener("change", function () {
+        var f = file.files[0]; file.value = ""; if (!f) return;
+        if (/\.pat$/i.test(f.name)) {
+          if (f.size > 200e6) { S3.toast("That pattern file is too large", "error"); return; }
+          ED.working(f.arrayBuffer().then(function (ab) { return PP.importPat(new Uint8Array(ab)); }), "Reading patterns…").then(function (n) { S3.toast("Imported " + n + " pattern" + (n === 1 ? "" : "s")); }).catch(function (e) { S3.toast(e.message, "error"); });
+          return;
+        }
+        PE.decodeImage(f).then(function (img) { PP.addPattern(img.canvas, String(f.name).replace(/\.[^.]+$/, "").slice(0, 60) || "Pattern"); S3.toast("Pattern added"); }).catch(function (e) { S3.toast(e.message, "error"); });
+      });
     }
     file.click();
   }
@@ -87,7 +101,7 @@
     });
     el.appendChild(grid);
     el.appendChild(h("div", { "class": "pp-acts" }, [K.btn("From selection", function () { if (!K.need()) return; if (!ED.doc.sel) { S3.toast("Select the area to repeat first", "error"); return; } nameAsk("My pattern", PP.definePattern); }, "ghost"),
-      K.btn("Import image", importImage, "ghost"), K.btn("Fill…", fillDialog, "ghost", null, "Fill the selection or layer with the pattern")]));
+      K.btn("Import", importImage, "ghost", null, "Import an image or a .pat pattern file"), K.btn("Fill…", fillDialog, "ghost", null, "Fill the selection or layer with the pattern")]));
   });
 
   // ---------- Edit › Fill with pattern ----------

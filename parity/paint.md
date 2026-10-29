@@ -49,3 +49,4 @@ Worker jobs lock the canvas and are dropped if the document changed; layer growt
 | Brush cursor shows the tip | done | sampled tips are drawn (tinted, rotated, flipped, roundness) under the cursor |
 | Live gradient preview | done | while dragging, a low-resolution preview (selection-clipped, at the tool's opacity) is drawn over the canvas |
 | Paint library backup | done | Edit › Export / Import paint library: one .s3paint file (zip + JSON + PNG) with your presets and their tips, patterns, gradients and swatches; every field and image is checked and clamped on import |
+| Import .pat patterns | done | Patterns › Import takes images or .pat files (grey, indexed, RGB; raw or PackBits; 16-bit read as 8); parsed in the worker with length checks and a 120 MP budget |

@@ -239,6 +239,70 @@
     throw new Error("Not a supported .abr brush file (version " + ver + ")");
   };
 
+  // ---------- .pat pattern files ----------
+  // Returns [{name, w, h, data: RGBA}]. Grey, indexed and RGB patterns, raw or PackBits channels. Checked lengths,
+  // 4096 px a side, 200 patterns and 120 MP in all.
+  PPX.readPat = function (u8) {
+    var dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), p = 0, out = [], budget = 120e6;
+    function need(n) { if (n < 0 || p + n > u8.length) throw new Error("This pattern file is damaged or truncated"); }
+    function u8r() { need(1); return u8[p++]; }
+    function u16() { need(2); var v = dv.getUint16(p); p += 2; return v; }
+    function u32() { need(4); var v = dv.getUint32(p); p += 4; return v; }
+    function i32() { need(4); var v = dv.getInt32(p); p += 4; return v; }
+    need(4); if (String.fromCharCode(u8[0], u8[1], u8[2], u8[3]) !== "8BPT") throw new Error("Not a .pat pattern file"); p = 4;
+    if (u16() !== 1) throw new Error("Unsupported .pat version");
+    var count = u32(); if (count > 200) throw new Error("Too many patterns in this file");
+    function channel(w, h) {
+      var written = u32(); if (!written) return null;
+      var len = u32(); if (!len) return null;
+      var end = p + len; need(len);
+      u32(); var t = i32(), l = i32(), b = i32(), r = i32(), depth = u16(), comp = u8r();
+      var cw = r - l, ch = b - t; if (cw !== w || ch !== h) { p = end; return null; }
+      var bpp = depth === 16 ? 2 : 1, rowBytes = w * bpp, data = new Uint8Array(w * h), row = new Uint8Array(rowBytes), y, x;
+      if (!comp) { for (y = 0; y < h; y++) { need(rowBytes); for (x = 0; x < w; x++) data[y * w + x] = u8[p + x * bpp]; p += rowBytes; } }
+      else {
+        var lens = [], minRow = Math.ceil(rowBytes / 128) * 2;
+        for (y = 0; y < h; y++) { var ln = u16(); if (ln < minRow) throw new Error("This pattern file is damaged"); lens.push(ln); }
+        for (y = 0; y < h; y++) {
+          var e2 = p + lens[y], k = 0; need(lens[y]);
+          while (p < e2 && k < rowBytes) {
+            var n = dv.getInt8(p); p++;
+            if (n >= 0) { var cnt = n + 1; need(cnt); for (var i = 0; i < cnt && k < rowBytes; i++) row[k++] = u8[p + i]; p += cnt; }
+            else if (n !== -128) { var rep = 1 - n, v = u8r(); for (var j = 0; j < rep && k < rowBytes; j++) row[k++] = v; }
+          }
+          if (k < rowBytes) throw new Error("This pattern file is damaged");
+          p = e2; for (x = 0; x < w; x++) data[y * w + x] = row[x * bpp];
+        }
+      }
+      p = end;
+      return data;
+    }
+    for (var n2 = 0; n2 < count; n2++) {
+      u32(); var mode = u32(), h = u16(), w = u16(), nl = u32();
+      if (nl > 1024) throw new Error("This pattern file is damaged");
+      var name = ""; for (var c = 0; c < nl; c++) { var ch = u16(); if (ch) name += String.fromCharCode(ch); }
+      var idl = u8r(); need(idl); p += idl;
+      var pal = null; if (mode === 2) { need(768); pal = u8.subarray(p, p + 768); p += 768; }
+      if (w < 1 || h < 1 || w > 4096 || h > 4096) throw new Error("A pattern in this file is too large");
+      budget -= w * h; if (budget < 0) throw new Error("This pattern file holds more pixels than can be imported at once");
+      u32(); var vlen = u32(), vend = p + vlen; need(vlen);
+      i32(); i32(); i32(); i32(); var nch = u32(), chans = [];
+      for (var k2 = 0; k2 < nch && k2 < 4 && p < vend; k2++) chans.push(channel(w, h));
+      p = vend;
+      var rgba = new Uint8ClampedArray(w * h * 4), q;
+      for (q = 0; q < w * h; q++) {
+        var r0, g0, b0;
+        if (mode === 3 && chans[0] && chans[1] && chans[2]) { r0 = chans[0][q]; g0 = chans[1][q]; b0 = chans[2][q]; }
+        else if (mode === 2 && pal && chans[0]) { var ix = chans[0][q] * 3; r0 = pal[ix]; g0 = pal[ix + 1]; b0 = pal[ix + 2]; }
+        else if (chans[0]) { r0 = g0 = b0 = chans[0][q]; }
+        else throw new Error("Pattern “" + name + "” uses a colour mode this editor cannot read");
+        rgba[q * 4] = r0; rgba[q * 4 + 1] = g0; rgba[q * 4 + 2] = b0; rgba[q * 4 + 3] = mode === 3 && chans[3] ? chans[3][q] : 255;
+      }
+      out.push({ name: name || "Pattern " + (n2 + 1), w: w, h: h, data: rgba });
+    }
+    return out;
+  };
+
   // ---------- fill a hole from its surroundings (multi-scale PatchMatch + voting) ----------
   // img: {data RGBA, width, height}; hole: Uint8Array (>0 = fill; the value blends the result in);
   // opts: {patch (odd, 7), avoid: Uint8Array of pixels never to copy from, seed, quality 1..3}.
@@ -403,7 +467,7 @@
 
   // ---------- generic dispatcher (the worker calls this) ----------
   PPX.ping = function () { return true; };
-  PPX.ALLOWED = ["ping", "inpaint", "gradRender", "readAbr"];
+  PPX.ALLOWED = ["ping", "inpaint", "gradRender", "readAbr", "readPat"];
   PPX.call = function (fn, args) {
     if (PPX.ALLOWED.indexOf(fn) < 0 || typeof PPX[fn] !== "function") throw new Error("Not allowed: " + fn);
     return PPX[fn].apply(null, args || []);
