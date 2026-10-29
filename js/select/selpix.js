@@ -330,6 +330,26 @@
     return out;
   };
 
+  // ---------- focus area: where the picture is sharp ----------
+  // Local detail = blurred |Laplacian| of luma, relative to a noise floor; range 0..100 sets how much counts as in focus.
+  PIXS.focusMap = function (img) {
+    var w = img.width, h = img.height, n = w * h, d = img.data, L = new Float32Array(n), F = new Float32Array(n), p, i;
+    for (p = 0, i = 0; p < n; p++, i += 4) L[p] = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+    for (var y = 1; y < h - 1; y++) for (var x = 1; x < w - 1; x++) { p = y * w + x; F[p] = Math.abs(4 * L[p] - L[p - 1] - L[p + 1] - L[p - w] - L[p + w]); }
+    var r = Math.max(2, Math.round(Math.max(w, h) / 120));
+    box(F, w, h, r); box(F, w, h, r);
+    var s = Float32Array.from(F).sort(), hi = s[Math.floor(n * 0.98)] || 1;
+    for (p = 0; p < n; p++) F[p] = clamp(F[p] / hi, 0, 1);
+    return F;
+  };
+  PIXS.focusArea = function (img, range, noise) {
+    var w = img.width, h = img.height, n = w * h, F = PIXS.focusMap(img), out = new Uint8Array(n), t = 1 - clamp(range, 0, 100) / 100, nz = clamp(noise || 0, 0, 100) / 400, p;
+    var thr = Math.max(0.02, nz + t * 0.6);
+    for (p = 0; p < n; p++) out[p] = F[p] > thr ? 255 : 0;
+    var m = PIXS.smooth(out, w, h, Math.max(2, Math.round(Math.max(w, h) / 200)));
+    return PIXS.smooth(m, w, h, Math.max(2, Math.round(Math.max(w, h) / 100)));
+  };
+
   // ---------- dispatcher for js/select/worker.js ----------
   PIXS.call = function (fn, args) {
     if (["edt", "call"].indexOf(fn) >= 0 || typeof PIXS[fn] !== "function") throw new Error("Not allowed: " + fn);
