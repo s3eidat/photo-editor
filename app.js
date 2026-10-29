@@ -262,6 +262,8 @@
     ok(near(sc.width, 80, 2) && near(sc.height, 40, 2) && px(sc, 0, 0)[3] === 0 && px(sc, Math.floor(sc.width / 2), Math.floor(sc.height / 2))[3] === 255, "export selection crops and masks");
     var tx = PE.newLayer("text", { text: { text: "مرحبا", ax: 10, ay: 10, size: 30 } }); ok(PE.textDir(tx.text) === "rtl" && PE.textDir({ text: "Hi", dir: "auto" }) === "ltr", "text direction");
 
+    if (PE.adjustTests) await PE.adjustTests(ok, near);   // lane:adjust
+
     // restore whatever was open
     ED.testing = false;
     if (savedDoc) { ED.doc = savedDoc; ED.hist = savedHist; ED.live = { over: {}, maskOver: {}, hide: null }; ED.changed(); ED.fit(); }

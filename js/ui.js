@@ -675,6 +675,7 @@
     if (spec.custom === "levels") levelsUI(bodyEl, st);
     if (spec.custom === "curves") curvesUI(bodyEl, st);
     if (spec.custom === "balance") balanceUI(bodyEl, st);
+    if (spec.ui) spec.ui(bodyEl, st);   // lane:adjust
     var pv = check("Preview", true, function (v) { st.previewOn = v; showPreview(); });
     box.appendChild(h("div", { "class": "row pe-ffoot" }, [pv, h("span", { "class": "grow" }), btn("Reset", function () { closeFloat(false); openAdjust(op); }, "ghost"), btn("Cancel", function () { closeFloat(false); }, "ghost"), btn("OK", function () { closeFloat(true); }, "primary")]));
     if (t.sel) bodyEl.appendChild(h("p", { "class": "faint pe-p", text: "Applies inside the selection only." }));
@@ -984,6 +985,7 @@
     ED.emit("tool");
     ED.ready = restoreLast().then(function (ok) { if (!ok) renderEmpty(); return ok; });
   }
+  ED.adjKit = { MENUS: MENUS, QUICK: QUICK, field: field, range: range, check: check, seg: seg, select: select, btn: btn, modal: modal, svg: svg, need: need, K: K, histCanvas: histCanvas, adjTarget: adjTarget, commitAdjusted: commitAdjusted };   // lane:adjust
   ED.ui = { openAdjust: openAdjust, closeFloat: closeFloat, quick: quick, exportDialog: exportDialog, newDialog: newDialog, renderLayers: renderLayers, buildOpts: buildOpts, buildProps: buildProps, colors: colors, saveFile: saveFile, openFiles: openFiles, floatState: function () { return floatState; } };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
