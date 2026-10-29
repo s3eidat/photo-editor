@@ -78,4 +78,17 @@
     }
     return img;
   });
+
+  // ---------- photo filter ----------
+  // Like a coloured gel in front of the lens: multiply by the filter colour at `density`, then (optionally)
+  // put each pixel's luminance back so only the colour shifts.
+  A.reg("photoFilter", function (img, p, sel) {
+    var C = A.hex(p.color, [236, 138, 0]), k = clamp(num(p.density, 25), 0, 100) / 100, keep = p.keepLum !== false;
+    var fr = 1 + (C[0] / 255 - 1) * k, fg = 1 + (C[1] / 255 - 1) * k, fb = 1 + (C[2] / 255 - 1) * k;
+    return A.perPixel(img, sel, function (r, g, b, o) {
+      var R = r * fr, Gg = g * fg, B = b * fb;
+      if (keep) { var dl = A.lum(r, g, b) - A.lum(R, Gg, B); R += dl; Gg += dl; B += dl; }
+      o[0] = R; o[1] = Gg; o[2] = B;
+    });
+  });
 })(typeof self !== "undefined" ? self : this);
