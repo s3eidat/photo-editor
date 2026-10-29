@@ -166,4 +166,35 @@
       o[0] = r * R[0] + g * R[1] + b * R[2] + R[3]; o[1] = r * Gg[0] + g * Gg[1] + b * Gg[2] + Gg[3]; o[2] = r * B[0] + g * B[1] + b * B[2] + B[3];
     });
   });
+
+  // ---------- selective colour ----------
+  // Nine ranges (six hues + whites, neutrals, blacks). Each pixel belongs to a range with a weight (its share of
+  // chroma for hues, its distance from mid grey for whites/blacks). The range's cyan/magenta/yellow/black change the
+  // "ink" (1 - channel) of red/green/blue by that weight: absolute adds, relative scales the ink already there.
+  A.SC_RANGES = ["reds", "yellows", "greens", "cyans", "blues", "magentas", "whites", "neutrals", "blacks"];
+  A.scWeights = function (r, g, b, w) {
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), mid = r + g + b - mx - mn;
+    for (var i = 0; i < 9; i++) w[i] = 0;
+    if (mx > mn) {
+      if (r === mx) w[0] = mx - mid; else if (g === mx) w[2] = mx - mid; else w[4] = mx - mid;
+      if (b === mn) w[1] = Math.min(r, g) - b; else if (r === mn) w[3] = Math.min(g, b) - r; else w[5] = Math.min(r, b) - g;
+    }
+    w[6] = Math.max(0, (mn - 0.5) * 2); w[8] = Math.max(0, (0.5 - mx) * 2); w[7] = clamp(1 - (Math.abs(mx - 0.5) + Math.abs(mn - 0.5)), 0, 1);
+    return w;
+  };
+  A.reg("selectiveColor", function (img, p, sel) {
+    var adj = p.adj || {}, rel = p.method !== "absolute", R = [], any = false, w = new Float32Array(9);
+    A.SC_RANGES.forEach(function (k, i) { var a = Array.isArray(adj[k]) ? adj[k] : [0, 0, 0, 0]; R[i] = [0, 1, 2, 3].map(function (j) { return clamp(num(a[j], 0), -100, 100) / 100; }); if (R[i].some(Boolean)) any = true; });
+    if (!any) return img;
+    return A.perPixel(img, sel, function (r, g, b, o) {
+      var v = [r / 255, g / 255, b / 255], ink = [1 - v[0], 1 - v[1], 1 - v[2]], d = [0, 0, 0];
+      A.scWeights(v[0], v[1], v[2], w);
+      for (var i = 0; i < 9; i++) {
+        var wi = w[i]; if (!wi) continue;
+        var a = R[i];
+        for (var c = 0; c < 3; c++) { var t = a[c] + a[3]; if (t) d[c] += rel ? ink[c] * t * wi : t * wi; }
+      }
+      o[0] = (1 - clamp(ink[0] + d[0], 0, 1)) * 255; o[1] = (1 - clamp(ink[1] + d[1], 0, 1)) * 255; o[2] = (1 - clamp(ink[2] + d[2], 0, 1)) * 255;
+    });
+  });
 })(typeof self !== "undefined" ? self : this);

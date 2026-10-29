@@ -306,6 +306,16 @@
   } });
   AUI.more("Channel mixer…", "channelMixer");
 
+  // ---------- selective colour ----------
+  AUI.adj("selectiveColor", { t: "Selective colour", ui: function (el, st) {
+    var p = st.p, K = kit(), range = "reds", rs = [];
+    p.adj = {}; PIX.A.SC_RANGES.forEach(function (k) { p.adj[k] = [0, 0, 0, 0]; }); p.method = "relative";
+    el.appendChild(K.select("Colours", PIX.A.SC_RANGES.map(function (k) { return [k, k.charAt(0).toUpperCase() + k.slice(1)]; }), range, function (v) { range = v; rs.forEach(function (r, i) { r._set(p.adj[range][i]); }); }));
+    ["Cyan", "Magenta", "Yellow", "Black"].forEach(function (lab, i) { var r = K.range(lab, 0, -100, 100, 1, function (v) { p.adj[range][i] = v; st.schedule(); }, pc); rs.push(r); el.appendChild(r); });
+    el.appendChild(K.seg("Method", [["relative", "Relative"], ["absolute", "Absolute"]], "relative", function (v) { p.method = v; st.schedule(); }));
+  } });
+  AUI.more("Selective colour…", "selectiveColor");
+
   // ---------- auto tone / contrast / colour ----------
   var AUTO = [["autoTone", "Auto tone", "Ctrl+Shift+L"], ["autoContrast", "Auto contrast", "Ctrl+Alt+Shift+L"], ["autoColor", "Auto colour", "Ctrl+Shift+B"]];
   AUI.addMenu("Image", AUTO.map(function (a) { return [a[1], a[2], function () { AUI.quick(a[0], a[1]); }, has]; }).concat(["-"]), "Vibrance");

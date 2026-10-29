@@ -64,6 +64,12 @@
     ok(cm[0] === 200 && near(cm[1], 100.5, 0.6) && cm[2] === 100, "channel mixer rows + constant (" + cm + ")");
     var cm2 = get(run([[100, 50, 200]], "channelMixer", { mono: true, gray: [50, 50, 0, 0] }), 0);
     ok(cm2.join() === "75,75,75", "channel mixer monochrome");
+
+    // selective colour
+    function sc(px, adj, m) { return get(run([px], "selectiveColor", { adj: adj, method: m }), 0); }
+    ok(sc([255, 0, 0], { reds: [100, 0, 0, 0] }, "absolute").join() === "0,0,0" && sc([255, 0, 0], { reds: [100, 0, 0, 0] }, "relative").join() === "255,0,0", "selective colour: cyan in reds, absolute vs relative");
+    ok(sc([255, 0, 0], { reds: [0, 0, -100, 0] }, "absolute").join() === "255,0,255" && sc([0, 0, 255], { reds: [100, 100, 100, 100] }, "absolute").join() === "0,0,255", "selective colour only touches its range");
+    var scw = sc([255, 255, 255], { whites: [0, 0, 0, 50] }, "absolute"); ok(scw.join() === "128,128,128" || scw.join() === "127,127,127", "selective colour: black in whites");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };
