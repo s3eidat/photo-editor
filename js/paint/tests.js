@@ -304,3 +304,18 @@
     Object.assign(ED.o.clone, { cAngle: 0, cScale: 100, aligned: true });
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, ED = PE.ed, PP = PE.paint;
+  PP.test("noise and wet edges", function (ok) {
+    var s = PP.scratch(80, 40, "#ffffff"), o = ED.o.brush; s.d.fg = "#000000";
+    Object.assign(o, PP.BDEF, { size: 30, hard: 1, op: 1, flow: 1, sizeC: "off", wetEdge: true });
+    PP.drive("brush", [{ x: 20, y: 20 }, { x: 60, y: 20 }]);
+    var mid = PP.px(s.L.canvas, 40, 20)[0]; ok(mid > 100 && mid < 160, "wet edges thin the middle of the stroke (" + mid + ")");
+    ED.undo(); o.wetEdge = false; o.noise = true;
+    PP.drive("brush", [{ x: 20, y: 20 }, { x: 60, y: 20 }]);
+    var vals = {}; for (var x = 30; x < 50; x++) vals[PP.px(s.L.canvas, x, 20)[0]] = 1;
+    ok(Object.keys(vals).length > 4, "noise gives the stroke grain");
+    o.noise = false;
+  });
+})();

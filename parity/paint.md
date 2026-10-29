@@ -12,7 +12,7 @@ Known-answer checks: `js/paint/tests.js` (run by `S3_SELFTEST` after the core ch
 | Colour dynamics (fg/bg mix, hue / saturation / brightness jitter, purity, per tip) | done | |
 | Transfer (opacity / flow jitter + controls) | done | per-dab alpha under the stroke opacity cap |
 | Pen pressure and tilt (Pointer Events, coalesced events) | done | pressure → size on by default for pens; mouse and touch paint at full size |
-| Build-up (airbrush) | done | |
+| Build-up (airbrush), noise, wet edges | done | noise = fine grain over the stroke; wet edges = paint pools at the stroke's edge |
 | Texture, dual tip | done | texture from any pattern over the whole stroke (or each tip), depth / scale / invert, mask stretched to full contrast |
 | Symmetry painting | done | vertical, horizontal, dual axis, diagonal, radial, mandala; adjustable centre |
 | Masks take the foreground's grey | done | grey paints a partial mask (was black/white only) |

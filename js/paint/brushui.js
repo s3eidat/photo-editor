@@ -117,7 +117,7 @@
       sec("Colour dynamics", [R("Foreground / background jitter", "fgbgJ", 0, 100, 1, pc), S("Mix control", "fgbgC", CTL), R("Hue jitter", "hueJ", 0, 100, 1, pc), R("Saturation jitter", "satJ", 0, 100, 1, pc),
         R("Brightness jitter", "briJ", 0, 100, 1, pc), R("Purity", "purity", -100, 100, 1), C("Apply per tip", "perTip")]),
       sec("Transfer", [R("Opacity jitter", "opJ", 0, 100, 1, pc), S("Opacity control", "opC", CTL), R("Flow jitter", "flowJ", 0, 100, 1, pc), S("Flow control", "flowC", CTL)]),
-      sec("Stroke", [R("Smoothing", "smooth", 0, 100, 1, pc), C("Build-up (airbrush)", "buildup"), S("Symmetry", "sym", SYM), R("Segments", "symN", 2, 32, 1), R("Centre X", "symX", 0, 100, 1, pc), R("Centre Y", "symY", 0, 100, 1, pc)])
+      sec("Stroke", [R("Smoothing", "smooth", 0, 100, 1, pc), C("Build-up (airbrush)", "buildup"), C("Noise", "noise"), C("Wet edges", "wetEdge"), S("Symmetry", "sym", SYM), R("Segments", "symN", 2, 32, 1), R("Centre X", "symX", 0, 100, 1, pc), R("Centre Y", "symY", 0, 100, 1, pc)])
     ]);
     var reset = K.btn("Reset dynamics", function () { PP.DYN_KEYS.forEach(function (k) { if (["spacing", "tip", "angle", "round", "flipX"].indexOf(k) < 0) o[k] = PP.BDEF[k]; }); dlg.close(); ED.saveOpts(); ED.ui.buildOpts(); settingsDialog(tool); }, "ghost");
     var save = PP.savePreset ? K.btn("Save as preset…", function () { PP.savePreset(tool); }, "ghost") : null;

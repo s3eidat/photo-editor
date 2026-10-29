@@ -18,7 +18,7 @@
     opJ: 0, opC: "off", flowJ: 0, flowC: "off",
     tex: "", texDepth: 60, texScale: 100, texInvert: false, texEach: false,
     dual: "", dualSize: 20, dualSpacing: 30, dualScatter: 0, dualCount: 1,
-    buildup: false, sym: "off", symN: 6, symX: 50, symY: 50
+    buildup: false, noise: false, wetEdge: false, sym: "off", symN: 6, symX: 50, symY: 50
   };
   PP.DYN_KEYS = Object.keys(BDEF).filter(function (k) { return ["size", "hard", "op"].indexOf(k) < 0; });
   var SPEC = PP.spec = {};
@@ -391,14 +391,27 @@
   var scratch = null;
   // The stroke as an image over rect R (default: its bounding box), with the dual tip and texture applied.
   function strokeImage(st, R) {
-    if (!st.dualBuf && !(st.tex && !st.o.texEach)) return R ? { img: st.buf, sx: R.x, sy: R.y, x: R.x, y: R.y, w: R.w, h: R.h } : { img: st.buf, x: 0, y: 0 };
+    if (!st.dualBuf && !(st.tex && !st.o.texEach) && !st.o.noise && !st.o.wetEdge) return R ? { img: st.buf, sx: R.x, sy: R.y, x: R.x, y: R.y, w: R.w, h: R.h } : { img: st.buf, x: 0, y: 0 };
     var bb = R || PE.inter(PE.rectI(st.bbox || { x: 0, y: 0, w: 1, h: 1 }), { x: 0, y: 0, w: st.w, h: st.h }) || { x: 0, y: 0, w: 1, h: 1 };
     if (!scratch || scratch.width < bb.w || scratch.height < bb.h) scratch = PE.mk(Math.max(bb.w, scratch ? scratch.width : 0), Math.max(bb.h, scratch ? scratch.height : 0));
     var c = PE.cx2(scratch); c.globalCompositeOperation = "copy"; c.drawImage(st.buf, bb.x, bb.y, bb.w, bb.h, 0, 0, bb.w, bb.h);
     if (st.dualBuf) { c.globalCompositeOperation = "destination-in"; c.drawImage(st.dualBuf, bb.x, bb.y, bb.w, bb.h, 0, 0, bb.w, bb.h); }
     if (st.tex && !st.o.texEach) PP.texStroke(c, st.tex, bb.x + st.ox, bb.y + st.oy, bb.w, bb.h);
+    if (st.o.noise) PP.texStroke(c, noiseTex(c), bb.x + st.ox, bb.y + st.oy, bb.w, bb.h);
+    if (st.o.wetEdge) wetEdges(c, bb.w, bb.h);
     c.globalCompositeOperation = "source-over";
     return { img: scratch, x: bb.x, y: bb.y, w: bb.w, h: bb.h };
+  }
+  // Noise: fine grain over the stroke. Wet edges: paint pools at the edge of the stroke (thinner in the middle).
+  var NOISE = null;
+  function noiseTex(c) {
+    if (!NOISE) { var n = PE.mk(128, 128), x = PE.cx2(n), im = x.createImageData(128, 128), R = PPX.rng(99); for (var i = 0; i < 128 * 128; i++) im.data[i * 4 + 3] = R() < 0.5 ? Math.round(R() * 255) : 0; x.putImageData(im, 0, 0); NOISE = n; }
+    return { pat: c.createPattern(NOISE, "repeat"), k: 1, depth: 0.6 };
+  }
+  function wetEdges(c, w, hh) {
+    var im = c.getImageData(0, 0, w, hh), d = im.data;
+    for (var i = 3; i < d.length; i += 4) { var a = d[i] / 255; d[i] = a * (1.8 - 1.3 * a) * 255; }
+    c.putImageData(im, 0, 0);
   }
   function drawImg(c, I) { if (I.w) c.drawImage(I.img, I.sx || 0, I.sy || 0, I.w, I.h, I.x, I.y, I.w, I.h); else c.drawImage(I.img, 0, 0); }
   function applyStroke(c, st, R) {
