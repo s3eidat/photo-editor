@@ -212,6 +212,76 @@
     return o;
   };
 
+  // ---------- refine selection (edge detection, smooth, feather, contrast, shift, decontaminate) ----------
+  // Colour guided filter (He et al.): p filtered with an RGB guide; image channels 0..1.
+  function guidedColor(img, p, r, eps) {
+    var w = img.width, h = img.height, n = w * h, d = img.data, i, j;
+    var I = [new Float32Array(n), new Float32Array(n), new Float32Array(n)];
+    for (i = 0, j = 0; i < n; i++, j += 4) { I[0][i] = d[j] / 255; I[1][i] = d[j + 1] / 255; I[2][i] = d[j + 2] / 255; }
+    function bx(a) { return box(a, w, h, r); }
+    function prod(a, b) { var o = new Float32Array(n); for (var k = 0; k < n; k++) o[k] = a[k] * b[k]; return o; }
+    var mI = I.map(function (c) { return bx(Float32Array.from(c)); }), mp = bx(Float32Array.from(p));
+    var cov = I.map(function (c, k) { var o = bx(prod(c, p)); for (var q = 0; q < n; q++) o[q] -= mI[k][q] * mp[q]; return o; });
+    var pairs = [[0, 0], [0, 1], [0, 2], [1, 1], [1, 2], [2, 2]], V = pairs.map(function (pr) { var o = bx(prod(I[pr[0]], I[pr[1]])); for (var q = 0; q < n; q++) o[q] -= mI[pr[0]][q] * mI[pr[1]][q]; return o; });
+    var A0 = new Float32Array(n), A1 = new Float32Array(n), A2 = new Float32Array(n), B = new Float32Array(n);
+    for (i = 0; i < n; i++) {
+      var rr = V[0][i] + eps, rg = V[1][i], rb = V[2][i], gg = V[3][i] + eps, gb = V[4][i], bb = V[5][i] + eps;
+      var c00 = gg * bb - gb * gb, c01 = rb * gb - rg * bb, c02 = rg * gb - rb * gg, c11 = rr * bb - rb * rb, c12 = rb * rg - rr * gb, c22 = rr * gg - rg * rg;
+      var det = rr * c00 + rg * c01 + rb * c02; if (Math.abs(det) < 1e-12) det = 1e-12;
+      var x0 = cov[0][i], x1 = cov[1][i], x2 = cov[2][i];
+      var a0 = (c00 * x0 + c01 * x1 + c02 * x2) / det, a1 = (c01 * x0 + c11 * x1 + c12 * x2) / det, a2 = (c02 * x0 + c12 * x1 + c22 * x2) / det;
+      A0[i] = a0; A1[i] = a1; A2[i] = a2; B[i] = mp[i] - a0 * mI[0][i] - a1 * mI[1][i] - a2 * mI[2][i];
+    }
+    bx(A0); bx(A1); bx(A2); bx(B);
+    var q = new Float32Array(n);
+    for (i = 0; i < n; i++) q[i] = clamp(A0[i] * I[0][i] + A1[i] * I[1][i] + A2[i] * I[2][i] + B[i], 0, 1);
+    return q;
+  }
+  PIXS.guidedColor = guidedColor;
+  // mask: Uint8 selection; band: Uint8 extra edge area painted with the refine brush (or null).
+  // opt: {radius px, smart, smooth 0..100, feather px, contrast 0..100, shift -100..100}. Returns Uint8 alpha.
+  PIXS.refine = function (img, mask, band, opt) {
+    var w = img.width, h = img.height, n = w * h, p, rad = Math.max(0, +opt.radius || 0), d = img.data;
+    var a = new Float32Array(n); for (p = 0; p < n; p++) a[p] = mask[p] / 255;
+    var anyBand = false; if (band) for (p = 0; p < n; p++) if (band[p] >= 128) { anyBand = true; break; }
+    if (rad > 0.5 || anyBand) {
+      var sd = PIXS.signedDist(mask, w, h), edge = null;
+      if (opt.smart) {           // hard image edges get a narrow band, soft ones (hair, fur) the full radius
+        edge = new Float32Array(n);
+        for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+          var i = (y * w + x) * 4, ir = i + (x < w - 1 ? 4 : 0), id = i + (y < h - 1 ? w * 4 : 0);
+          var g = Math.abs(d[ir] - d[i]) + Math.abs(d[ir + 1] - d[i + 1]) + Math.abs(d[ir + 2] - d[i + 2]) + Math.abs(d[id] - d[i]) + Math.abs(d[id + 1] - d[i + 1]) + Math.abs(d[id + 2] - d[i + 2]);
+          edge[y * w + x] = clamp(g / 180, 0, 1);
+        }
+      }
+      var r = Math.max(2, Math.round(Math.min(Math.max(rad, 4), 40) / 2)), q = guidedColor(img, a, r, 2e-3);
+      for (p = 0; p < n; p++) {
+        var R = rad * (edge ? 1 - 0.7 * edge[p] : 1), inBand = Math.abs(sd[p]) <= R || (band && band[p] >= 128);
+        if (inBand) a[p] = q[p];
+      }
+    }
+    if (opt.smooth > 0) { var sr = Math.max(1, Math.round(opt.smooth / 100 * 8)); box(a, w, h, sr); for (p = 0; p < n; p++) a[p] = clamp((a[p] - 0.5) * (1 + opt.smooth / 50) + 0.5, 0, 1); }
+    if (opt.feather > 0) { PIX.blurPlane(a, w, h, opt.feather / 2); }
+    if (opt.shift) { var gm = Math.pow(2, -opt.shift / 50); for (p = 0; p < n; p++) a[p] = Math.pow(a[p], gm); }
+    if (opt.contrast > 0) { var k = 1 / Math.max(0.01, 1 - opt.contrast / 100); for (p = 0; p < n; p++) a[p] = clamp((a[p] - 0.5) * k + 0.5, 0, 1); }
+    var o = new Uint8Array(n); for (p = 0; p < n; p++) o[p] = Math.round(clamp(a[p], 0, 1) * 255);
+    return o;
+  };
+  // Decontaminate: pull edge colours towards the colours of fully selected pixels nearby. Returns new RGBA bytes.
+  PIXS.decontaminate = function (img, alpha, amount, radius) {
+    var w = img.width, h = img.height, n = w * h, d = img.data, k = clamp(amount, 0, 1), W = new Float32Array(n), C = [new Float32Array(n), new Float32Array(n), new Float32Array(n)], p, i;
+    for (p = 0, i = 0; p < n; p++, i += 4) { if (alpha[p] >= 250) { W[p] = 1; C[0][p] = d[i]; C[1][p] = d[i + 1]; C[2][p] = d[i + 2]; } }
+    var sg = Math.max(2, radius || 8) / 2;
+    PIX.blurPlane(W, w, h, sg); C.forEach(function (c) { PIX.blurPlane(c, w, h, sg); });
+    var out = new Uint8ClampedArray(d);
+    for (p = 0, i = 0; p < n; p++, i += 4) {
+      var a = alpha[p]; if (a >= 250 || a === 0 || W[p] < 1e-4) continue;
+      var t = k * (1 - a / 255) * 0.5 + k * 0.5;
+      for (var c = 0; c < 3; c++) out[i + c] = d[i + c] + (C[c][p] / W[p] - d[i + c]) * t;
+    }
+    return out;
+  };
+
   // ---------- dispatcher for js/select/worker.js ----------
   PIXS.call = function (fn, args) {
     if (["edt", "call"].indexOf(fn) >= 0 || typeof PIXS[fn] !== "function") throw new Error("Not allowed: " + fn);
