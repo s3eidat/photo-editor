@@ -2,6 +2,10 @@
 
 Files: `js/vector/*.js`, `js/vector/vector.css`. Hook lines in shared files are marked `// lane:vector`
 (the key-handler and `ED.ui.MENUS/TOOLS/w` lines are byte-identical to the selection lane's, so merges stay clean).
+Merging: the overlay (`emit("overlay"…)`), tool-options (`ED.ui.optsTail`), Properties (`ED.ui.propsTail`), key
+(`ED.ui.keys`) and `ED.ui.MENUS/TOOLS/SHORTCUTS/w` lines are byte-identical to the selection lane's, so they merge
+cleanly. The vector-only lines (`PE.VX.*` in core.js, the `TOOLS[...].cursor/leave` and text hooks in editor.js) may
+sit next to other lanes' lines: keep both sides. Scripts load after `app.js` (block marked `lane:vector` in index.html).
 Self-test: `js/vector/vtest.js` extends `window.S3_SELFTEST` (path booleans, curve maths, shape rendering, round trips).
 
 | Feature | Status | Notes |
