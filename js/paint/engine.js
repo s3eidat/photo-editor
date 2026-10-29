@@ -100,8 +100,11 @@
     if (tool === "clone" || tool === "heal") {
       st.allSrc = !st.mask && st.o.sample && st.o.sample !== "current";
       st.src = st.mask ? grayOf(cv) : st.allSrc ? PP.sampleCanvas(st.L, st.holder, st.o.sample) : PE.cloneCanvas(cv);
-      if (!o.aligned || !ED.cloneOff) ED.cloneOff = { x: ED.cloneSrc.x - p.x, y: ED.cloneSrc.y - p.y };
+      if (!o.aligned || !ED.cloneOff) { ED.cloneOff = { x: ED.cloneSrc.x - p.x, y: ED.cloneSrc.y - p.y }; ED.cloneAnchor = { s: { x: ED.cloneSrc.x, y: ED.cloneSrc.y }, d: { x: p.x, y: p.y } }; }
       st.off = ED.cloneOff; st.srcOff = st.off;
+      var A = ED.cloneAnchor;      // scaled / rotated / flipped source: dest = D + M (src - S)
+      if (A && (st.o.cScale !== 100 || st.o.cAngle || st.o.cFlipX || st.o.cFlipY))
+        st.cm = { S: { x: A.s.x - st.ox, y: A.s.y - st.oy }, D: { x: A.d.x - st.ox, y: A.d.y - st.oy }, a: st.o.cAngle * RAD, kx: PE.clamp(st.o.cScale, 1, 1000) / 100 * (st.o.cFlipX ? -1 : 1), ky: PE.clamp(st.o.cScale, 1, 1000) / 100 * (st.o.cFlipY ? -1 : 1) };
     }
     if (spec.begin && spec.begin(st, p, e) === false) { ED.stroke = null; ED.push(st.grow); return; }
     ED.drag = { kind: "stroke", cancel: function () {
@@ -280,7 +283,7 @@
     }
     dc.globalCompositeOperation = "source-in";
     var fill = st.spec.fill;
-    if (fill === "clone" || fill === "history") dc.drawImage(st.src, -(ix + st.srcOff.x), -(iy + st.srcOff.y));
+    if (fill === "clone" || fill === "history") drawSource(dc, st, ix, iy);
     else if (fill === "pattern" && st.pat) { st.pat.setTransform(new DOMMatrix([st.patK, 0, 0, st.patK, -(ix + st.ox - st.patX), -(iy + st.oy - st.patY)])); dc.fillStyle = st.pat; dc.fillRect(0, 0, s, s); }
     else { dc.fillStyle = PP.rgba(col, 1); dc.fillRect(0, 0, s, s); }
     if (st.tex && st.o.texEach) { dc.globalCompositeOperation = "destination-out"; dc.globalAlpha = st.tex.depth; st.tex.pat.setTransform(new DOMMatrix([st.tex.k, 0, 0, st.tex.k, -(ix + st.ox), -(iy + st.oy)])); dc.fillStyle = st.tex.pat; dc.fillRect(0, 0, s, s); dc.globalAlpha = 1; }
@@ -288,6 +291,13 @@
     return { s: s, x: ix, y: iy, c: dabC };
   }
   PP.renderDab = renderDab;
+  // The clone / history source drawn so that pixel (0, 0) of ctx is holder pixel (ix, iy).
+  function drawSource(ctx, st, ix, iy) {
+    var m = st.cm;
+    if (!m) { ctx.drawImage(st.src, -(ix + st.srcOff.x), -(iy + st.srcOff.y)); return; }
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.translate(m.D.x - ix, m.D.y - iy); ctx.rotate(m.a); ctx.scale(m.kx, m.ky); ctx.translate(-m.S.x, -m.S.y);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high"; ctx.drawImage(st.src, 0, 0); ctx.restore();
+  }
   function stamp(st, x, y, d, ang, rnd, flip, col, a) {
     var c = st.bctx, b;
     if (!st.tip && !st.pencil && !(st.tex && st.o.texEach) && (st.spec.fill === "color" || st.spec.fill === "erase")) {
@@ -442,7 +452,7 @@
     // healing: texture from the source, colour / brightness matched to the surroundings (worker)
     var pad = 6, R = PE.inter({ x: bb.x - pad, y: bb.y - pad, w: bb.w + 2 * pad, h: bb.h + 2 * pad }, { x: 0, y: 0, w: st.w, h: st.h });
     var cv = st.holder.canvas, dst = PE.getData(st.allSrc ? st.src : cv, R), srcC = PE.mk(R.w, R.h);
-    PE.cx2(srcC).drawImage(st.src, -(R.x + st.off.x), -(R.y + st.off.y));
+    drawSource(PE.cx2(srcC), st, R.x, R.y);
     var I = strokeImage(st), mc = PE.mk(R.w, R.h); PE.cx2(mc).drawImage(I.img, I.w ? I.x - R.x : -R.x, I.w ? I.y - R.y : -R.y);
     var src = PE.getData(srcC), md = PE.getData(mc).data, m = new Uint8Array(R.w * R.h), op = PE.clamp(st.o.op, 0, 1);
     for (var i = 0; i < m.length; i++) m[i] = Math.round(md[i * 4 + 3] * op);
@@ -467,8 +477,20 @@
   // ---------- the core's painting tools now run on this engine ----------
   PP.engineTool("brush", { label: "Brush", fill: "color" });
   PP.engineTool("eraser", { label: "Eraser", fill: "erase" }, { mode: "brush" });
-  PP.engineTool("clone", { label: "Clone stamp", fill: "clone", sym: false }, { aligned: true, sample: "current" });
-  PP.engineTool("heal", { label: "Healing brush", fill: "clone", sym: false, mask: false, noBuildup: true }, { aligned: true, sample: "current" });
+  var CLONE = { aligned: true, sample: "current", cScale: 100, cAngle: 0, cFlipX: false, cFlipY: false, overlay: true };
+  PP.engineTool("clone", { label: "Clone stamp", fill: "clone", sym: false }, CLONE);
+  PP.engineTool("heal", { label: "Healing brush", fill: "clone", sym: false, mask: false, noBuildup: true }, CLONE);
+  // overlay: a see-through preview of what the tip will copy, under the cursor
+  PP.overlay(function (c, docPath, cur) {
+    var t = ED.tool; if ((t !== "clone" && t !== "heal") || !cur || ED.modal || !ED.cloneSrc || !ED.o[t].overlay || ED.stroke) return;
+    var o = ED.o[t], L = ED.layer(); if (!L) return;
+    var p = ED.toDoc(cur.x, cur.y), A = o.aligned && ED.cloneOff && ED.cloneAnchor ? ED.cloneAnchor : { s: ED.cloneSrc, d: p }, s = PE.surface(L, ED.doc), k = PE.clamp(o.cScale, 1, 1000) / 100;
+    docPath(c, function (c) {
+      c.save(); c.beginPath(); c.arc(p.x, p.y, Math.max(1, o.size / 2), 0, Math.PI * 2); c.clip(); c.globalAlpha = 0.55;
+      c.translate(A.d.x, A.d.y); c.rotate(o.cAngle * RAD); c.scale(k * (o.cFlipX ? -1 : 1), k * (o.cFlipY ? -1 : 1)); c.translate(-A.s.x, -A.s.y);
+      c.drawImage(s.canvas, s.x, s.y); c.restore();
+    });
+  });
 
   // ---------- overlay: symmetry guides and the tip outline ----------
   PP.overlay(function (c, docPath, cur, dpr) {

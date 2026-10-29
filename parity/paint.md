@@ -32,6 +32,7 @@ Known-answer checks: `js/paint/tests.js` (run by `S3_SELFTEST` after the core ch
 | Magic eraser | done | E group; tolerance, contiguous, anti-alias, sample all layers, opacity; respects the selection |
 | Background eraser | done | E group; sampling continuous / once / background colour, contiguous or discontiguous, tolerance, protect foreground colour; edge fringe clean-up (decontamination) not done |
 | Clone stamp / healing brush: sample all layers | done | Sample: current, current and below, all layers; results go onto an empty retouch layer without copying the rest |
+| Clone source options | done | source scale, angle, flip H / V, see-through overlay of the source under the brush (clone stamp and healing brush); one source at a time (no 5-slot source panel) |
 | Patch tool | done | J group; freehand outline (Shift add / Alt subtract) or any selection, then drag it; source / destination, transparent; healed to the surrounding tone in the worker |
 | Move with fill (content-aware-style move) | done | J group; move / extend; the hole is filled from the surroundings (never from the drop area), the object is healed into its new place, the selection follows; one undo step |
 | Patterns panel | done | Paint panel › Patterns: 12 built-in tiles drawn in code, define from selection (Edit › Define pattern…), import an image, Alt+click deletes; Edit › Fill with pattern… (scale, opacity, blend mode) |

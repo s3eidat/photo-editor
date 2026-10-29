@@ -77,7 +77,10 @@
   ["clone", "heal"].forEach(function (t) {
     PP.optsFor[t] = function (items) {
       var o = ED.o[t];
-      return PP.brushBar(t, items, [K.check("Aligned", o.aligned, function (v) { o.aligned = v; ED.saveOpts(); }), PP.sampleSelect(t)],
+      var sv = function () { ED.saveOpts(); ED.renderOvl(); };
+      return PP.brushBar(t, items, [K.check("Aligned", o.aligned, function (v) { o.aligned = v; ED.saveOpts(); }), PP.sampleSelect(t),
+        K.field("Source scale %", K.numInput(o.cScale, 1, 1000, function (v) { o.cScale = v; sv(); }), "pe-num"), K.field("Angle", K.numInput(o.cAngle, -360, 360, function (v) { o.cAngle = v; sv(); }), "pe-num"),
+        K.check("Flip H", o.cFlipX, function (v) { o.cFlipX = v; sv(); }), K.check("Flip V", o.cFlipY, function (v) { o.cFlipY = v; sv(); }), K.check("Show overlay", o.overlay, function (v) { o.overlay = v; sv(); })],
         ED.cloneSrc ? "Paint to " + (t === "heal" ? "heal (texture from the source, colour from around the stroke)" : "copy from the source") + ". Alt+click sets a new source." : "Alt+click a clean area to set the source first.", { noSym: true });
     };
   });

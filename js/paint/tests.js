@@ -289,3 +289,18 @@
     ED.o.spot.sample = "current"; ED.o.clone.sample = "current";
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, ED = PE.ed, PP = PE.paint;
+  PP.test("clone source transform", function (ok) {
+    var s = PP.scratch(80, 40, "#ffffff"), c = PE.cx2(s.L.canvas); c.fillStyle = "#000000"; c.fillRect(10, 10, 4, 20); PE.touch(s.L.canvas);     // a vertical bar
+    ED.cloneSrc = { x: 12, y: 20 }; ED.cloneOff = null;
+    Object.assign(ED.o.clone, PP.BDEF, { size: 24, hard: 1, op: 1, flow: 1, aligned: false, sample: "current", cAngle: 90, cScale: 100, cFlipX: false, cFlipY: false, sizeC: "off" });
+    PP.drive("clone", [{ x: 55, y: 20 }]);
+    ok(PP.px(s.L.canvas, 47, 20)[0] < 30 && PP.px(s.L.canvas, 63, 20)[0] < 30 && PP.px(s.L.canvas, 55, 14)[0] > 220, "a 90° source turns the bar horizontal");
+    ED.undo(); Object.assign(ED.o.clone, { cAngle: 0, cScale: 50 });
+    PP.drive("clone", [{ x: 55, y: 20 }]);
+    ok(PP.px(s.L.canvas, 55, 24)[0] < 30 && PP.px(s.L.canvas, 55, 28)[0] > 220, "a 50% source halves it");
+    Object.assign(ED.o.clone, { cAngle: 0, cScale: 100, aligned: true });
+  });
+})();
