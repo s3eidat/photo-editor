@@ -295,3 +295,13 @@
     ok(lay.runs && lay.w > w0 * 1.2 && lay.items[0].big === 40, "a bigger run widens the line and sets its height");
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, VX = PE.VX;
+  VX.test("vertical type", function (ok) {
+    var T = { text: "ABC\nDE", font: "Inter", size: 20, weight: 400, color: "#000000", align: "left", dir: "ltr", lh: 1.5, ax: 100, ay: 50, rot: 0, vert: true }, lay = PE.textLayout(T);
+    ok(lay.vert && lay.lines.length === 2 && VX.near(lay.w, 60) && lay.glyphs.length === 5, "two columns of stacked letters");
+    ok(lay.glyphs[0].x > lay.glyphs[3].x && lay.glyphs[1].y > lay.glyphs[0].y && lay.glyphs[0].x === lay.glyphs[2].x, "columns run right to left, letters top to bottom");
+    T.box = { w: 100, h: 45 }; ok(PE.textLayout(T).lines.length === 3, "a box height wraps the column");
+  });
+})();

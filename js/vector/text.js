@@ -14,7 +14,7 @@
 
   function isExt(T) {
     return !!(T.box || T.track || T.base || (T.hs && T.hs !== 100) || (T.vs && T.vs !== 100) || T.caps || T.under || T.strike || T.fbold || T.sup || T.indL || T.indR || T.indF ||
-      T.spB || T.spA || T.align && T.align.indexOf("justify") === 0 || T.kern === "none" || (T.weight && T.weight !== 400 && T.weight !== 700) || T.path || T.warp || (T.runs && T.runs.length));
+      T.spB || T.spA || T.align && T.align.indexOf("justify") === 0 || T.kern === "none" || (T.weight && T.weight !== 400 && T.weight !== 700) || T.path || T.warp || (T.runs && T.runs.length) || T.vert);
   }
   VX.isExtText = isExt;
   function effSize(T) { return Math.max(1, T.size) * (T.sup ? 0.62 : 1); }
@@ -36,6 +36,7 @@
   function layout(T) {
     if (!isExt(T)) return null;
     if (T.path && VX.pathLayout) return VX.pathLayout(T);
+    if (T.vert && VX.layoutVert) return VX.layoutVert(T);
     if (T.runs && T.runs.length && VX.layoutRuns) return VX.layoutRuns(T);
     var key = JSON.stringify(T), hit = LCACHE.get(key);
     if (hit) return hit;
@@ -117,6 +118,7 @@
     return true;
   };
   function drawLaid(c, T, lay) {
+    if (lay.vert && VX.drawVert) { VX.drawVert(c, T, lay); return; }
     if (lay.runs && VX.drawRuns) { VX.drawRuns(c, T, lay); return; }
     var rtl = PE.textDir(T) === "rtl", size = effSize(T), shift = -(T.base || 0) + (T.sup === "sup" ? -T.size * 0.33 : T.sup === "sub" ? T.size * 0.18 : 0);
     setFont(c, T); c.textBaseline = "middle"; c.fillStyle = PE.hex(T.color, "#111111");
@@ -151,7 +153,7 @@
     ["base", "indL", "indR", "indF", "spB", "spA"].forEach(function (f) { if (T[f]) T[f] *= k; });
     if (T.path && VX.xfPathText) { VX.xfPathText(T, c, sx, sy); return true; }
     var lay = PE.textLayout(T);
-    if (T.box) { T.ax = c.x - lay.w / 2; T.ay = c.y - lay.h / 2; return true; }
+    if (T.box || T.vert) { T.ax = c.x - lay.w / 2; T.ay = c.y - lay.h / 2; return true; }
     var al = T.align || "left", left = al === "left" || al === "justify-left" || al === "justify-all", right = al === "right" || al === "justify-right";
     T.ax = c.x + (left ? -lay.w / 2 : right ? lay.w / 2 : 0); T.ay = c.y - lay.h / 2;
     return true;

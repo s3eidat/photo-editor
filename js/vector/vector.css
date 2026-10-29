@@ -45,3 +45,4 @@
 .pe-vcarve { display: block; max-width: 100%; height: auto; border-radius: 8px; background: var(--surface-3); align-self: flex-start; }
 .pe-vsel { color: var(--accent); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 860px) { .pe-vws-foot > .faint { display: none; } }
+.pe-textedit.pe-vmask { background: rgba(229, 72, 77, .28); }
