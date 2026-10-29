@@ -38,19 +38,21 @@
     x.putImageData(im, 0, 0); TM.set(key, c); return c;
   };
   function fromRGBA(id, name, w, hh, data) { var c = PE.mk(w, hh); PE.cx2(c).putImageData(new ImageData(new Uint8ClampedArray(data), w, hh), 0, 0); return add({ id: id, name: name, canvas: c, w: w, h: hh }); }
-  PP.lib.all("pattern").then(function (a) { a.forEach(function (r) { if (r.w > 0 && r.h > 0 && r.w <= 1024 && r.h <= 1024 && r.data && r.data.length === r.w * r.h * 4) fromRGBA(r.id, String(r.name || "Pattern").slice(0, 60), r.w, r.h, r.data); }); PP.refreshPanel("patterns"); }).catch(function () {});
+  PP.lib.all("pattern").then(function (a) { var budget = 64e6; a.forEach(function (r) { if (r.w > 0 && r.h > 0 && r.w <= 1024 && r.h <= 1024 && r.data && r.data.length === r.w * r.h * 4 && (budget -= r.w * r.h) >= 0) fromRGBA(r.id, String(r.name || "Pattern").slice(0, 60), r.w, r.h, r.data); }); PP.refreshPanel("patterns"); }).catch(function () {});
   // Make a pattern from a canvas (scaled to at most 1024 px a side).
-  PP.addPattern = function (canvas, name) {
+  PP.addPattern = function (canvas, name, quiet) {
     var k = Math.min(1, 1024 / Math.max(canvas.width, canvas.height)), w = Math.max(1, Math.round(canvas.width * k)), hh = Math.max(1, Math.round(canvas.height * k)), c = PE.mk(w, hh), x = PE.cx2(c);
     x.imageSmoothingQuality = "high"; x.drawImage(canvas, 0, 0, w, hh);
     var id = PE.uid("pat"), data = x.getImageData(0, 0, w, hh).data, p = add({ id: id, name: name, canvas: c, w: w, h: hh });
     PP.lib.put({ id: id, kind: "pattern", name: name, w: w, h: hh, data: new Uint8ClampedArray(data), order: Date.now() }).catch(function () {});
-    PP.setPattern(id);
+    if (!quiet) PP.setPattern(id);
     return p;
   };
   PP.importPat = function (u8) {
     return PP.work("readPat", [u8]).then(function (list) {
-      list.forEach(function (p) { var c = PE.mk(p.w, p.h); PE.cx2(c).putImageData(new ImageData(new Uint8ClampedArray(p.data), p.w, p.h), 0, 0); PP.addPattern(c, String(p.name).replace(/[\u0000-\u001f]/g, " ").slice(0, 60)); });
+      var last = null;
+      list.forEach(function (p) { var c = PE.mk(p.w, p.h); PE.cx2(c).putImageData(new ImageData(new Uint8ClampedArray(p.data), p.w, p.h), 0, 0); last = PP.addPattern(c, String(p.name).replace(/[\u0000-\u001f]/g, " ").slice(0, 60), true); });
+      if (last) PP.setPattern(last.id); else PP.refreshPanel("patterns");
       return list.length;
     });
   };

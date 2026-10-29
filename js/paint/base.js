@@ -241,12 +241,15 @@
   // Put img (rect R of the layer) over the layer only where m (R-sized weights 0..255) says, for "sample all layers"
   // results that are meant to sit on top of an empty or partial layer.
   PP.overLayer = function (c, img, R, m) {
-    var t = PE.mk(R.w, R.h), x = PE.cx2(t), d = new ImageData(new Uint8ClampedArray(img.data), R.w, R.h);
-    for (var i = 0; i < m.length; i++) d.data[i * 4 + 3] = d.data[i * 4 + 3] * m[i] / 255;
-    x.putImageData(d, 0, 0);
-    c.save(); c.globalCompositeOperation = "destination-out"; c.globalAlpha = 1;
-    var t2 = PE.mk(R.w, R.h), x2 = PE.cx2(t2), md = x2.createImageData(R.w, R.h); for (i = 0; i < m.length; i++) md.data[i * 4 + 3] = m[i]; x2.putImageData(md, 0, 0);
-    c.drawImage(t2, R.x, R.y); c.globalCompositeOperation = "source-over"; c.drawImage(t, R.x, R.y); c.restore();
+    // out = layer + (img - layer) * m, premultiplied, so an opaque layer stays opaque
+    var cur = c.getImageData(R.x, R.y, R.w, R.h), d = cur.data, s = img.data;
+    for (var i = 0; i < m.length; i++) {
+      var k = m[i] / 255; if (!k) continue;
+      var q = i * 4, la = d[q + 3] / 255, sa = s[q + 3] / 255, ra = la + (sa - la) * k;
+      for (var ch = 0; ch < 3; ch++) d[q + ch] = ra > 0 ? (d[q + ch] * la + (s[q + ch] * sa - d[q + ch] * la) * k) / ra : 0;
+      d[q + 3] = ra * 255;
+    }
+    c.putImageData(cur, R.x, R.y);
   };
   // Flattened document pixels (or one layer's pixels) for sampling, in doc coordinates.
   PP.sample = function (all, L) {

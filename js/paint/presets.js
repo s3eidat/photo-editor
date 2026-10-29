@@ -58,7 +58,8 @@
   var USER = [];
   PP.presets = function () { return BUILTIN.concat(USER); };
   PP.lib.all("tip").then(function (a) {
-    a.forEach(function (r) { if (r.data && r.w > 0 && r.h > 0 && r.w <= 2500 && r.h <= 2500 && r.data.length === r.w * r.h) tipFromGray(r.id, String(r.name || "Tip").slice(0, 60), r.w, r.h, r.data); });
+    var budget = 64e6;      // stored tips are loaded within a pixel budget too
+    a.forEach(function (r) { if (r.data && r.w > 0 && r.h > 0 && r.w <= 2500 && r.h <= 2500 && r.data.length === r.w * r.h && (budget -= r.w * r.h) >= 0) tipFromGray(r.id, String(r.name || "Tip").slice(0, 60), r.w, r.h, r.data); });
     return PP.lib.all("brush");
   }).then(function (a) { USER = a.filter(function (r) { return r.s && typeof r.s === "object"; }).map(function (r) { return { id: r.id, name: String(r.name || "Brush").slice(0, 60), s: r.s }; }); PP.refreshPanel("brushes"); }).catch(function () {});
   var SAFE = Object.keys(PP.BDEF).concat(["hard", "size", "op"]);
@@ -104,11 +105,11 @@
   PP.addTip = addTip;
   // For library import: a tip without a preset (returns its new id), and a preset from settings.
   PP.importTip = function (name, w, hh, gray) { var id = PE.uid("tip"); tipFromGray(id, name, w, hh, gray); PP.lib.put({ id: id, kind: "tip", name: name, w: w, h: hh, data: gray }).catch(function () {}); return id; };
-  PP.addPreset = function (name, s) {
+  PP.addPreset = function (name, s, quiet) {
     var clean = {}; Object.keys(s || {}).forEach(function (k) { if (SAFE.indexOf(k) >= 0 && typeof s[k] === typeof PP.BDEF[k]) clean[k] = s[k]; });
     PP.clampBrush(clean); if (clean.tip && !PP.tips[clean.tip]) clean.tip = "";
     var pr = { id: PE.uid("p"), name: String(name || "Brush").slice(0, 60), s: clean }; USER.push(pr);
-    PP.lib.put({ id: pr.id, kind: "brush", name: pr.name, s: clean, order: Date.now() }).catch(function () {}); PP.refreshPanel("brushes");
+    PP.lib.put({ id: pr.id, kind: "brush", name: pr.name, s: clean, order: Date.now() }).catch(function () {}); if (!quiet) PP.refreshPanel("brushes");
     return pr;
   };
 

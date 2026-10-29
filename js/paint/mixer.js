@@ -42,7 +42,7 @@
         var o0 = c0 + (p0 - c0) * t, o1 = c1 + (p1 - c1) * t, o2 = c2 + (p2 - c2) * t, o3 = c3 + (p3 - c3) * t;
         if (o3 <= 0.5) { D[q + 3] = 0; return; }
         D[q] = o0 / o3 * 255; D[q + 1] = o1 / o3 * 255; D[q + 2] = o2 / o3 * 255; D[q + 3] = o3;
-      });
+      }, flip);
       B.amt = amt * st.decay;
     }
   }, { size: 40, hard: 0.6, op: 1, flow: 0.8, spacing: 8, wet: 60, load: 50, mix: 60, loadAfter: true, cleanAfter: true, sizeC: "pressure" });

@@ -4,7 +4,7 @@
 (function () {
   "use strict";
   var PE = window.PE, ED = PE.ed, PP = PE.paint, K = ED.ui.kit, h = S3.h;
-  var LIM = { tips: 500, presets: 1000, patterns: 300, gradients: 500, swatches: 5000, tipSide: 2500, patSide: 1024, bytes: 300e6 };
+  var LIM = { tips: 500, presets: 1000, patterns: 300, gradients: 500, swatches: 5000, tipSide: 2500, patSide: 1024, bytes: 300e6, pixels: 64e6 };
 
   function grayCanvas(t) { return t.canvas; }      // tips are white with alpha = paint: stored as PNG as they are
   PP.exportLibrary = function () {
@@ -43,32 +43,43 @@
       try { m = JSON.parse(new TextDecoder().decode(b)); } catch (e) { throw new Error("This paint library is damaged (bad JSON)"); }
       if (!m || m.format !== "s3paint" || typeof m !== "object") throw new Error("This is not a paint library");
       if (+m.version > 1) throw new Error("This library was made by a newer version of Photo Editor");
-      function png(src, maxSide) {
-        var e = typeof src === "string" ? by[src] : null; if (!e) return Promise.resolve(null);
-        return PE.zipRead(u8, e, 40e6).then(function (bytes) {
-          var s = PE.pngSize(bytes); if (!s || s.w < 1 || s.h < 1 || s.w > maxSide || s.h > maxSide) return null;
-          return PE.bytesToCanvas(bytes).then(function (c) { return c.width === s.w && c.height === s.h ? c : null; });
-        }).catch(function () { return null; });
+      // every image's size is read from its PNG header first: the whole library has a pixel budget
+      var bytesOf = {}, budget = LIM.pixels;
+      var sizes = arr(m.tips, LIM.tips).map(function (t) { return [t && t.src, LIM.tipSide]; }).concat(arr(m.patterns, LIM.patterns).map(function (t) { return [t && t.src, LIM.patSide]; }));
+      var pre = sizes.reduce(function (p, it) {
+        return p.then(function () {
+          var e = typeof it[0] === "string" ? by[it[0]] : null; if (!e || bytesOf[it[0]]) return;
+          return PE.zipRead(u8, e, 40e6).then(function (bytes) {
+            var s = PE.pngSize(bytes); if (!s || s.w < 1 || s.h < 1 || s.w > it[1] || s.h > it[1]) return;
+            budget -= s.w * s.h; if (budget < 0) throw new Error("This library holds more image pixels than can be imported at once");
+            bytesOf[it[0]] = { bytes: bytes, s: s };
+          }, function () {});
+        });
+      }, Promise.resolve());
+      function png(src) {
+        var b = typeof src === "string" ? bytesOf[src] : null; if (!b) return Promise.resolve(null);
+        return PE.bytesToCanvas(b.bytes).then(function (c) { return c.width === b.s.w && c.height === b.s.h ? c : null; }).catch(function () { return null; });
       }
       var map = {}, count = { brushes: 0, patterns: 0, gradients: 0, swatches: 0 };
       var tips = arr(m.tips, LIM.tips).reduce(function (p, t) {
         return p.then(function () {
-          return png(t && t.src, LIM.tipSide).then(function (c) {
+          return png(t && t.src).then(function (c) {
             if (!c) return;
             var d = PE.getData(c).data, g = new Uint8Array(c.width * c.height); for (var i = 0; i < g.length; i++) g[i] = d[i * 4 + 3];
             map[str(t.id, 60, "")] = PP.importTip(str(t.name, 60, "Tip"), c.width, c.height, g);
           });
         });
-      }, Promise.resolve());
+      }, pre);
       return tips.then(function () {
         arr(m.presets, LIM.presets).forEach(function (p) {
           if (!p || typeof p.s !== "object" || !p.s) return;
           var s = Object.assign({}, p.s); if (typeof s.tip === "string" && s.tip) s.tip = map[s.tip] || (PP.tips[s.tip] && PP.tips[s.tip].builtin ? s.tip : "");
-          PP.addPreset(str(p.name, 60, "Brush"), s); count.brushes++;
+          PP.addPreset(str(p.name, 60, "Brush"), s, true); count.brushes++;
         });
-        return arr(m.patterns, LIM.patterns).reduce(function (p, t) { return p.then(function () { return png(t && t.src, LIM.patSide).then(function (c) { if (c) { PP.addPattern(c, str(t.name, 60, "Pattern")); count.patterns++; } }); }); }, Promise.resolve());
+        return arr(m.patterns, LIM.patterns).reduce(function (p, t) { return p.then(function () { return png(t && t.src).then(function (c) { if (c) { PP.addPattern(c, str(t.name, 60, "Pattern"), true); count.patterns++; } }); }); }, Promise.resolve());
       }).then(function () {
-        arr(m.gradients, LIM.gradients).forEach(function (g) { if (PP.addGradient(g)) count.gradients++; });
+        arr(m.gradients, LIM.gradients).forEach(function (g) { if (PP.addGradient(g, true)) count.gradients++; });
+        ["brushes", "patterns", "gradients"].forEach(function (t) { PP.refreshPanel(t); });
         if (opt.noSwatches) return count;
         return PP.addSwatches(arr(m.swatches, LIM.swatches)).then(function (n) { count.swatches = n; return count; });
       });

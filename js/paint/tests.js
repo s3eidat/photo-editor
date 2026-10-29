@@ -311,7 +311,8 @@
     var s = PP.scratch(80, 40, "#ffffff"), o = ED.o.brush; s.d.fg = "#000000";
     Object.assign(o, PP.BDEF, { size: 30, hard: 1, op: 1, flow: 1, sizeC: "off", wetEdge: true });
     PP.drive("brush", [{ x: 20, y: 20 }, { x: 60, y: 20 }]);
-    var mid = PP.px(s.L.canvas, 40, 20)[0]; ok(mid > 100 && mid < 160, "wet edges thin the middle of the stroke (" + mid + ")");
+    var mid = PP.px(s.L.canvas, 40, 20)[0], rim = PP.px(s.L.canvas, 40, 33)[0];
+    ok(mid > 100 && mid < 160 && rim < mid - 40, "wet edges: thin in the middle, full along the edge (" + mid + " / " + rim + ")");
     ED.undo(); o.wetEdge = false; o.noise = true;
     PP.drive("brush", [{ x: 20, y: 20 }, { x: 60, y: 20 }]);
     var vals = {}; for (var x = 30; x < 50; x++) vals[PP.px(s.L.canvas, x, 20)[0]] = 1;
@@ -444,5 +445,44 @@
     ok(Math.abs(g[0].alpha[1].a - 0.25) < 1e-9, "opacity stops");
     ok(g[1].kind === "noise" && g[1].seed === 1234 && Math.abs(g[1].rough - 50) < 1e-9 && g[1].transp === true, "noise gradient");
     var threw = false; try { PPX.readGrd(grd().slice(0, 60)); } catch (e) { threw = true; } ok(threw, "rejects a truncated file");
+  });
+})();
+(function () {
+  "use strict";
+  var PE = window.PE, ED = PE.ed, PP = PE.paint, PPX = window.PPX;
+  PP.test("second review fixes", async function (ok) {
+    // heal sampling all layers onto an opaque layer keeps it opaque
+    var s = PP.scratch(80, 40, "#3366cc"), top = PE.rasterFromCanvas(PE.touch(PE.mk(80, 40)), "Top"), tc = PE.cx2(top.canvas); tc.fillStyle = "#3366cc"; tc.fillRect(0, 0, 80, 40); PE.touch(top.canvas);
+    s.d.layers.push(top); s.d.active = top.id; ED.cloneSrc = { x: 15, y: 20 }; ED.cloneOff = null;
+    Object.assign(ED.o.heal, PP.BDEF, { size: 16, hard: 0, op: 1, flow: 1, aligned: false, sample: "all", sizeC: "off", cScale: 100, cAngle: 0 });
+    PP.drive("heal", [{ x: 50, y: 20 }, { x: 60, y: 20 }]);
+    for (var k = 0; k < 100 && ED.busy; k++) await new Promise(function (r) { setTimeout(r, 30); });
+    var minA = 255; for (var x = 40; x < 70; x++) minA = Math.min(minA, PP.px(top.canvas, x, 20)[3]); ok(minA === 255, "heal with all layers keeps an opaque layer opaque (min alpha " + minA + ")");
+    ED.o.heal.sample = "current";
+    // blur sampling all layers stays inside the selection
+    s = PP.scratch(80, 40, "#3366cc"); top = PE.rasterFromCanvas(PE.touch(PE.mk(80, 40)), "Top"); s.d.layers.push(top); s.d.active = top.id;
+    s.d.sel = PE.makeSel(s.d, PIX.rectMask(80, 40, 0, 0, 40, 40));
+    Object.assign(ED.o.blurtool, PP.BDEF, { size: 20, hard: 1, op: 1, sample: "all", sizeC: "off" });
+    PP.drive("blurtool", [{ x: 40, y: 20 }, { x: 42, y: 20 }]);
+    ok(PP.px(top.canvas, 46, 20)[3] === 0 && PP.px(top.canvas, 36, 20)[3] === 255, "blur (all layers) writes only inside the selection");
+    ED.o.blurtool.sample = "current"; s.d.sel = null;
+    // clean edges leave a flat colour near the background alone
+    s = PP.scratch(60, 30, "#20a040"); var c = PE.cx2(s.L.canvas); c.fillStyle = "rgb(62,190,94)"; c.fillRect(30, 0, 30, 30); PE.touch(s.L.canvas);
+    Object.assign(ED.o.bgerase, PP.BDEF, { size: 40, hard: 0, sample: "once", limits: "dis", tol: 50, protect: false, clean: true, sizeC: "off" });
+    PP.drive("bgerase", [{ x: 20, y: 15 }]);
+    var e = PP.px(s.L.canvas, 34, 15); ok(Math.abs(e[0] - 62) <= 2 && Math.abs(e[1] - 190) <= 2, "clean edges keep a flat colour's own colour (" + e + ")");
+    // descriptor keys from a file cannot touch prototypes
+    var b = [];
+    function u8(v) { b.push(v & 255); } function u32(v) { u8(v >>> 24); u8(v >>> 16); u8(v >>> 8); u8(v); }
+    function key(t) { u32(t.length); for (var i = 0; i < t.length; i++) u8(t.charCodeAt(i)); }
+    u32(0); u32(0); u8(110); u8(117); u8(108); u8(108); u32(1); key("__proto__"); "Objc".split("").forEach(function (ch) { u8(ch.charCodeAt(0)); }); u32(0); u32(0); "null".split("").forEach(function (ch) { u8(ch.charCodeAt(0)); }); u32(0);
+    var r = PPX.readDescriptor(new Uint8Array(b), 0).d; ok(Object.getPrototypeOf(r) === null && r.GrdL === undefined && ({}).GrdL === undefined, "file keys stay plain properties");
+    // dodge with a flipped sampled tip
+    s = PP.scratch(60, 30, "#808080"); var g = new Uint8Array(400); for (var y = 0; y < 20; y++) for (x = 0; x < 20; x++) g[y * 20 + x] = x < 10 ? 255 : 0;
+    PP.tipFromGray("t:half2", "Half", 20, 20, g);
+    Object.assign(ED.o.dodge, PP.BDEF, { tip: "t:half2", size: 20, op: 1, flow: 1, flipX: true, sizeC: "off" });
+    PP.drive("dodge", [{ x: 30, y: 15 }]);
+    ok(PP.px(s.L.canvas, 36, 15)[0] > 170 && PP.px(s.L.canvas, 24, 15)[0] === 128, "flip applies to sampled tips on the retouch tools");
+    Object.assign(ED.o.dodge, { tip: "", flipX: false }); delete PP.tips["t:half2"];
   });
 })();

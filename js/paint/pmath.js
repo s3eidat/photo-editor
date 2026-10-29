@@ -241,9 +241,9 @@
 
   // ---------- .pat pattern files ----------
   // Returns [{name, w, h, data: RGBA}]. Grey, indexed and RGB patterns, raw or PackBits channels. Checked lengths,
-  // 4096 px a side, 200 patterns and 120 MP in all.
+  // 4096 px a side, 200 patterns, 64 MP decoded in all; tiles over 1024 px are shrunk here (that is all that is kept).
   PPX.readPat = function (u8) {
-    var dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), p = 0, out = [], budget = 120e6;
+    var dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), p = 0, out = [], budget = 64e6;
     function need(n) { if (n < 0 || p + n > u8.length) throw new Error("This pattern file is damaged or truncated"); }
     function u8r() { need(1); return u8[p++]; }
     function u16() { need(2); var v = dv.getUint16(p); p += 2; return v; }
@@ -298,6 +298,15 @@
         else throw new Error("Pattern “" + name + "” uses a colour mode this editor cannot read");
         rgba[q * 4] = r0; rgba[q * 4 + 1] = g0; rgba[q * 4 + 2] = b0; rgba[q * 4 + 3] = mode === 3 && chans[3] ? chans[3][q] : 255;
       }
+      if (w > 1024 || h > 1024) {       // kept at most 1024 px a side: shrink here (box filter) so big tiles are not held
+        var k3 = 1024 / Math.max(w, h), w2 = Math.max(1, Math.round(w * k3)), h2 = Math.max(1, Math.round(h * k3)), small = new Uint8ClampedArray(w2 * h2 * 4);
+        for (var yy = 0; yy < h2; yy++) for (var xx = 0; xx < w2; xx++) {
+          var x0 = Math.floor(xx * w / w2), x1 = Math.max(x0 + 1, Math.floor((xx + 1) * w / w2)), y0 = Math.floor(yy * h / h2), y1 = Math.max(y0 + 1, Math.floor((yy + 1) * h / h2)), acc = [0, 0, 0, 0], cnt2 = 0;
+          for (var sy = y0; sy < y1; sy++) for (var sx = x0; sx < x1; sx++) { var si = (sy * w + sx) * 4; acc[0] += rgba[si]; acc[1] += rgba[si + 1]; acc[2] += rgba[si + 2]; acc[3] += rgba[si + 3]; cnt2++; }
+          for (var z = 0; z < 4; z++) small[(yy * w2 + xx) * 4 + z] = acc[z] / cnt2;
+        }
+        rgba = small; w = w2; h = h2;
+      }
       out.push({ name: name || "Pattern " + (n2 + 1), w: w, h: h, data: rgba });
     }
     return out;
@@ -330,9 +339,10 @@
       }
     }
     function desc(depth) {
-      var o = { _name: ustr(), _class: id() }, n = u32();
+      // no prototype: keys from the file ("__proto__" included) are only ever plain own properties
+      var o = Object.create(null), n; o._name = ustr(); o._class = id(); n = u32();
       if (n > 10000) throw new Error("This file is damaged");
-      for (var i = 0; i < n; i++) { var k = id(); o[k] = value(str4(), depth); }
+      for (var i = 0; i < n; i++) { var k = id(), v = value(str4(), depth); if (k !== "_name" && k !== "_class") o[k] = v; }
       return o;
     }
     var out = desc(0);

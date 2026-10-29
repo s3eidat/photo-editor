@@ -86,8 +86,11 @@
     mix: function (st, px, c, i, o, oq) {
       var a = px[3] * (1 - c);
       o[oq + 3] = a;
-      var B = st.o.clean ? PP.sampleOf(st, i) : null;
-      for (var k = 0; k < 3; k++) o[oq + k] = B && c < 0.98 ? PE.clamp((px[k] - c * B[k]) / (1 - c), 0, 255) : px[k];
+      // mix fraction from the colour itself: pixels inside the tolerance count as background (left as they are, only
+      // made see-through); in the tolerance's soft band, the background share e is taken out of the colour
+      var B = st.o.clean ? PP.sampleOf(st, i) : null, e = 0;
+      if (B) { var dd = Math.max(Math.abs(px[0] - B[0]), Math.abs(px[1] - B[1]), Math.abs(px[2] - B[2])) / 2.55; e = dd <= st.o.tol ? 0 : dd <= st.o.tol + 8 ? (st.o.tol + 8 - dd) / 8 : 0; }
+      for (var k = 0; k < 3; k++) o[oq + k] = e > 0 && e < 0.98 ? PE.clamp((px[k] - e * B[k]) / (1 - e), 0, 255) : px[k];
     }
   }, { size: 60, hard: 0.9, spacing: 15, sample: "cont", limits: "contig", tol: 50, protect: false, clean: true });
   PP.addTool("bgerase", "Background eraser", "E", "eraser", ED.TOOLS.bgerase);

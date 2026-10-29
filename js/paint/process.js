@@ -34,7 +34,6 @@
       } else if (hard >= 0.99) w = PE.clamp(r - dd + 0.5, 0, 1); else w = dd <= rh ? 1 : dd >= r ? 0 : (r - dd) / (r - rh);
       if (w <= 0) continue;
       w *= a;
-      if (st.touched) st.touched[yy * W + xx] = 1;
       if (sel) { var sx = xx + st.ox, sy = yy + st.oy; w *= sx >= 0 && sy >= 0 && sx < sel.w && sy < sel.h ? sel.m[sy * sel.w + sx] / 255 : 0; if (w <= 0) continue; }
       fn(yy * W + xx, w);
     }
@@ -98,7 +97,7 @@
         if (spec.keepSample && st.cur) {      // the colour sampled when this pixel was erased (for clean edges)
           var S = st.sampT || (st.sampT = []), a = S[c.ti] || (S[c.ti] = new Uint8Array(T * T * 3)); a[c.j * 3] = st.cur[0]; a[c.j * 3 + 1] = st.cur[1]; a[c.j * 3 + 2] = st.cur[2];
         }
-      });
+      }, flip);
     };
     spec.preview = function (st) {
       var R = clipR(st, st.dirty); st.dirty = null;
@@ -198,6 +197,7 @@
   function blurred(src, w, hh, r) { var t = new Float32Array(src.length), o = new Float32Array(src.length); boxPass(src, t, w, hh, r, true); boxPass(t, o, w, hh, r, false); boxPass(o, t, w, hh, r, true); boxPass(t, o, w, hh, r, false); return o; }
   function put(st, i, pr, pg, pb, pa) {
     var s = st.img.data, q = i * 4;
+    if (st.touched) st.touched[i] = 1;      // only pixels really written take the result (sampling other layers)
     if (pa <= 0.5) { s[q + 3] = 0; return; }
     s[q] = pr / pa * 255; s[q + 1] = pg / pa * 255; s[q + 2] = pb / pa * 255; s[q + 3] = pa;
   }
@@ -211,7 +211,7 @@
         var v0 = src[j], v1 = src[j + 1], v2 = src[j + 2], v3 = src[j + 3], b0 = b[j], b1 = b[j + 1], b2 = b[j + 2], b3 = b[j + 3];
         if (sharpen) { b0 = v0 + (v0 - b0) * 1.6; b1 = v1 + (v1 - b1) * 1.6; b2 = v2 + (v2 - b2) * 1.6; b3 = v3; var lim = b3; b0 = PE.clamp(b0, 0, lim); b1 = PE.clamp(b1, 0, lim); b2 = PE.clamp(b2, 0, lim); }
         put(st, i, v0 + (b0 - v0) * t, v1 + (b1 - v1) * t, v2 + (b2 - v2) * t, v3 + (b3 - v3) * t);
-      });
+      }, flip);
     };
   }
   runTool("blurtool", { label: "Blur", fill: "color", stamp: filterDab(false), sym: false }, { op: 0.5, hard: 0.4, size: 50, spacing: 25, sample: "current" });
@@ -241,7 +241,7 @@
         put(st, i, o0, o1, o2, o3);
         var pick = 1 - k;      // strength 100% keeps the finger's paint; lower values pick up what is under it
         F[f2] += (o0 - F[f2]) * pick; F[f2 + 1] += (o1 - F[f2 + 1]) * pick; F[f2 + 2] += (o2 - F[f2 + 2]) * pick; F[f2 + 3] += (o3 - F[f2 + 3]) * pick;
-      });
+      }, flip);
     }
   }, { op: 0.6, hard: 0.5, size: 40, spacing: 6, finger: false, sample: "current" });
   PP.addTool("blurtool", "Blur", "R", "sponge", ED.TOOLS.blurtool);

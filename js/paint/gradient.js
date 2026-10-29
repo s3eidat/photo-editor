@@ -145,9 +145,9 @@
   PP.setGradient = setGradient;
   PP.gradients = function () { return BUILTIN.concat(USER); };
   PP.removeGradient = function (id) { USER = USER.filter(function (g) { return g.id !== id; }); PP.lib.del(id).catch(function () {}); PP.refreshPanel("gradients"); };
-  PP.addGradient = function (g) {
+  PP.addGradient = function (g, quiet) {
     var p = cleanG(g); if (!p) return null; p.id = PE.uid("g"); USER.push(p);
-    PP.lib.put(Object.assign({}, p, { kind: "gradient", gkind: p.kind, order: Date.now() })).catch(function () {}); PP.refreshPanel("gradients");
+    PP.lib.put(Object.assign({}, p, { kind: "gradient", gkind: p.kind, order: Date.now() })).catch(function () {}); if (!quiet) PP.refreshPanel("gradients");
     return p;
   };
 
@@ -275,7 +275,7 @@
   PP.gradientEditor = editor;
 
   // ---------- .grd import ----------
-  PP.importGrd = function (u8) { return PP.work("readGrd", [u8]).then(function (list) { var n = 0; list.forEach(function (g) { if (PP.addGradient(g)) n++; }); return n; }); };
+  PP.importGrd = function (u8) { return PP.work("readGrd", [u8]).then(function (list) { var n = 0; list.forEach(function (g) { if (PP.addGradient(g, true)) n++; }); PP.refreshPanel("gradients"); return n; }); };
   var gfile = null;
   function pickGrd() {
     if (!gfile) {

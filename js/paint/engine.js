@@ -105,6 +105,7 @@
       var A = ED.cloneAnchor;      // scaled / rotated / flipped source: dest = D + M (src - S)
       if (A && (st.o.cScale !== 100 || st.o.cAngle || st.o.cFlipX || st.o.cFlipY))
         st.cm = { S: { x: A.s.x - st.ox, y: A.s.y - st.oy }, D: { x: A.d.x - st.ox, y: A.d.y - st.oy }, a: st.o.cAngle * RAD, kx: PE.clamp(st.o.cScale, 1, 1000) / 100 * (st.o.cFlipX ? -1 : 1), ky: PE.clamp(st.o.cScale, 1, 1000) / 100 * (st.o.cFlipY ? -1 : 1) };
+      if (st.cm) st.off = null;       // the core's offset marker would be wrong; the paint overlay draws the true source point
     }
     if (spec.begin && spec.begin(st, p, e) === false) { ED.stroke = null; ED.push(st.grow); return; }
     ED.drag = { kind: "stroke", cancel: function () {
@@ -406,15 +407,18 @@
   // The stroke as an image over rect R (default: its bounding box), with the dual tip and texture applied.
   function strokeImage(st, R) {
     if (!st.dualBuf && !(st.tex && !st.o.texEach) && !st.o.noise && !st.o.wetEdge) return R ? { img: st.buf, sx: R.x, sy: R.y, x: R.x, y: R.y, w: R.w, h: R.h } : { img: st.buf, x: 0, y: 0 };
-    var bb = R || PE.inter(PE.rectI(st.bbox || { x: 0, y: 0, w: 1, h: 1 }), { x: 0, y: 0, w: st.w, h: st.h }) || { x: 0, y: 0, w: 1, h: 1 };
+    var bb0 = R || PE.inter(PE.rectI(st.bbox || { x: 0, y: 0, w: 1, h: 1 }), { x: 0, y: 0, w: st.w, h: st.h }) || { x: 0, y: 0, w: 1, h: 1 }, bb = bb0;
+    // wet edges look at the neighbourhood: work on a margin around the rectangle so its borders are not taken for edges
+    var wr = st.o.wetEdge ? PE.clamp(Math.round(st.o.size * 0.08), 2, 24) : 0;
+    if (wr) bb = PE.inter({ x: bb0.x - wr, y: bb0.y - wr, w: bb0.w + 2 * wr, h: bb0.h + 2 * wr }, { x: 0, y: 0, w: st.w, h: st.h }) || bb0;
     if (!scratch || scratch.width < bb.w || scratch.height < bb.h) scratch = PE.mk(Math.max(bb.w, scratch ? scratch.width : 0), Math.max(bb.h, scratch ? scratch.height : 0));
     var c = PE.cx2(scratch); c.globalCompositeOperation = "copy"; c.drawImage(st.buf, bb.x, bb.y, bb.w, bb.h, 0, 0, bb.w, bb.h);
     if (st.dualBuf) { c.globalCompositeOperation = "destination-in"; c.drawImage(st.dualBuf, bb.x, bb.y, bb.w, bb.h, 0, 0, bb.w, bb.h); }
     if (st.tex && !st.o.texEach) PP.texStroke(c, st.tex, bb.x + st.ox, bb.y + st.oy, bb.w, bb.h);
     if (st.o.noise) PP.texStroke(c, noiseTex(c), bb.x + st.ox, bb.y + st.oy, bb.w, bb.h);
-    if (st.o.wetEdge) wetEdges(c, bb.w, bb.h);
+    if (wr) wetEdges(c, bb.w, bb.h, wr);
     c.globalCompositeOperation = "source-over";
-    return { img: scratch, x: bb.x, y: bb.y, w: bb.w, h: bb.h };
+    return { img: scratch, sx: bb0.x - bb.x, sy: bb0.y - bb.y, x: bb0.x, y: bb0.y, w: bb0.w, h: bb0.h };
   }
   // Noise: fine grain over the stroke. Wet edges: paint pools at the edge of the stroke (thinner in the middle).
   var NOISE = null;
@@ -422,9 +426,13 @@
     if (!NOISE) { var n = PE.mk(128, 128), x = PE.cx2(n), im = x.createImageData(128, 128), R = PPX.rng(99); for (var i = 0; i < 128 * 128; i++) im.data[i * 4 + 3] = R() < 0.5 ? Math.round(R() * 255) : 0; x.putImageData(im, 0, 0); NOISE = n; }
     return { pat: c.createPattern(NOISE, "repeat"), k: 1, depth: 0.6 };
   }
-  function wetEdges(c, w, hh) {
-    var im = c.getImageData(0, 0, w, hh), d = im.data;
-    for (var i = 3; i < d.length; i += 4) { var a = d[i] / 255; d[i] = a * (1.8 - 1.3 * a) * 255; }
+  // paint is thinner (half) inside the stroke and full where it is higher than its surroundings, i.e. along the edge
+  function wetEdges(c, w, hh, r) {
+    var im = c.getImageData(0, 0, w, hh), d = im.data, n = w * hh, A = new Float32Array(n), T = new Float32Array(n), B = new Float32Array(n), x, y, i, k = 1 / (2 * r + 1);
+    for (i = 0; i < n; i++) A[i] = d[i * 4 + 3] / 255;
+    for (y = 0; y < hh; y++) { var acc = 0; for (x = -r; x <= r; x++) acc += A[y * w + PE.clamp(x, 0, w - 1)]; for (x = 0; x < w; x++) { T[y * w + x] = acc * k; acc += A[y * w + Math.min(w - 1, x + r + 1)] - A[y * w + Math.max(0, x - r)]; } }
+    for (x = 0; x < w; x++) { var ac2 = 0; for (y = -r; y <= r; y++) ac2 += T[PE.clamp(y, 0, hh - 1) * w + x]; for (y = 0; y < hh; y++) { B[y * w + x] = ac2 * k; ac2 += T[Math.min(hh - 1, y + r + 1) * w + x] - T[Math.max(0, y - r) * w + x]; } }
+    for (i = 0; i < n; i++) { var a = A[i]; if (a) d[i * 4 + 3] = a * (0.5 + 0.5 * PE.clamp((a - B[i]) * 3, 0, 1)) * 255; }
     c.putImageData(im, 0, 0);
   }
   function drawImg(c, I) { if (I.w) c.drawImage(I.img, I.sx || 0, I.sy || 0, I.w, I.h, I.x, I.y, I.w, I.h); else c.drawImage(I.img, 0, 0); }
@@ -482,11 +490,13 @@
     var pad = 6, R = PE.inter({ x: bb.x - pad, y: bb.y - pad, w: bb.w + 2 * pad, h: bb.h + 2 * pad }, { x: 0, y: 0, w: st.w, h: st.h });
     var cv = st.holder.canvas, dst = PE.getData(st.allSrc ? st.src : cv, R), srcC = PE.mk(R.w, R.h);
     drawSource(PE.cx2(srcC), st, R.x, R.y);
-    var I = strokeImage(st), mc = PE.mk(R.w, R.h); PE.cx2(mc).drawImage(I.img, I.w ? I.x - R.x : -R.x, I.w ? I.y - R.y : -R.y);
+    var I = strokeImage(st), mc = PE.mk(R.w, R.h);
+    if (I.w) PE.cx2(mc).drawImage(I.img, I.sx || 0, I.sy || 0, I.w, I.h, I.x - R.x, I.y - R.y, I.w, I.h); else PE.cx2(mc).drawImage(I.img, -R.x, -R.y);
     var src = PE.getData(srcC), md = PE.getData(mc).data, m = new Uint8Array(R.w * R.h), op = PE.clamp(st.o.op, 0, 1);
     for (var i = 0; i < m.length; i++) m[i] = Math.round(md[i * 4 + 3] * op);
-    var grow = st.grow; PP.endStroke(st);
-    PP.commitAsync(PE.work("heal", [{ data: dst.data, width: R.w, height: R.h }, { data: src.data, width: R.w, height: R.h }, m]), "Healing…", function (res) {
+    var grow = st.grow, hm = m; PP.endStroke(st);
+    if (st.allSrc) { hm = new Uint8Array(m.length); for (i = 0; i < m.length; i++) hm[i] = m[i] ? 255 : 0; }      // heal fully, blend once below
+    PP.commitAsync(PE.work("heal", [{ data: dst.data, width: R.w, height: R.h }, { data: src.data, width: R.w, height: R.h }, hm]), "Healing…", function (res) {
       var d = ED.doc, e2 = PE.editPixels(d, label, st.holder, "canvas", R, function (c) {
         if (st.allSrc) PP.overLayer(c, res, R, m); else c.putImageData(new ImageData(new Uint8ClampedArray(res.data), R.w, R.h), R.x, R.y);
       });
@@ -509,11 +519,35 @@
   var CLONE = { aligned: true, sample: "current", cScale: 100, cAngle: 0, cFlipX: false, cFlipY: false, overlay: true };
   PP.engineTool("clone", { label: "Clone stamp", fill: "clone", sym: false }, CLONE);
   PP.engineTool("heal", { label: "Healing brush", fill: "clone", sym: false, mask: false, noBuildup: true }, CLONE);
+  // The pixels the clone overlay shows: what a stroke would copy (layer, its mask, or the sampled layers), cached
+  // until the document changes.
+  var OVS = { key: "", s: null };
+  function overlaySource(L, o) {
+    var mask = ED.maskEdit && L.mask, mode = !mask && o.sample && o.sample !== "current" ? o.sample : "current";
+    var key = [L.id, mask ? "m" : "", mode, ED.hist ? ED.hist.pos + ":" + ED.hist.list.length : 0, PE.ver(L.canvas), mask ? PE.ver(L.mask.canvas) : 0].join("|");
+    if (OVS.key === key && ED.doc === OVS.doc) return OVS.s;
+    var s;
+    if (mask) s = { canvas: grayOf(L.mask.canvas), x: L.mask.x, y: L.mask.y };
+    else if (mode !== "current") { var hd = L.kind === "raster" ? L : { canvas: PE.mk(ED.doc.w, ED.doc.h), x: 0, y: 0 }; s = { canvas: PP.sampleCanvas(L, hd, mode), x: hd.x, y: hd.y }; }
+    else s = PE.surface(L, ED.doc);
+    OVS = { key: key, s: s, doc: ED.doc };
+    return s;
+  }
+  // while a transformed clone stroke runs: mark the true source point under the cursor
+  PP.overlay(function (c, docPath, cur, dpr) {
+    var st = ED.stroke; if (!st || !st.cm || !cur) return;
+    var p = ED.toDoc(cur.x, cur.y), m = st.cm, dx = p.x - st.ox - m.D.x, dy = p.y - st.oy - m.D.y, ca = Math.cos(-m.a), sa = Math.sin(-m.a);
+    var rx = (dx * ca - dy * sa) / m.kx, ry = (dx * sa + dy * ca) / m.ky, sp = ED.toScr(m.S.x + rx + st.ox, m.S.y + ry + st.oy);
+    c.save(); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    [["#fff", 3], ["#000", 1]].forEach(function (q) { c.strokeStyle = q[0]; c.lineWidth = q[1]; c.beginPath(); c.moveTo(sp.x - 8, sp.y); c.lineTo(sp.x + 8, sp.y); c.moveTo(sp.x, sp.y - 8); c.lineTo(sp.x, sp.y + 8); c.stroke(); });
+    c.restore();
+  });
   // overlay: a see-through preview of what the tip will copy, under the cursor
   PP.overlay(function (c, docPath, cur) {
     var t = ED.tool; if ((t !== "clone" && t !== "heal") || !cur || ED.modal || !ED.cloneSrc || !ED.o[t].overlay || ED.stroke) return;
     var o = ED.o[t], L = ED.layer(); if (!L) return;
-    var p = ED.toDoc(cur.x, cur.y), A = o.aligned && ED.cloneOff && ED.cloneAnchor ? ED.cloneAnchor : { s: ED.cloneSrc, d: p }, s = PE.surface(L, ED.doc), k = PE.clamp(o.cScale, 1, 1000) / 100;
+    var p = ED.toDoc(cur.x, cur.y), A = o.aligned && ED.cloneOff && ED.cloneAnchor ? ED.cloneAnchor : { s: ED.cloneSrc, d: p }, s = overlaySource(L, o), k = PE.clamp(o.cScale, 1, 1000) / 100;
+    if (!s) return;
     docPath(c, function (c) {
       c.save(); c.beginPath(); c.arc(p.x, p.y, Math.max(1, o.size / 2), 0, Math.PI * 2); c.clip(); c.globalAlpha = 0.55;
       c.translate(A.d.x, A.d.y); c.rotate(o.cAngle * RAD); c.scale(k * (o.cFlipX ? -1 : 1), k * (o.cFlipY ? -1 : 1)); c.translate(-A.s.x, -A.s.y);
