@@ -30,6 +30,7 @@
     var r = cv.getBoundingClientRect(), s = stageSize(), px = (e.clientX - r.left) / k, py = (e.clientY - r.top) / k;
     ED.fitted = null; ED.panX = s.w / 2 - px * ED.zoom; ED.panY = s.h / 2 - py * ED.zoom; ED.render(); ED.renderOvl(); ED.emit("view");
   }
+  var soon = S3.debounce(function () { rebuild(); draw(); }, 200);
   var P = WS.panel({ id: "navigator", title: "Navigator", open: false,
     build: function (body) {
       cv = h("canvas", { "class": "ws-nav", "aria-label": "Navigator: drag to scroll the image" });
@@ -50,6 +51,5 @@
       if (why !== "view" && why !== "tool") { if (v !== thumbVer || why === "open" || why === "init" || why === "layers") { thumbVer = v; soon(); } }
       draw();
     } });
-  var soon = S3.debounce(function () { rebuild(); draw(); }, 200);
   WS.navigator = { panel: P, rebuild: rebuild };
 })();

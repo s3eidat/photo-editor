@@ -139,3 +139,23 @@
 .ws-ndot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
 .ws-ntext { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-ccol { width: 40px; height: 30px; padding: 1px; border: 1px solid var(--line-strong); border-radius: 6px; }
+
+/* docking + workspaces */
+.pe-app { position: relative; }
+.pe-body { position: relative; }
+.ws-handle { cursor: grab; touch-action: none; }
+.ws-dragging, .ws-dragging * { cursor: grabbing !important; user-select: none !important; }
+.ws-lift { opacity: .45; }
+.ws-ph { height: 0; border-top: 3px solid var(--accent); margin: -1px 8px; border-radius: 2px; }
+.ws-float { position: absolute; z-index: 40; max-height: 70%; overflow: auto; resize: horizontal; min-width: 200px; background: var(--surface); border: 1px solid var(--line-strong);
+  border-radius: 12px; box-shadow: var(--shadow-pop); }
+.ws-float[hidden] { display: none; }
+.ws-float > .pe-panel { border-bottom: 0; }
+.ws-float > .pe-lpanel { min-height: 260px; }
+.ws-fdock { position: absolute; top: 5px; right: 6px; z-index: 2; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text-3); cursor: pointer; font-size: 14px; }
+.ws-fdock:hover { background: var(--surface-3); color: var(--text); }
+.ws-grip { position: absolute; top: 0; bottom: 0; right: calc(var(--ws-side-w, 304px) - 3px); width: 6px; z-index: 5; cursor: col-resize; }
+.ws-grip:hover { background: var(--accent-soft); }
+.pe-app.ws-noside .pe-side, .pe-app.ws-noside .ws-grip { display: none; }
+.pe-app.ws-noside .pe-body { grid-template-columns: 78px minmax(0, 1fr) !important; }
+@media (max-width: 860px) { .ws-grip { display: none; } .ws-float { max-width: calc(100% - 16px); } }
