@@ -58,6 +58,7 @@
 .pe-comp .pe-lmid .faint { font-size: 11.5px; }
 @media (max-width: 860px) {
   .pe-fxpanel { width: auto; }
+  .pe-float.pe-rmpanel { top: auto; bottom: 8px; max-height: 46%; }   /* live previews: keep the picture visible */
   .pe-algroup { border: 0; padding: 0; }
 }
 .pe-locks { display: flex; align-items: center; gap: 2px; margin: -2px 0 4px; font-size: 12px; }
