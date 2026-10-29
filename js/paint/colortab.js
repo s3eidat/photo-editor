@@ -48,6 +48,8 @@
     el.appendChild(sp);
   }
   PP.panelTab("color", "Colour", build, true);
+  ED.on("changed", function (why) { if (why === "open") PP.refreshPanel("color"); });
+  ED.on("tool", function () { if (ED.doc && PP.lastFg !== ED.doc.fg + ED.doc.bg) { PP.lastFg = ED.doc.fg + ED.doc.bg; if (!document.activeElement || !document.activeElement.classList || !document.activeElement.classList.contains("pp-cch")) PP.refreshPanel("color"); } });
   ED.on("colors", function () { if (!document.activeElement || !document.activeElement.classList || !document.activeElement.classList.contains("pp-cch")) PP.refreshPanel("color"); });
 
   // ---------- brush cursor with the tip's shape ----------

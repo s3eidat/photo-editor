@@ -47,3 +47,4 @@ Worker jobs lock the canvas and are dropped if the document changed; layer growt
 | Sampled tips on retouch tools | done | dodge / burn / sponge, blur / sharpen / smudge, colour replacement, background eraser and mixer use any brush tip (nearest-pixel sampling) |
 | Colour panel | done | Paint panel › Colour: foreground / background, HSB or RGB sliders with live colour tracks, hex, spectrum strip to click |
 | Brush cursor shows the tip | done | sampled tips are drawn (tinted, rotated, flipped, roundness) under the cursor |
+| Live gradient preview | done | while dragging, a low-resolution preview (selection-clipped, at the tool's opacity) is drawn over the canvas |

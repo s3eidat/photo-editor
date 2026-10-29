@@ -103,10 +103,32 @@
     move: function (p, e) {
       var dr = ED.drag;
       if (e.shiftKey) { var ang = Math.round(Math.atan2(p.y - dr.a.y, p.x - dr.a.x) / (Math.PI / 4)) * Math.PI / 4, len = Math.hypot(p.x - dr.a.x, p.y - dr.a.y); p = { x: dr.a.x + Math.cos(ang) * len, y: dr.a.y + Math.sin(ang) * len }; }
-      dr.b = p;
+      dr.b = p; schedulePreview(dr);
     },
-    up: function () { var dr = ED.drag; ED.drag = null; if (dr && dr.b && Math.hypot(dr.b.x - dr.a.x, dr.b.y - dr.a.y) > 1) PP.applyGradient(dr.a, dr.b); }
+    up: function () { var dr = ED.drag; ED.drag = null; PV = null; if (dr && dr.b && Math.hypot(dr.b.x - dr.a.x, dr.b.y - dr.a.y) > 1) PP.applyGradient(dr.a, dr.b); }
   };
+  // live preview while dragging: rendered small (at most ~300k pixels) and shown on the overlay
+  var PV = null, pvRaf = 0;
+  function schedulePreview(dr) {
+    if (pvRaf) return;
+    pvRaf = requestAnimationFrame(function () {
+      pvRaf = 0; if (ED.drag !== dr || !dr.b || !ED.doc) return;
+      var d = ED.doc, r = d.sel ? d.sel.b : { x: 0, y: 0, w: d.w, h: d.h }, k = Math.min(1, Math.sqrt(3e5 / (r.w * r.h))), w = Math.max(1, Math.round(r.w * k)), hh = Math.max(1, Math.round(r.h * k));
+      if (!dr.lut) dr.lut = PP.gradientLut(o.g, o.transp, 512);
+      var a = { x: (dr.a.x - r.x) * k, y: (dr.a.y - r.y) * k }, b = { x: (dr.b.x - r.x) * k, y: (dr.b.y - r.y) * k };
+      var px = PPX.gradRender(dr.lut, w, hh, 0, 0, { type: o.type, a: a, b: b, rev: o.rev, dither: false });
+      if (ED.maskEdit) for (var i = 0; i < px.length; i += 4) { var g = px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114; px[i] = px[i + 1] = px[i + 2] = g; }
+      var c = PV && PV.c.width === w && PV.c.height === hh ? PV.c : PE.mk(w, hh), x = PE.cx2(c);
+      x.globalCompositeOperation = "copy"; x.putImageData(new ImageData(px, w, hh), 0, 0);
+      if (d.sel) { x.globalCompositeOperation = "destination-in"; x.drawImage(PE.selCanvas(d.sel), r.x, r.y, r.w, r.h, 0, 0, w, hh); }
+      x.globalCompositeOperation = "source-over";
+      PV = { c: c, r: r }; ED.renderOvl();
+    });
+  }
+  PP.overlay(function (c, docPath) {
+    if (!PV || !ED.drag || ED.drag.kind !== "gradient") return;
+    docPath(c, function (c) { c.save(); c.globalAlpha = PE.clamp(o.op, 0, 1) * 0.9; c.imageSmoothingEnabled = true; c.drawImage(PV.c, PV.r.x, PV.r.y, PV.r.w, PV.r.h); c.restore(); });
+  });
   var TYPES = [["linear", "Linear", "Linear", "g-linear"], ["radial", "Radial", "Radial", "g-radial"], ["angle", "Angle", "Angle", "g-angle"], ["reflected", "Reflected", "Reflected", "g-reflected"], ["diamond", "Diamond", "Diamond", "g-diamond"]];
   PP.optsFor.gradient = function (items) {
     var g = h("button", { type: "button", "class": "pp-gbtn", title: "Edit the gradient (click)", "aria-label": "Edit the gradient" }, [thumb(o.g, 120, 22)]);
