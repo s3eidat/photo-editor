@@ -347,6 +347,7 @@
   function applyStroke(c, st) {
     c.save(); c.globalAlpha = PE.clamp(st.o.op, 0, 1);
     c.globalCompositeOperation = st.tool === "eraser" || (st.mask && !st.reveal) ? "destination-out" : "source-over";
+    if (st.L.lockA && !st.mask && st.tool !== "eraser") c.globalCompositeOperation = "source-atop";   // lane:selection (lock transparent pixels)
     c.drawImage(st.buf, 0, 0); c.restore();
   }
   var pvRaf = 0;
@@ -486,6 +487,7 @@
       if (sel) { tc.globalCompositeOperation = "destination-in"; tc.drawImage(PE.selCanvas(sel), -h.x, -h.y); }
       c.save(); c.globalAlpha = op;
       if (mask && color === "#000000") c.globalCompositeOperation = "destination-out";
+      if (!mask && L.lockA) c.globalCompositeOperation = "source-atop";   // lane:selection (lock transparent pixels)
       c.drawImage(t, 0, 0); c.restore();
     });
     ED.push(PE.compound(label, [g, e]));
@@ -524,7 +526,7 @@
         c.putImageData(md, 0, 0); return;
       }
       if (sel) { tc.globalCompositeOperation = "destination-in"; tc.drawImage(PE.selCanvas(sel), -hd.x, -hd.y); }
-      c.save(); c.globalAlpha = o.op; c.drawImage(t, 0, 0); c.restore();
+      c.save(); c.globalAlpha = o.op; if (L.lockA) c.globalCompositeOperation = "source-atop"; c.drawImage(t, 0, 0); c.restore();   // lane:selection (lockA)
     });
     ED.push(PE.compound("Gradient", [g, e]));
   }

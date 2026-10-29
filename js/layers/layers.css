@@ -60,3 +60,9 @@
   .pe-fxpanel { width: auto; }
   .pe-algroup { border: 0; padding: 0; }
 }
+.pe-locks { display: flex; align-items: center; gap: 2px; margin: -2px 0 4px; font-size: 12px; }
+.pe-locks .faint { margin-right: 6px; }
+.pe-lkb { display: grid; place-items: center; width: 26px; height: 24px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--text-3); cursor: pointer; }
+.pe-lkb:hover { color: var(--text); background: var(--surface-3); }
+.pe-lkb[aria-pressed="true"] { color: var(--warn); border-color: var(--line-strong); background: var(--surface-2); }
+.pe-lkb .i { width: 15px; height: 15px; }
