@@ -246,7 +246,8 @@
         if (st.again && !st.closed) run();
       });
     }
-    st.schedule = S3.debounce(run, w * hh > 2e6 ? 120 : 40); st.run = run;
+    var sched = S3.debounce(run, w * hh > 2e6 ? 120 : 40);
+    st.ver = 0; st.schedule = function () { st.ver++; sched(); }; st.run = run;
     st.pn = AUI.panel(spec.t, function (el) {
       (spec.c || []).forEach(function (c) { var r = K.range(c.label, p[c.k], c.min, c.max, c.step, function (v) { p[c.k] = v; st.schedule(); }, c.fmt); st.ctrl[c.k] = r; el.appendChild(r); });
       (spec.sel || []).forEach(function (c) { var f = function (v) { p[c[0]] = v; st.schedule(); }; el.appendChild(c[2].length <= 3 ? K.seg(c[1], c[2], p[c[0]], f) : K.select(c[1], c[2], p[c[0]], f)); });

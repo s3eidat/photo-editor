@@ -27,7 +27,8 @@
       var v = src[k];
       if (k === "locals") {
         if (Array.isArray(v)) out.locals = v.slice(0, 12).filter(function (L) { return L && typeof L === "object"; }).map(function (L) {
-          var o = { type: L.type === "linear" ? "linear" : "radial", invert: !!L.invert };
+          var o = { type: ["linear", "brush"].indexOf(L.type) >= 0 ? L.type : "radial", invert: !!L.invert };
+          if (o.type === "brush") o.strokes = (Array.isArray(L.strokes) ? L.strokes : []).slice(0, 400).map(function (k) { return { r: +k.r || 5, hard: +k.hard || 0, flow: +k.flow || 1, erase: !!k.erase, pts: (Array.isArray(k.pts) ? k.pts : []).slice(0, 16000).map(Number).filter(isFinite) }; });
           ["x0", "y0", "x1", "y1", "cx", "cy", "rx", "ry", "rotation", "feather"].concat(LOCAL_KEYS.map(function (q) { return q[1]; })).forEach(function (q) { if (isFinite(+L[q]) && L[q] !== null && L[q] !== "") o[q] = +L[q]; });
           return o;
         });
@@ -139,13 +140,14 @@
         if (cur >= list.length) cur = list.length - 1;
         st.devLocal = cur;
         function add(type) {
-          list.push(type === "linear" ? { type: "linear", x0: 50, y0: 25, x1: 50, y1: 60, exposure: 0 } : { type: "radial", cx: 50, cy: 50, rx: 25, ry: 25, rotation: 0, feather: 50, exposure: 0 });
+          list.push(type === "linear" ? { type: "linear", x0: 50, y0: 25, x1: 50, y1: 60, exposure: 0 } : type === "brush" ? { type: "brush", strokes: [], exposure: 0 } : { type: "radial", cx: 50, cy: 50, rx: 25, ry: 25, rotation: 0, feather: 50, exposure: 0 });
           st.devLocal = list.length - 1; open.local = true; build(); st.schedule();
         }
         b.appendChild(h("div", { "class": "row pe-arow" }, [K2.btn("Linear gradient", function () { add("linear"); }, "ghost", "i-plus", "Add a linear gradient mask: drag its start and end on the image"),
-          K2.btn("Radial", function () { add("radial"); }, "ghost", "i-plus", "Add an elliptical mask: drag its centre and edges on the image")]));
+          K2.btn("Radial", function () { add("radial"); }, "ghost", "i-plus", "Add an elliptical mask: drag its centre and edges on the image"),
+          K2.btn("Brush", function () { add("brush"); }, "ghost", "i-plus", "Paint a mask on the image (Alt erases)")]));
         if (!list.length) { b.appendChild(h("p", { "class": "faint pe-p", text: "Add a gradient to adjust part of the image; its handles appear on the canvas." })); return; }
-        b.appendChild(h("div", { "class": "row pe-arow" }, [K2.select("Edit", list.map(function (L, i) { return [String(i), (i + 1) + ". " + (L.type === "linear" ? "Linear gradient" : "Radial")]; }), String(cur), function (v) { st.devLocal = +v; if (p.localShow != null) p.localShow = +v; build(); st.schedule(); }),
+        b.appendChild(h("div", { "class": "row pe-arow" }, [K2.select("Edit", list.map(function (L, i) { return [String(i), (i + 1) + ". " + (L.type === "linear" ? "Linear gradient" : L.type === "brush" ? "Brush" : "Radial")]; }), String(cur), function (v) { st.devLocal = +v; if (p.localShow != null) p.localShow = +v; build(); st.schedule(); }),
           K2.btn("", function () { list.splice(cur, 1); st.devLocal = list.length - 1; p.localShow = null; build(); st.schedule(); }, "ghost icon", "i-trash", "Delete this local adjustment")]));
         var L0 = list[cur];
         LOCAL_KEYS.forEach(function (k) {
@@ -154,6 +156,17 @@
           b.appendChild(r);
         });
         if (L0.type === "radial") { var fr = K2.range("Feather", L0.feather == null ? 50 : L0.feather, 0, 100, 1, function (v) { L0.feather = v; st.schedule(); }); b.appendChild(fr); }
+        if (L0.type === "brush") {
+          var bs = st.devBrush = st.devBrush || { r: 5, feather: 50, flow: 100, erase: false };
+          b.appendChild(group("Brush"));
+          b.appendChild(K2.range("Size", bs.r, 0.5, 40, 0.5, function (v) { bs.r = v; }, function (v) { return v + "%"; }));
+          b.appendChild(K2.range("Feather", bs.feather, 0, 100, 1, function (v) { bs.feather = v; }));
+          b.appendChild(K2.range("Flow", bs.flow, 1, 100, 1, function (v) { bs.flow = v; }));
+          b.appendChild(h("div", { "class": "row pe-arow" }, [K2.seg("", [["paint", "Paint"], ["erase", "Erase"]], bs.erase ? "erase" : "paint", function (v) { bs.erase = v === "erase"; }),
+            K2.btn("Clear", function () { L0.strokes = []; st.schedule(); if (st.devStrokeInfo) st.devStrokeInfo(); }, "ghost small")]));
+          var info = h("p", { "class": "faint pe-p" }); st.devStrokeInfo = function () { info.textContent = "Paint on the image; hold Alt to erase. Strokes: " + (L0.strokes || []).length + "."; }; st.devStrokeInfo();
+          b.appendChild(info);
+        }
         b.appendChild(h("div", { "class": "row pe-arow" }, [K2.check("Invert", !!L0.invert, function (v) { L0.invert = v; st.schedule(); }),
           K2.check("Show mask", p.localShow === cur, function (v) { p.localShow = v ? cur : null; st.schedule(); })]));
       });
@@ -165,7 +178,12 @@
       sec("lens", "Lens", function (b) {
         rng(b, "Distortion (− barrel, + pincushion)", "distort", -100, 100, 1);
         b.appendChild(group("Colour fringes")); rng(b, "Red / cyan", "caRed", -100, 100, 1); rng(b, "Blue / yellow", "caBlue", -100, 100, 1);
+        b.appendChild(group("Defringe")); rng(b, "Purple amount", "defringePurple", 0, 100, 1); rng(b, "Green amount", "defringeGreen", 0, 100, 1);
         b.appendChild(group("Vignette")); rng(b, "Amount", "vignette", -100, 100, 1); rng(b, "Midpoint", "vigMid", 0, 100, 1); rng(b, "Roundness", "vigRound", -100, 100, 1); rng(b, "Feather", "vigFeather", 0, 100, 1);
+      });
+      sec("calib", "Calibration", function (b) {
+        rng(b, "Shadows tint (− green, + magenta)", "shadowTint", -100, 100, 1);
+        [["Red primary", "calRed"], ["Green primary", "calGreen"], ["Blue primary", "calBlue"]].forEach(function (a) { b.appendChild(group(a[0])); rng(b, "Hue", a[1] + "H", -100, 100, 1); rng(b, "Saturation", a[1] + "S", -100, 100, 1); });
       });
       sec("effects", "Effects", function (b) { rng(b, "Grain amount", "grain", 0, 100, 1); rng(b, "Grain size", "grainSize", 0, 100, 1); rng(b, "Roughness", "grainRough", 0, 100, 1); });
       el.appendChild(h("p", { "class": "faint pe-p", text: "Double-click a slider to reset it." }));
@@ -218,9 +236,28 @@
     function L() { var list = st.p.locals || []; return st.devLocal != null && list[st.devLocal] ? list[st.devLocal] : null; }
     function pctMove(o, kx, ky) { return function (a, d) { var q = a.toPct(d.x, d.y); o[kx] = Math.round(q.x * 10) / 10; o[ky] = Math.round(q.y * 10) / 10; st.schedule(); }; }
     function ln(ctx, p0, p1, dash) { ctx.save(); if (dash) ctx.setLineDash([6, 5]); ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke(); ctx.restore(); }
+    var stroke = null;
+    model.paint = {
+      active: function () { var o = L(); return !!(o && o.type === "brush"); },
+      down: function (a, d, e) {
+        var o = L(), bs = st.devBrush || { r: 5, feather: 50, flow: 100, erase: false }, q = a.toPct(d.x, d.y);
+        stroke = { r: bs.r, hard: 1 - bs.feather / 100, flow: bs.flow / 100, erase: bs.erase || e.altKey, pts: [Math.round(q.x * 100) / 100, Math.round(q.y * 100) / 100] };
+        (o.strokes = o.strokes || []).push(stroke); st.schedule();
+      },
+      move: function (a, d) {
+        if (!stroke) return; var q = a.toPct(d.x, d.y), P = stroke.pts, lx = P[P.length - 2], ly = P[P.length - 1];
+        if (Math.hypot(q.x - lx, q.y - ly) < 0.3 || P.length > 8000) return;
+        P.push(Math.round(q.x * 100) / 100, Math.round(q.y * 100) / 100); st.schedule();
+      },
+      up: function () { stroke = null; st.schedule(); if (st.devStrokeInfo) st.devStrokeInfo(); }
+    };
     model.draw = function (ctx, a) {
       var o = L(); model.handles = [];
       if (!o) return;
+      if (o.type === "brush") {
+        if (a.cursor) { var bs = st.devBrush || { r: 5, feather: 50 }, rr = bs.r / 100 * Math.min(a.r.w, a.r.h) * a.zoom(); ctx.beginPath(); ctx.arc(a.cursor.x, a.cursor.y, Math.max(2, rr), 0, Math.PI * 2); ctx.stroke(); ctx.save(); ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(a.cursor.x, a.cursor.y, Math.max(1, rr * (1 - bs.feather / 100)), 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
+        return;
+      }
       if (o.type === "linear") {
         var s0 = a.toDoc(o.x0, o.y0), s1 = a.toDoc(o.x1, o.y1), dx = s1.x - s0.x, dy = s1.y - s0.y, len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len, Lx = Math.hypot(a.r.w, a.r.h);
         [[s0, false], [s1, false], [{ x: (s0.x + s1.x) / 2, y: (s0.y + s1.y) / 2 }, true]].forEach(function (z) { var c = z[0], A0 = a.scr(c.x - nx * Lx, c.y - ny * Lx), B0 = a.scr(c.x + nx * Lx, c.y + ny * Lx); ln(ctx, A0, B0, z[1]); });

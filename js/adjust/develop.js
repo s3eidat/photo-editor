@@ -45,13 +45,39 @@
       cgShadow: [0, 0, 0], cgMid: [0, 0, 0], cgHigh: [0, 0, 0], cgGlobal: [0, 0, 0], cgBlend: 50, cgBalance: 0,
       sharpen: 0, sharpRadius: 1, sharpDetail: 25, sharpMask: 0, nrLum: 0, nrColor: 0,
       distort: 0, caRed: 0, caBlue: 0, vignette: 0, vigMid: 50, vigRound: 0, vigFeather: 50,
-      grain: 0, grainSize: 25, grainRough: 50, locals: [], localShow: null };
+      grain: 0, grainSize: 25, grainRough: 50, locals: [], localShow: null,
+      calRedH: 0, calRedS: 0, calGreenH: 0, calGreenS: 0, calBlueH: 0, calBlueS: 0, shadowTint: 0, defringePurple: 0, defringeGreen: 0 };
   };
 
   // Weight plane (0..1) of one local adjustment. Positions are % of the layer. linear: full at (x0, y0), none at
   // (x1, y1); radial: ellipse (cx, cy, rx, ry % of width / height, rotation), feather %, invert = effect outside.
   A.localMask = function (L, w, h) {
     var W = new Float32Array(w * h), x, y, q = 0, inv = !!L.invert;
+    if (L.type === "brush") {        // strokes of soft dabs: [{r: % of the short side, hard 0..1, flow 0..1, erase, pts: [x%, y%, ...]}]
+      var short = Math.min(w, h);
+      (Array.isArray(L.strokes) ? L.strokes : []).slice(0, 400).forEach(function (sk) {
+        var r = Math.max(0.5, clamp(num(sk.r, 5), 0.1, 100) / 100 * short), hard = clamp(num(sk.hard, 0.5), 0, 1), flow = clamp(num(sk.flow, 1), 0.01, 1), er = !!sk.erase, P = Array.isArray(sk.pts) ? sk.pts : [];
+        var inner = r * hard, stepD = Math.max(0.5, r * 0.25), last = null;
+        function dab(cx, cy) {
+          var x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(w - 1, Math.ceil(cx + r)), y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(h - 1, Math.ceil(cy + r));
+          for (var yy = y0; yy <= y1; yy++) for (var xx = x0; xx <= x1; xx++) {
+            var dd = Math.sqrt((xx + 0.5 - cx) * (xx + 0.5 - cx) + (yy + 0.5 - cy) * (yy + 0.5 - cy)); if (dd >= r) continue;
+            var cov = (dd <= inner ? 1 : 1 - smooth(inner, r, dd)) * flow, k = yy * w + xx;
+            W[k] = er ? W[k] * (1 - cov) : W[k] + (1 - W[k]) * cov;
+          }
+        }
+        for (var j = 0; j + 1 < P.length && j < 40000; j += 2) {
+          var px = num(P[j], 0) / 100 * w, py = num(P[j + 1], 0) / 100 * h;
+          if (!last) { dab(px, py); last = [px, py]; continue; }
+          var dx = px - last[0], dy = py - last[1], dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < stepD) continue;
+          for (var t = stepD; t <= dist; t += stepD) dab(last[0] + dx * t / dist, last[1] + dy * t / dist);
+          last = [last[0] + dx * Math.floor(dist / stepD) * stepD / dist, last[1] + dy * Math.floor(dist / stepD) * stepD / dist];
+        }
+      });
+      if (inv) for (q = 0; q < W.length; q++) W[q] = 1 - W[q];
+      return W;
+    }
     if (L.type === "linear") {
       var ax = num(L.x0, 50) / 100 * w, ay = num(L.y0, 30) / 100 * h, bx = num(L.x1, 50) / 100 * w, by = num(L.y1, 60) / 100 * h, dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1;
       for (y = 0; y < h; y++) for (x = 0; x < w; x++, q++) { var t = ((x + 0.5 - ax) * dx + (y + 0.5 - ay) * dy) / l2, v = 1 - smooth(0, 1, t); W[q] = inv ? 1 - v : v; }
@@ -128,8 +154,39 @@
       }
     }
 
+    // calibration (linear): nudge where the red, green and blue primaries sit (hue) and how strong they are; tint the shadows
+    var cal = [n100(p.calRedH), n100(p.calRedS), n100(p.calGreenH), n100(p.calGreenS), n100(p.calBlueH), n100(p.calBlueS)], stn = n100(p.shadowTint);
+    if (cal.some(Boolean) || stn) {
+      // each primary's column of a 3x3 matrix is rotated towards its neighbours (hue) and scaled away from grey (saturation)
+      var Mx = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+      [[0, 1, 2], [1, 2, 0], [2, 0, 1]].forEach(function (ix, k) {
+        var hu = cal[k * 2] * 0.25, sa = 1 + cal[k * 2 + 1] * 0.5, col = [0, 0, 0];
+        col[ix[0]] = 1 - Math.abs(hu); col[hu > 0 ? ix[1] : ix[2]] += Math.abs(hu);
+        var yy = 0.2126 * col[0] + 0.7152 * col[1] + 0.0722 * col[2];
+        for (var c = 0; c < 3; c++) Mx[c * 3 + ix[0]] = yy + (col[c] - yy) * sa;
+      });
+      for (q = 0; q < n; q++) {
+        var r0 = R[q], g0 = Gc[q], b0 = B[q];
+        R[q] = Mx[0] * r0 + Mx[1] * g0 + Mx[2] * b0; Gc[q] = Mx[3] * r0 + Mx[4] * g0 + Mx[5] * b0; B[q] = Mx[6] * r0 + Mx[7] * g0 + Mx[8] * b0;
+        if (stn) { var ys = 0.2126 * R[q] + 0.7152 * Gc[q] + 0.0722 * B[q], ws2 = (1 - smooth(0, 0.18, ys)) * stn * 0.03; Gc[q] -= ws2; R[q] += ws2 * 0.5; B[q] += ws2 * 0.5; }
+      }
+    }
+
     // ---- display space ----
     for (q = 0; q < n; q++) { R[q] = toDisp(R[q]); Gc[q] = toDisp(Gc[q]); B[q] = toDisp(B[q]); }
+    // defringe: take the colour out of purple / green fringes next to strong edges
+    var dfp = clamp(num(p.defringePurple, 0), 0, 100) / 100, dfg = clamp(num(p.defringeGreen, 0), 0, 100) / 100;
+    if (dfp || dfg) {
+      var Ye = new Float32Array(n); for (q = 0; q < n; q++) Ye[q] = 0.2126 * R[q] + 0.7152 * Gc[q] + 0.0722 * B[q];
+      var Eg = new Float32Array(n);
+      for (var yq = 0; yq < h; yq++) for (var xq = 0; xq < w; xq++) { q = yq * w + xq; var gx2 = Ye[yq * w + Math.min(w - 1, xq + 1)] - Ye[yq * w + Math.max(0, xq - 1)], gy2 = Ye[Math.min(h - 1, yq + 1) * w + xq] - Ye[Math.max(0, yq - 1) * w + xq]; Eg[q] = Math.sqrt(gx2 * gx2 + gy2 * gy2); }
+      Eg = A.boxMean(Eg, w, h, Math.max(1, Math.round(2 * PS)));
+      for (q = 0; q < n; q++) {
+        var e2 = smooth(0.04, 0.16, Eg[q]); if (!e2) continue;
+        var rr2 = R[q], gg2 = Gc[q], bb2 = B[q], yq2 = Ye[q], purple = Math.max(0, Math.min(rr2, bb2) - gg2) * 4, green = Math.max(0, gg2 - Math.max(rr2, bb2)) * 4, k2 = Math.min(1, e2 * (dfp * Math.min(1, purple) + dfg * Math.min(1, green)));
+        if (k2) { R[q] = rr2 + (yq2 - rr2) * k2; Gc[q] = gg2 + (yq2 - gg2) * k2; B[q] = bb2 + (yq2 - bb2) * k2; }
+      }
+    }
     var Y = new Float32Array(n);
     function lum() { for (var z = 0; z < n; z++) Y[z] = 0.2126 * R[z] + 0.7152 * Gc[z] + 0.0722 * B[z]; }
     function applyY(Y2) { for (var z = 0; z < n; z++) { var dy = Y2[z] - Y[z]; R[z] += dy; Gc[z] += dy; B[z] += dy; Y[z] = Y2[z]; } }

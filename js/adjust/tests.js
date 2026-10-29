@@ -247,6 +247,10 @@
     ok(lmR[10 * 21 + 10] === 1 && lmR[0] === 0 && lmL[0] > 0.99 && lmL[10] < 0.01 && near(lmL[5], 0.5, 0.1), "local adjustment masks");
     var dl = run(gray(9, 9, function () { return 100; }), "develop", Object.assign(PIX.A.devDefaults(), { locals: [{ type: "radial", cx: 50, cy: 50, rx: 20, ry: 20, feather: 5, exposure: 1 }] }), null, 9, 9);
     ok(get(dl, 40)[0] > 125 && get(dl, 0)[0] === 100, "develop local exposure only inside its mask");
+
+    var bm2 = PIX.A.localMask({ type: "brush", strokes: [{ r: 20, hard: 1, flow: 1, pts: [50, 50] }, { r: 10, hard: 1, flow: 1, erase: true, pts: [50, 50] }] }, 21, 21);
+    ok(bm2[10 * 21 + 10] === 0 && bm2[10 * 21 + 7] === 1 && bm2[0] === 0, "develop brush mask paints and erases");
+    var cal0 = get(run([[200, 60, 40]], "develop", Object.assign(PIX.A.devDefaults(), { calRedS: -100 })), 0); ok(cal0[0] < 200, "develop calibration: red primary saturation");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };

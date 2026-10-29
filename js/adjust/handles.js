@@ -24,7 +24,7 @@
     };
     function paint() {
       raf = requestAnimationFrame(paint);
-      var key = [ED.zoom, ED.panX, ED.panY, stage.clientWidth, stage.clientHeight, JSON.stringify(st.p), drag ? 1 : 0].join("|");
+      var key = [ED.zoom, ED.panX, ED.panY, stage.clientWidth, stage.clientHeight, st.ver == null ? JSON.stringify(st.p) : st.ver, drag ? 1 : 0].join("|");
       if (key === lastKey) return;
       lastKey = key; size();
       x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, c.width, c.height);
@@ -42,8 +42,14 @@
       (model.handles || []).forEach(function (hd) { var q = hd.at(api), dd = Math.hypot(q.x - s.x, q.y - s.y); if (dd <= bd) { bd = dd; best = hd; } });
       return best;
     }
+    var painting = false;
     c.addEventListener("pointerdown", function (e) {
-      var s = local(e), hd = hit(s);
+      var s = local(e), hd = model.paint ? null : hit(s);
+      if (model.paint && model.paint.active && model.paint.active(api)) {     // painting a mask: the whole canvas is the brush
+        e.stopPropagation(); e.preventDefault(); painting = true; try { c.setPointerCapture(e.pointerId); } catch (er) { /* fine */ }
+        model.paint.down(api, ED.toDoc(s.x, s.y), e); lastKey = ""; return;
+      }
+      if (!hd) hd = hit(s);
       if (!hd && model.click) { var d0 = ED.toDoc(s.x, s.y); if (model.click(api, d0, e) !== false) { e.stopPropagation(); e.preventDefault(); } return; }
       if (!hd) return;
       e.stopPropagation(); e.preventDefault();
@@ -51,11 +57,14 @@
     });
     c.addEventListener("pointermove", function (e) {
       var s = local(e);
+      api.cursor = s; if (model.paint) lastKey = "";
+      if (painting) { model.paint.move(api, ED.toDoc(s.x, s.y), e); return; }
       if (!drag) { c.style.cursor = hit(s) ? "grab" : model.click ? "copy" : ""; return; }
       c.style.cursor = "grabbing";
       var d0 = ED.toDoc(s.x, s.y); drag.h.move(api, d0, e);
     });
-    function up() { if (drag) { drag = null; lastKey = ""; } }
+    function up(e) { if (painting) { painting = false; model.paint.up(api, e); } if (drag) { drag = null; lastKey = ""; } }
+    c.addEventListener("pointerleave", function () { api.cursor = null; lastKey = ""; });
     c.addEventListener("pointerup", up); c.addEventListener("pointercancel", up);
     c.addEventListener("dblclick", function (e) { var s = local(e), hd = hit(s); if (hd && hd.dbl) { e.stopPropagation(); hd.dbl(api); } });
     paint();
