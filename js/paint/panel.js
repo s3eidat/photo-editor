@@ -7,7 +7,7 @@
 
   // ---------- tabbed panel ----------
   var TABS = [], panel = null, bodyEl = null, tabBar = null;
-  PP.panelTab = function (id, title, build) { TABS.push({ id: id, title: title, build: build }); if (panel) renderTabs(); };
+  PP.panelTab = function (id, title, build, first) { var t = { id: id, title: title, build: build }; if (first) TABS.unshift(t); else TABS.push(t); if (panel) renderTabs(); };
   function current() { var t = S3.store("pe-ptab"); return TABS.some(function (x) { return x.id === t; }) ? t : TABS.length ? TABS[0].id : null; }
   function renderTabs() {
     tabBar.textContent = "";

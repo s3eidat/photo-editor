@@ -34,7 +34,7 @@
 .pp-cnum:not(:has(input[type="radio"])) { grid-template-columns: 16px 1fr 18px; padding-left: 20px; }
 .pp-cnum .input { height: 28px; padding: 2px 6px; font-size: 12.5px; }
 /* paint panel */
-.pp-tabs { display: flex; gap: 2px; padding: 0 10px 6px; overflow-x: auto; }
+.pp-tabs { display: flex; flex-wrap: wrap; gap: 2px; padding: 0 10px 6px; }
 .pp-tab { border: 0; background: transparent; color: var(--text-2); font: 600 12px var(--font); padding: 5px 9px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
 .pp-tab[aria-selected="true"] { color: var(--accent); background: var(--accent-soft); }
 .pp-pbody { padding: 0 12px 12px; }
@@ -84,3 +84,15 @@
 .pe-opts .pp-pat canvas { width: 26px; height: 26px; }
 .pp-pat:hover, .pp-pat.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .pe-hrow.pp-hsrc::before { content: "✎"; margin-inline-end: 6px; color: var(--accent); }
+/* colour tab */
+.pp-chead { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+.pp-cchip { width: 26px; height: 26px; border: 1px solid var(--line-strong); border-radius: 6px; cursor: pointer; }
+.pp-cchip.on { box-shadow: 0 0 0 2px var(--accent); }
+.pp-chx { width: 86px; height: 28px; padding: 2px 6px; font-size: 12.5px; }
+.pp-crows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.pp-crow { display: grid; grid-template-columns: 14px 1fr 34px; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); }
+.pp-crow output { text-align: end; font-variant-numeric: tabular-nums; color: var(--text); }
+.pp-cch { -webkit-appearance: none; appearance: none; height: 12px; border-radius: 6px; border: 1px solid var(--line-strong); margin: 0; }
+.pp-cch::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 18px; border-radius: 4px; background: #fff; border: 1px solid #333; cursor: pointer; }
+.pp-cch::-moz-range-thumb { width: 12px; height: 16px; border-radius: 4px; background: #fff; border: 1px solid #333; cursor: pointer; }
+.pp-cspec { display: block; width: 100%; height: 36px; border-radius: 6px; cursor: crosshair; }
