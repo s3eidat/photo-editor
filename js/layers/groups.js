@@ -230,7 +230,9 @@
   });
   // Moving a group moves its members.
   PE.shiftExt = function (dr, dx, dy) {
-    var L = dr.L; if (L.kind !== "group") return;
+    var L = dr.L;
+    if (L.kind !== "raster" && !L.text && !L.shape) { L.x = (dr.x || 0) + dx; L.y = (dr.y || 0) + dy; }   // lets the move register as a change
+    if (L.kind !== "group") return;
     if (!dr._kids) dr._kids = descendants(L).map(function (k) { return { k: k, x: k.x, y: k.y, t: PE.clone(k.text), s: PE.clone(k.shape), mx: k.mask && k.mask.x, my: k.mask && k.mask.y }; });
     dr._kids.forEach(function (o) {
       var k = o.k;

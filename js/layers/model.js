@@ -6,6 +6,7 @@
   var PE = window.PE, ED = PE.ed, SX = PE.sx;
 
   // Extra keys snapshotted for undo. Values are plain data; canvases inside are kept by reference (they are never mutated in place).
+  SX.props = SX.props || {};     // Properties panel builders by layer kind (see panel.js)
   var KEYS = SX.KEYS = ["fillOp", "clip", "parent", "open", "adj", "fillSpec", "smart", "fx", "vmask", "link"];
   function keep(v) {
     if (v == null || typeof v !== "object") return v;

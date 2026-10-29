@@ -19,3 +19,9 @@
 .pe-lfx .i, .pe-llink .i { width: 14px; height: 14px; }
 .pe-lmeta { text-transform: none; }
 .pe-layer.cbase .pe-lname { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--text-3); }
+.pe-adjgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.pe-adjbox { display: flex; flex-direction: column; gap: 8px; }
+.pe-adjbox .pe-rng { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; white-space: normal; }
+.pe-adjbox .pe-rng span { grid-column: 1 / -1; font-size: 11.5px; }
+.pe-adjbox .pe-rng input[type="range"] { width: 100%; }
+.pe-adjbox .pe-of:not(.pe-rng) { flex-wrap: wrap; }

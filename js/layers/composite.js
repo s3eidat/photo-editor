@@ -102,11 +102,41 @@
     if (R.gpu) renderList(R, { c: ctx, ox: 0, oy: 0, d: 0 }, list);
     else {           // pixel work: build the picture in a CPU canvas, then hand it to the target in one draw
       var root = buffer(R, "root", 0), rg = R.region;
-      renderList(R, root, list);
+      renderCached(R, root, list);
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = "source-over";
       ctx.drawImage(root.canvas, rg.x, rg.y);
     }
     ctx.restore();
+  }
+  // Signature of everything that affects how a layer (and its members) draws.
+  function sig(L, R) {
+    var o = R.opts, ov = o.over && o.over[L.id], mo = o.maskOver && o.maskOver[L.id], s = [L.id, L.kind, L.visible, L.opacity, L.blend, L.x, L.y, L.canvas ? PE.ver(L.canvas) : "",
+      L.mask ? PE.ver(L.mask.canvas) + "@" + L.mask.x + "," + L.mask.y + L.maskOn : "", JSON.stringify(L.text || L.shape || ""), o.hide === L.id,
+      ov ? PE.ver(ov.canvas) + "@" + ov.x + "," + ov.y + (ov.m || "") : "", mo ? PE.ver(mo.canvas) : "", R.inOnly ? R.inOnly(L) : ""];
+    SX.KEYS.forEach(function (k) { var v = L[k]; s.push(v && typeof v === "object" ? (k === "smart" ? (v.src ? PE.ver(v.src) : "") + JSON.stringify(v.m || "") + JSON.stringify(v.filters || "") : JSON.stringify(v)) : v); });
+    if (L.kind === "group") (R.tree.kids[L.id] || []).forEach(function (k) { s.push(sig(k, R)); });
+    return s.join("|");
+  }
+  SX.sig = sig;
+  // Top-level layers up to the last one that needs pixel reads are cached between frames (painting above an
+  // adjustment layer or a JS blend mode does not redo them).
+  var CACHE = { key: null, c: null };
+  function needsPixels(L, R) { return L.clip || L.kind === "adjust" || (!NATIVE[L.blend] && L.blend !== "pass") || (SX.pixelKinds && SX.pixelKinds[L.kind]) || (L.kind === "group" && (R.tree.kids[L.id] || []).some(function (k) { return needsPixels(k, R); })); }
+  function renderCached(R, root, list) {
+    var k = -1, i;
+    for (i = 0; i < list.length; i++) if (needsPixels(list[i], R) || (list[i + 1] && list[i + 1].clip)) k = i;
+    while (k >= 0 && k + 1 < list.length && list[k + 1].clip) k++;
+    if (k < 0 || list !== R.tree.roots) { renderList(R, root, list); return; }
+    var M = R.M, rg = R.region, key = [M.a, M.b, M.c, M.d, M.e, M.f, rg.x, rg.y, rg.w, rg.h, R.doc.w, R.doc.h, R.smooth].join(",") + "#" + list.slice(0, k + 1).map(function (L) { return sig(L, R); }).join("\n");
+    if (CACHE.key === key && CACHE.c) root.c.drawImage(CACHE.c, 0, 0);
+    else {
+      renderList(R, root, list.slice(0, k + 1));
+      if (!CACHE.c) CACHE.c = PE.mk(rg.w, rg.h);
+      if (CACHE.c.width !== rg.w || CACHE.c.height !== rg.h) { CACHE.c.width = rg.w; CACHE.c.height = rg.h; }
+      var cc = PE.cx2(CACHE.c); cc.globalCompositeOperation = "copy"; cc.drawImage(root.canvas, 0, 0); cc.globalCompositeOperation = "source-over";
+      CACHE.key = key;
+    }
+    renderList(R, root, list.slice(k + 1));
   }
   function show(R, L) { return L.visible && R.opts.hide !== L.id && (!R.inOnly || R.inOnly(L)); }
   SX.show = show;
