@@ -82,6 +82,22 @@
     return A.fromP4(b, img);
   };
   function shifts(ux, uy, n, sp) { var M = [], half = (n - 1) / 2; for (var k = 0; k < n; k++) { var o = (k - half) * sp; M.push([1, 0, ux * o, 0, 1, uy * o]); } return M; }
+  // Single plane, uniform blur along a line (used for strokes and textures): same two-pass comb.
+  function linePass(src, dst, w, h, ux, uy, n, sp) {
+    var half = (n - 1) / 2, inv = 1 / n;
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+      var s = 0;
+      for (var k = 0; k < n; k++) { var o = (k - half) * sp; s += bilin(src, w, h, x + ux * o, y + uy * o); }
+      dst[y * w + x] = s * inv;
+    }
+  }
+  A.lineBlur = function (pl, w, h, angleDeg, len) {
+    if (len < 1) return pl;
+    var a = angleDeg * Math.PI / 180, ux = Math.cos(a), uy = -Math.sin(a), n1 = Math.max(1, Math.round(Math.sqrt(len))), n2 = Math.max(1, Math.round(len / n1)), tmp = new Float32Array(pl.length);
+    linePass(pl, tmp, w, h, ux, uy, n1, len / n1);
+    linePass(tmp, pl, w, h, ux, uy, n2, len / n1 / n2);
+    return pl;
+  };
   A.reg("motionBlur", A.filter(function (img, p) {
     var len = clamp(num(p.distance, 20), 0, 2000) * sc(p), a = num(p.angle, 0) * Math.PI / 180, ux = Math.cos(a), uy = -Math.sin(a);
     if (len < 1) return img;

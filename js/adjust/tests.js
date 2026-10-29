@@ -190,6 +190,14 @@
     ok(get(lbs, 7)[0] === 255 && get(lbs, 6)[0] === 0, "lens blur: in-focus depth stays sharp");
     var ts = run(gray(9, 21, function (x, y) { return (x + y) % 2 ? 255 : 0; }), "tiltShift", { blur: 4, focus: 10, transition: 10 }, null, 9, 21);
     var tsm = get(ts, 10 * 9 + 4)[0], tse = get(ts, 1 * 9 + 4)[0]; ok((tsm === 0 || tsm === 255) && tse > 20 && tse < 235, "tilt-shift: sharp band, blurred edges");
+
+    // filter gallery: every effect runs, keeps the size, stays opaque
+    var gfails = [];
+    Object.keys(PIX.A.GALLERY).forEach(function (id) {
+      try { var g = run(gray(24, 16, function (x, y) { return (x * 9 + y * 5) % 256; }), "gallery", { effect: id, fg: "#000000", bg: "#ffffff" }, null, 24, 16); if (g.data.length !== 24 * 16 * 4 || g.data[3] !== 255) gfails.push(id); } catch (e) { gfails.push(id + ": " + e.message); }
+    });
+    ok(!gfails.length, "filter gallery effects run (" + gfails.join(", ") + ")");
+    var pw = get(run(gray(10, 10, function () { return 255; }), "gallery", { effect: "pencil", grain: 0 }, null, 10, 10), 55); ok(pw[0] > 245, "pencil sketch: white paper stays white");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };

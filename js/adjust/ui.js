@@ -121,6 +121,13 @@
   };
   document.addEventListener("click", function (e) { if (panel && e.target.closest && e.target.closest("#menus")) AUI.closePanel(false); }, true);
 
+  // Wider floating panel while one of the big panels is open (removed when the panel closes).
+  var wideObs = null;
+  AUI.wide = function () {
+    var box = $("#float"); box.classList.add("pe-awide");
+    if (!wideObs) { wideObs = new MutationObserver(function () { if (box.hidden) box.classList.remove("pe-awide"); }); wideObs.observe(box, { attributes: true, attributeFilter: ["hidden"] }); }
+  };
+
   // ---------- reduced-size previews ----------
   // Big layers are previewed at about screen resolution (at least ~1.5 MP), so sliders stay responsive.
   function proxyScale(w, hh, mp) {      // mp: preview size in pixels for very heavy ops (spec.mp)

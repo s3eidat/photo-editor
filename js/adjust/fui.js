@@ -22,6 +22,36 @@
   AUI.filter("blur", "Surface blur…", "surfaceBlur", { t: "Surface blur", c: [sl("radius", "Radius", 1, 100, 1, 5, pxf), sl("threshold", "Threshold (levels)", 2, 255, 1, 15)] });
   AUI.filter("blur", "Smart blur…", "smartBlur", { t: "Smart blur", c: [sl("radius", "Radius", 0.5, 100, 0.5, 3, pxf), sl("threshold", "Threshold", 1, 100, 1, 25)],
     sel: [["mode", "Mode", [["normal", "Normal"], ["edges", "Edges only"], ["overlay", "Overlay edges"]], "normal"]] });
+  // filter gallery: thumbnails of every effect on a small copy, then the chosen effect's settings
+  AUI.adj("gallery", { t: "Filter gallery", ui: function (el, st) {
+    var p = st.p, K = ED.adjKit, G = PIX.A.GALLERY, ids = Object.keys(G), grid = h("div", { "class": "pe-agal", role: "listbox", "aria-label": "Effects" }), box = h("div", { "class": "stack pe-asecin" });
+    p.fg = ED.doc.fg; p.bg = ED.doc.bg; p.color = "#50dcff";
+    function choose(id) {
+      p.effect = id; Object.keys(p).forEach(function (k) { if (["effect", "fg", "bg", "color"].indexOf(k) < 0) delete p[k]; }); Object.assign(p, PIX.A.galleryDefaults(id));
+      S3.$$("button", grid).forEach(function (b) { b.setAttribute("aria-selected", String(b.getAttribute("data-id") === id)); });
+      box.textContent = "";
+      G[id].params.forEach(function (q) { box.appendChild(K.range(q[1], p[q[0]], q[2], q[3], q[4], function (v) { p[q[0]] = v; st.schedule(); })); });
+      if (id === "neon") box.appendChild(AUI.colorInput("Glow colour", p.color, function (v) { p.color = v; st.schedule(); }));
+      if (["charcoal", "graphicPen"].indexOf(id) >= 0) box.appendChild(h("p", { "class": "faint pe-p", text: "Uses the foreground and background colours." }));
+      st.schedule();
+    }
+    var src = st.t.img, tw = 84, th = Math.max(24, Math.min(84, Math.round(tw * src.height / src.width))), small = AUI.downImg(src, tw, th), k = tw / src.width;
+    ids.forEach(function (id, n) {
+      var c = h("canvas", { "class": "pe-acv", width: String(tw), height: String(th), "aria-hidden": "true" }), b = h("button", { type: "button", "class": "pe-agalbtn", role: "option", "data-id": id, "aria-selected": "false", title: G[id].name }, [c, h("span", { text: G[id].name })]);
+      b.addEventListener("click", function () { choose(id); });
+      grid.appendChild(b);
+      setTimeout(function () {        // thumbnails one by one, so the panel shows at once
+        if (!AUI.panelOpen()) return;
+        var im = { data: new Uint8ClampedArray(small.data), width: tw, height: th };
+        try { PIX.adjust(im, "gallery", Object.assign(PIX.A.galleryDefaults(id), { effect: id, fg: p.fg, bg: p.bg, color: p.color, _scale: Math.max(0.05, k) }), null); c.getContext("2d").putImageData(new ImageData(im.data, tw, th), 0, 0); } catch (e) { /* thumbnail only */ }
+      }, 30 + n * 15);
+    });
+    AUI.wide();
+    el.insertBefore(box, el.firstChild); el.insertBefore(grid, box);
+    choose("watercolor");
+  } });
+  AUI.addMenu("Filter", [["Filter gallery…", "", function () { AUI.open("gallery"); }, has]], "Gaussian blur");
+
   // depth of field
   var IRIS = [["sides", "Iris shape", [["0", "Circle"], ["3", "Triangle"], ["4", "Square"], ["5", "Pentagon"], ["6", "Hexagon"], ["7", "Heptagon"], ["8", "Octagon"]], "6"],
     ["quality", "Quality", [["draft", "Draft"], ["good", "Good"], ["best", "Best"]], "good"]];

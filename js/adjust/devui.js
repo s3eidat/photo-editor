@@ -71,15 +71,10 @@
   };
 
   // ---------- the panel ----------
-  var wideObs = null;
-  function wide(on) {
-    var box = $("#float"); box.classList.toggle("pe-awide", on);
-    if (on && !wideObs) { wideObs = new MutationObserver(function () { if (box.hidden) { box.classList.remove("pe-awide"); } }); wideObs.observe(box, { attributes: true, attributeFilter: ["hidden"] }); }
-  }
   AUI.adj("develop", { t: "Develop", proxy: true, ui: function (el, st) {
     var p = st.p, K = kit(), open = { basic: true };
     Object.assign(p, PIX.A.devDefaults());
-    wide(true);
+    AUI.wide();
     function build() {
       el.textContent = "";
       el.appendChild(presetRow());

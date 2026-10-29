@@ -24,3 +24,8 @@
 .pe-aswatch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .pe-apicking, .pe-apicking canvas { cursor: crosshair !important; }
 .pe-apick[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.pe-agal { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; max-height: 260px; overflow-y: auto; padding: 2px; }
+.pe-agalbtn { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--text-2); font-size: 11px; cursor: pointer; }
+.pe-agalbtn canvas { width: 100%; height: auto; border-radius: 4px; background: var(--line); }
+.pe-agalbtn[aria-selected="true"] { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.pe-agalbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
