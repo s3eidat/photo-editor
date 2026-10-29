@@ -197,3 +197,19 @@
     ok(JSON.stringify(od.layers[0].text.warp) === JSON.stringify(L.text.warp), "warp round-trips");
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, VX = PE.VX, VG = PE.VG;
+  VX.test("type on path", function (ok) {
+    var T = { text: "ABC", font: "Inter", size: 20, weight: 400, color: "#000000", align: "left", dir: "ltr", lh: 1.2, ax: 10, ay: 50, rot: 0, path: { comps: [VG.comp([VG.P(0, 0), VG.P(300, 0)], false)], off: 0, flip: false } };
+    var lay = PE.textLayout(T);
+    ok(lay.glyphs.length === 3 && lay.glyphs.every(function (g) { return VX.near(g.y, 50, 1e-6) && VX.near(g.a, 0, 1e-9); }) && lay.glyphs[0].x < lay.glyphs[1].x, "letters sit along a straight path");
+    T.path.comps = [VG.comp([VG.P(0, 0), VG.P(0, 300)], false)];
+    ok(PE.textLayout(T).glyphs.every(function (g) { return VX.near(g.a, Math.PI / 2, 1e-9) && VX.near(g.x, 10, 1e-6); }), "letters turn with a vertical path");
+    T.path.off = 0.5; T.align = "center"; var g2 = PE.textLayout(T).glyphs;
+    ok(VX.near((g2[0].y + g2[2].y) / 2, 50 + 150, 1.5), "centred at the start offset");
+    T.path.flip = true; ok(PE.textLayout(T).glyphs.every(function (g) { return VX.near(g.a, -Math.PI / 2, 1e-9); }), "flip runs the other way");
+    T.path.comps = [VG.comp([VG.P(0, 0), VG.P(30, 0)], false)]; T.path.off = 0; T.align = "left"; T.path.flip = false; T.text = "ABCDEFGHIJ";
+    ok(PE.textLayout(T).glyphs.length < 10, "letters past the end of an open path are hidden");
+  });
+})();

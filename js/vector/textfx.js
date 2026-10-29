@@ -98,3 +98,113 @@
     return items;
   });
 })();
+/* type on a path */
+(function () {
+  "use strict";
+  var PE = window.PE, ED = PE.ed, VX = PE.VX, VG = PE.VG, UI = VX.ui, h = S3.h;
+  function poly(T) {      // flattened absolute path with cumulative lengths
+    var c = T.path.comps[0], pts = VG.flatComp(VG.map([c], function (x, y) { return [x + T.ax, y + T.ay]; })[0], 0.3);
+    if (c.closed && pts.length) pts = pts.concat([pts[0]]);
+    if (T.path.flip) pts = pts.slice().reverse();
+    var L = [0]; for (var i = 1; i < pts.length; i++) L.push(L[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+    return { pts: pts, L: L, len: L[L.length - 1] || 0, closed: c.closed };
+  }
+  function at(P, s) {      // point and direction at arc length s
+    var L = P.L, lo = 0, hi = L.length - 1;
+    if (P.closed && P.len > 0) s = ((s % P.len) + P.len) % P.len;
+    s = Math.max(0, Math.min(P.len, s));
+    while (hi - lo > 1) { var m = (lo + hi) >> 1; if (L[m] <= s) lo = m; else hi = m; }
+    var a = P.pts[lo], b = P.pts[hi] || a, t = (s - L[lo]) / ((L[hi] - L[lo]) || 1);
+    return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, a: Math.atan2(b.y - a.y, b.x - a.x) };
+  }
+  var LC = new Map();
+  VX.pathLayout = function (T) {
+    var key = JSON.stringify(T), hit = LC.get(key); if (hit) return hit;
+    VX.setFont(VX.mctx(), T);
+    var text = String(T.text).replace(/\s*\n\s*/g, " "), rtl = PE.textDir(T) === "rtl", P = poly(T);
+    var units = rtl ? text.split(/(\s+)/).filter(function (x) { return x.length; }) : Array.from(text);      // RTL scripts stay joined: words, not letters
+    if (rtl) units.reverse();
+    var ws = units.map(function (u) { return VX.measureText(T, u); }), total = ws.reduce(function (a, b) { return a + b; }, 0);
+    var al = T.align || "left", s0 = (T.path.off || 0) * P.len - (al === "center" || al === "justify-center" ? total / 2 : al === "right" || al === "justify-right" ? total : 0), acc = 0, glyphs = [];
+    units.forEach(function (u, i) {
+      var mid = s0 + acc + ws[i] / 2; acc += ws[i];
+      if (/^\s+$/.test(u)) return;
+      if (!P.closed && (mid < -0.5 || mid > P.len + 0.5)) return;      // past the ends: not shown
+      if (P.closed && (acc > P.len + 0.5)) return;
+      var q = at(P, mid); glyphs.push({ u: u, x: q.x, y: q.y, a: q.a, w: ws[i] });
+    });
+    var b = VG.bounds(VG.map([T.path.comps[0]], function (x, y) { return [x + T.ax, y + T.ay]; })) || { x: T.ax, y: T.ay, w: 1, h: 1 }, m = T.size * 1.1;
+    var out = { lines: [text], widths: [total], w: b.w + 2 * m, h: b.h + 2 * m, lh: T.size * (T.lh || 1.2), box: { x: b.x - m, y: b.y - m, w: b.w + 2 * m, h: b.h + 2 * m }, items: [], glyphs: glyphs, len: P.len, total: total };
+    if (LC.size > 200) LC.clear();
+    LC.set(key, out);
+    return out;
+  };
+  VX.drawPathText = function (c, L) {
+    var T = L.text, lay = VX.pathLayout(T), shift = -(T.base || 0) + (T.sup === "sup" ? -T.size * 0.33 : T.sup === "sub" ? T.size * 0.18 : 0);
+    VX.setFont(c, T); c.textBaseline = "alphabetic"; c.fillStyle = PE.hex(T.color, "#111111");
+    if (T.fbold) { c.strokeStyle = c.fillStyle; c.lineWidth = VX.effSize(T) * 0.035; c.lineJoin = "round"; }
+    lay.glyphs.forEach(function (g) {
+      c.save(); c.translate(g.x, g.y); c.rotate(g.a);
+      VX.drawRun(c, T, g.u, -g.w / 2, shift, g.w, false);
+      c.restore();
+    });
+    return true;
+  };
+  VX.xfPathText = function (T, cen, sx, sy) {
+    var cs = T.path.comps, b = VG.bounds(cs) || { x: 0, y: 0, w: 0, h: 0 }, bc = { x: b.x + b.w / 2, y: b.y + b.h / 2 }, ax = Math.abs(sx), ay = Math.abs(sy);
+    T.path.comps = VG.map(cs, function (x, y) { return [bc.x + (x - bc.x) * ax, bc.y + (y - bc.y) * ay]; });
+    T.ax = cen.x - bc.x; T.ay = cen.y - bc.y;
+  };
+  VX.scalePathText = function (T, kx, ky) { T.path.comps = VG.map(T.path.comps, function (x, y) { return [x * kx, y * ky]; }); };
+  VX.onParseLayer(function (raw, out) {
+    if (out.kind !== "text" || !raw.text || typeof raw.text !== "object" || !raw.text.path || typeof raw.text.path !== "object") return;
+    var cs = VX.cleanComps(raw.text.path.comps, 3 * PE.LIM.side);
+    if (cs && cs.length) out.text.path = { comps: cs.slice(0, 1), off: VX.num(raw.text.path.off, 0, 1, 0), flip: raw.text.path.flip === true };
+  });
+
+  // type tool: a click on the current path (or the selected shape's outline) starts text on it
+  VX.textDownExt = function (p) {
+    var tg = VX.target(); if (!tg) return false;
+    var cs = tg.get(), n = VG.nearestSeg(cs, p.x, p.y);
+    if (!n || n.d > 6 / ED.zoom) return false;
+    var c = cs[n.ci], one = { op: "add", closed: c.closed, pts: c.pts };
+    var flat = VG.flatComp(one, 0.3), total = 0, upto = 0, i;
+    for (i = 1; i < flat.length; i++) total += Math.hypot(flat[i].x - flat[i - 1].x, flat[i].y - flat[i - 1].y);
+    if (c.closed && flat.length) total += Math.hypot(flat[0].x - flat[flat.length - 1].x, flat[0].y - flat[flat.length - 1].y);
+    var part = VG.flatComp({ op: "add", closed: false, pts: VG.splitAt(one, n.si, n.t).pts.slice(0, n.si + 2) }, 0.3);
+    for (i = 1; i < part.length; i++) upto += Math.hypot(part[i].x - part[i - 1].x, part[i].y - part[i - 1].y);
+    var o = ED.o.text, before = PE.snap(ED.doc), ax = c.pts[0][0], ay = c.pts[0][1];
+    var L = PE.newLayer("text", { name: "Text on path", text: { text: "", font: o.font, size: o.size, weight: o.weight, italic: o.italic, color: ED.doc.fg, align: "left", dir: o.dir, ax: ax, ay: ay,
+      path: { comps: VG.map([one], function (x, y) { return [x - ax, y - ay]; }), off: total ? Math.min(1, upto / total) : 0, flip: false } } });
+    var d = ED.doc, at = d.layers.indexOf(ED.layer()); d.layers.splice(at < 0 ? d.layers.length : at + 1, 0, L); d.active = L.id; d.apath = null;
+    ED.emit("layers"); ED.startText(L, before, true);
+    return true;
+  };
+  var cur0 = ED.TOOLS.text.cursor;
+  ED.TOOLS.text.cursor = function (p) {
+    var tg = VX.target(); if (tg) { var n = VG.nearestSeg(tg.get(), p.x, p.y); if (n && n.d <= 6 / ED.zoom) return "copy"; }
+    return cur0 ? cur0(p) : "text";
+  };
+  // path text: show the path and the start point while the type tool is active
+  ED.on("ovl", function (o) {
+    var L = ED.layer();
+    if ((ED.tool !== "text" && ED.tool !== "psel" && ED.tool !== "dsel") || !L || L.kind !== "text" || !L.text.path) return;
+    var T = L.text, b = PE.vbox(L), cx = b.x + b.w / 2, cy = b.y + b.h / 2, lay = VX.pathLayout(T);
+    o.docPath(o.c, function (c, px) {
+      c.translate(cx, cy); c.rotate((b.rot || 0) * Math.PI / 180); if (b.fx) c.scale(-1, 1); c.translate(-cx, -cy);
+      c.beginPath(); VG.trace(c, VG.map(T.path.comps, function (x, y) { return [x + T.ax, y + T.ay]; })); c.lineWidth = px; c.strokeStyle = "#1b8cff"; c.setLineDash([4 * px, 3 * px]); c.stroke(); c.setLineDash([]);
+      if (lay.glyphs.length) { var g = lay.glyphs[0]; c.beginPath(); c.arc(g.x, g.y, 4 * px, 0, Math.PI * 2); c.fillStyle = "#1b8cff"; c.fill(); }
+      if (lay.total > lay.len + 1 && !T.path.comps[0].closed) { var e = lay.glyphs[lay.glyphs.length - 1]; if (e) { c.fillStyle = "#e5484d"; c.fillRect(e.x - 5 * px, e.y - 5 * px, 10 * px, 10 * px); } }
+    });
+  });
+  // Properties: start offset, flip side, release
+  UI.props(function (P, L) {
+    if (!L || L.kind !== "text" || !L.text.path) return;
+    var T = L.text, w = ED.ui.w;
+    P.appendChild(h("h3", { text: "Text on path" }));
+    P.appendChild(w.range("Start", Math.round((T.path.off || 0) * 1000) / 10, 0, 100, 0.1, function (v) { VX.setText("Path text start", function (t) { t.path.off = v / 100; }); }, function (v) { return v + "%"; }));
+    P.appendChild(h("div", { "class": "pe-prow" }, [
+      w.check("Flip to the other side", !!T.path.flip, function (v) { VX.setText("Flip path text", function (t) { t.path.flip = v; }); }),
+      w.btn("Release from path", function () { VX.setText("Release text from path", function (t) { var g = VX.pathLayout(t).glyphs[0]; delete t.path; t.align = "left"; if (g) { t.ax = g.x - g.w / 2; t.ay = g.y - t.size; } }); ED.ui.buildProps(); }, "ghost")]));
+  });
+})();

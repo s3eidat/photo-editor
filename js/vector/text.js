@@ -84,6 +84,7 @@
     return out;
   }
   VX.layout = layout;
+  VX.setFont = setFont; VX.measureText = measure; VX.effSize = effSize; VX.mctx = mctx;
 
   // ---------- drawing ----------
   function drawRun(c, T, s, x, y, w, rtl) {      // one run at (x = left edge, y = middle line)
