@@ -247,6 +247,14 @@
   var rast = ED.rasterize;
   ED.rasterize = function (L, silent) { if (L && L.kind === "group") { SX.mergeGroup(L); return L; } return rast.apply(this, arguments); };
 
+  // Insert a new layer above the active one (same group rules as addLayer), run `more` in the same undo step.
+  SX.insertAbove = function (L, label, more) {
+    var d = ED.doc, a = ED.layer();
+    if (a && L.parent === undefined) L.parent = a.kind === "group" && a.open !== false ? a.id : (a.parent || null);
+    seen[L.id] = 1;
+    ED.meta(label, function () { var i = d.layers.indexOf(a); d.layers.splice(i < 0 ? d.layers.length : i + 1, 0, L); d.active = L.id; ED.maskEdit = false; if (more) more(); });
+    ED.emit("layers");
+  };
   // New layers join the group of the layer they are added above (or the open group that is selected).
   var add = ED.addLayer;
   ED.addLayer = function (L, label, above) {

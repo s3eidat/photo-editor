@@ -74,8 +74,7 @@
     var d = ED.doc, L = PE.newLayer("adjust", { name: title(op) });
     L.canvas = null; L.adj = { op: op, p: defaults(op) };
     L.mask = d.sel ? PE.maskFromSel(d) : PE.whiteMask(d); L.maskOn = true;
-    ED.addLayer(L, "New " + title(op).toLowerCase() + " layer");
-    ED.maskEdit = false; ED.emit("layers");
+    SX.insertAbove(L, "New " + title(op).toLowerCase() + " layer", function () { d.sel = null; });    // the selection became its mask
   };
   SX.chooseAdjustment = function () {
     if (!SX.need()) return;
@@ -89,7 +88,7 @@
   function edit(L, fn) {
     if (!pBefore) pBefore = PE.snap(ED.doc);
     fn(); ED.render();
-    clearTimeout(pT); pT = setTimeout(function () { var b = pBefore; pBefore = null; ED.push(PE.metaEntry(title(L.adj.op), ED.doc, b)); }, 450);
+    clearTimeout(pT); pT = setTimeout(function () { var b = pBefore; pBefore = null; ED.push(PE.metaEntry(L.adj.op === "fill" ? "Fill layer" : title(L.adj.op), ED.doc, b)); }, 450);
   }
   SX.liveEdit = edit;
   function histBelow(L) { var c = PE.flatten(ED.doc, { hide: L.id, scale: Math.min(1, 512 / Math.max(ED.doc.w, ED.doc.h)) }); return PIX.histogram(PE.getData(c)); }

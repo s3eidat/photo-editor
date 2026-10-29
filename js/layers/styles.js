@@ -41,6 +41,8 @@
     return (TILES[name] = c);
   }
 
+  SX.PATTERNS = PATTERNS; SX.patternTile = tile;
+
   // ---------- rendering ----------
   function planeCanvas(a, w, hh, color) {
     var c = PE.mk(w, hh), x = PE.cx2(c), im = x.createImageData(w, hh), d = im.data, rgb = PE.rgbOf(color || "#ffffff");
