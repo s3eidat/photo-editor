@@ -156,3 +156,31 @@
     var q = px(s2.L.canvas, 34, 10); ok(q[3] > 0 && q[0] > 240 && q[1] < 15, "smudge into transparency keeps the colour (" + q + ")");
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, ED = PE.ed, PP = PE.paint, PPX = window.PPX;
+  function near(a, b, e) { return Math.abs(a - b) <= (e == null ? 1 : e); }
+  PP.test("gradients", async function (ok) {
+    var bw = { kind: "solid", stops: [{ p: 0, c: [0, 0, 0], m: 0.5 }, { p: 1, c: [255, 255, 255] }], alpha: [{ p: 0, a: 1 }, { p: 1, a: 0 }] };
+    var lut = PPX.gradLut(bw, 101); ok(near(lut[50 * 4], 127.5, 0.01) && near(lut[50 * 4 + 3], 0.5, 1e-6) && lut[0] === 0 && lut[100 * 4] === 255, "two stops, linear ramp, opacity stops");
+    bw.stops[0].m = 0.25; lut = PPX.gradLut(bw, 101); ok(near(lut[25 * 4], 127.5, 0.01), "midpoint moves the halfway colour");
+    var three = { kind: "solid", stops: [{ p: 0, c: [255, 0, 0] }, { p: 0.5, c: [0, 255, 0] }, { p: 1, c: [0, 0, 255] }], alpha: [{ p: 0, a: 1 }] };
+    lut = PPX.gradLut(three, 101); ok(lut[50 * 4 + 1] === 255 && near(lut[75 * 4 + 2], 127.5, 0.01), "multi-stop");
+    var T = PPX.gradT;
+    ok(near(T("linear", 5, 3, 0, 0, 10, 0), 0.5, 1e-9) && near(T("reflected", -5, 0, 0, 0, 10, 0), 0.5, 1e-9) && near(T("radial", 0, 5, 0, 0, 10, 0), 0.5, 1e-9) &&
+      near(T("diamond", 5, 5, 0, 0, 10, 0), 1, 1e-9) && near(T("angle", 0, -5, 0, 0, 10, 0), 0.25, 1e-9), "linear / reflected / radial / diamond / angle positions");
+    var n1 = PPX.gradLut({ kind: "noise", rough: 50, seed: 3 }, 64), n2 = PPX.gradLut({ kind: "noise", rough: 50, seed: 3 }, 64), same = true;
+    for (var i = 0; i < n1.length; i++) if (n1[i] !== n2[i]) same = false;
+    ok(same && n1[3] === 1, "noise gradients are repeatable from their seed");
+    var s = PP.scratch(100, 20, "#ff0000"), o = ED.o.gradient, keep = PE.clone(o);
+    Object.assign(o, { type: "linear", rev: false, op: 1, dither: false, transp: true, mode: "normal" }); PP.setGradient({ name: "t", kind: "solid", stops: [{ p: 0, c: "#000000" }, { p: 1, c: "#ffffff" }], alpha: [{ p: 0, a: 1 }, { p: 1, a: 1 }] });
+    await PP.applyGradient({ x: 0, y: 10 }, { x: 100, y: 10 });
+    var l = PP.px(s.L.canvas, 5, 10), r = PP.px(s.L.canvas, 95, 10), m = PP.px(s.L.canvas, 50, 10);
+    ok(l[0] < 20 && r[0] > 235 && near(m[0], 128, 3) && m[0] === m[1], "gradient tool renders across the layer (" + l[0] + ", " + m[0] + ", " + r[0] + ")");
+    ED.undo(); ok(PP.px(s.L.canvas, 50, 10)[1] === 0, "undo gradient");
+    s.d.sel = PE.makeSel(s.d, PIX.rectMask(100, 20, 0, 0, 50, 20)); o.type = "reflected";
+    await PP.applyGradient({ x: 25, y: 10 }, { x: 50, y: 10 });
+    ok(near(PP.px(s.L.canvas, 0, 10)[0], PP.px(s.L.canvas, 49, 10)[0], 8) && PP.px(s.L.canvas, 70, 10)[1] === 0, "reflected, inside the selection only");
+    Object.keys(o).forEach(function (k) { delete o[k]; }); Object.assign(o, keep);
+  });
+})();

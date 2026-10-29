@@ -103,6 +103,68 @@
     return [o[0] * 255, o[1] * 255, o[2] * 255];
   };
 
+  // ---------- gradients ----------
+  // g: {kind: "solid", stops: [{p, c: [r,g,b], m}], alpha: [{p, a, m}]} or {kind: "noise", rough, seed, restrict, transp}
+  // (p and m are 0..1; m is the midpoint towards the next stop). Returns a Float32Array LUT of n RGBA (0..255, alpha 0..1).
+  function ramp(list, t, get) {
+    if (!list.length) return null;
+    if (t <= list[0].p) return get(list[0]);
+    for (var i = 0; i < list.length - 1; i++) {
+      var a = list[i], b = list[i + 1];
+      if (t <= b.p) {
+        var u = b.p > a.p ? (t - a.p) / (b.p - a.p) : 1, m = clamp(a.m == null ? 0.5 : a.m, 0.01, 0.99);
+        u = u < m ? 0.5 * u / m : 0.5 + 0.5 * (u - m) / (1 - m);
+        var A = get(a), B = get(b);
+        return A.map(function (v, k) { return v + (B[k] - v) * u; });
+      }
+    }
+    return get(list[list.length - 1]);
+  }
+  PPX.noiseStops = function (g) {
+    var R = PPX.rng(g.seed || 1), rough = clamp(g.rough == null ? 50 : g.rough, 0, 100) / 100, n = 2 + Math.round(rough * 28), stops = [], alpha = [];
+    for (var i = 0; i < n; i++) {
+      var p = i / (n - 1), c = [R() * 255, R() * 255, R() * 255];
+      if (g.restrict) { var hsb = PPX.rgb2hsb(c[0], c[1], c[2]); c = PPX.hsb2rgb(hsb[0], 20 + hsb[1] * 0.6, 35 + hsb[2] * 0.6); }
+      stops.push({ p: p, c: c, m: 0.5 + (R() - 0.5) * rough * 0.9 });
+      alpha.push({ p: p, a: g.transp ? R() : 1, m: 0.5 });
+    }
+    return { stops: stops, alpha: alpha };
+  };
+  PPX.gradLut = function (g, n) {
+    n = n || 1024;
+    var s = g.kind === "noise" ? PPX.noiseStops(g) : g, lut = new Float32Array(n * 4);
+    var cs = (s.stops || []).slice().sort(function (a, b) { return a.p - b.p; }), as = (s.alpha || []).slice().sort(function (a, b) { return a.p - b.p; });
+    for (var i = 0; i < n; i++) {
+      var t = i / (n - 1), c = ramp(cs, t, function (q) { return q.c; }) || [0, 0, 0], a = ramp(as, t, function (q) { return [q.a]; }) || [1];
+      lut[i * 4] = c[0]; lut[i * 4 + 1] = c[1]; lut[i * 4 + 2] = c[2]; lut[i * 4 + 3] = a[0];
+    }
+    return lut;
+  };
+  // Position of a pixel along the gradient, 0..1 (before reverse). type: linear radial angle reflected diamond.
+  PPX.gradT = function (type, px, py, ax, ay, bx, by) {
+    var dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1, vx = px - ax, vy = py - ay;
+    if (type === "radial") return Math.sqrt((vx * vx + vy * vy) / L2);
+    if (type === "angle") { var t = (Math.atan2(vy, vx) - Math.atan2(dy, dx)) / (2 * Math.PI); t -= Math.floor(t); return 1 - t; }
+    var u = (vx * dx + vy * dy) / L2;
+    if (type === "reflected") return Math.abs(u);
+    if (type === "diamond") return Math.abs(u) + Math.abs((vx * dy - vy * dx) / L2);
+    return u;
+  };
+  // Render rect (x, y, w, h) of a gradient into RGBA bytes. o: {type, a, b, rev, dither}
+  PPX.gradRender = function (lut, w, h, x0, y0, o) {
+    var out = new Uint8ClampedArray(w * h * 4), n = lut.length / 4, a = o.a, b = o.b;
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+      var t = PPX.gradT(o.type, x0 + x + 0.5, y0 + y + 0.5, a.x, a.y, b.x, b.y);
+      t = clamp(t, 0, 1); if (o.rev) t = 1 - t;
+      var f = t * (n - 1), i = Math.floor(f), k = f - i, j = Math.min(n - 1, i + 1), q = (y * w + x) * 4, dn = 0;
+      if (o.dither) { var hsh = Math.imul((x0 + x) * 73856093 ^ (y0 + y) * 19349663, 2654435761) >>> 0; dn = (hsh / 4294967296) - 0.5; }
+      for (var c = 0; c < 3; c++) out[q + c] = lut[i * 4 + c] + (lut[j * 4 + c] - lut[i * 4 + c]) * k + dn;
+      out[q + 3] = (lut[i * 4 + 3] + (lut[j * 4 + 3] - lut[i * 4 + 3]) * k) * 255 + dn;
+    }
+    return out;
+  };
+  PPX.rng = function (seed) { var s = seed >>> 0 || 1; return function () { s = (s + 0x6D2B79F5) >>> 0; var t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
+
   // ---------- fill a hole from its surroundings (multi-scale PatchMatch + voting) ----------
   // img: {data RGBA, width, height}; hole: Uint8Array (>0 = fill; the value blends the result in);
   // opts: {patch (odd, 7), avoid: Uint8Array of pixels never to copy from, seed, quality 1..3}.
@@ -270,7 +332,7 @@
 
   // ---------- generic dispatcher (the worker calls this) ----------
   PPX.ping = function () { return true; };
-  PPX.ALLOWED = ["ping", "inpaint"];
+  PPX.ALLOWED = ["ping", "inpaint", "gradRender"];
   PPX.call = function (fn, args) {
     if (PPX.ALLOWED.indexOf(fn) < 0 || typeof PPX[fn] !== "function") throw new Error("Not allowed: " + fn);
     return PPX[fn].apply(null, args || []);
