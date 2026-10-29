@@ -165,6 +165,77 @@
   };
   PPX.rng = function (seed) { var s = seed >>> 0 || 1; return function () { s = (s + 0x6D2B79F5) >>> 0; var t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
 
+  // ---------- .abr brush files (sampled tips) ----------
+  // Returns [{name, w, h, data: Uint8Array (255 = paint), spacing}]. Versions 1, 2 and 6+ ("samp" section).
+  // Every length is checked against the file; tips are limited to 2500 x 2500 and 500 per file.
+  PPX.readAbr = function (u8) {
+    var dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), p = 0, out = [], MAXS = 2500;
+    function need(n) { if (n < 0 || p + n > u8.length) throw new Error("This brush file is damaged or truncated"); }
+    function u8r() { need(1); return u8[p++]; }
+    function u16() { need(2); var v = dv.getUint16(p); p += 2; return v; }
+    function i16() { need(2); var v = dv.getInt16(p); p += 2; return v; }
+    function u32() { need(4); var v = dv.getUint32(p); p += 4; return v; }
+    function i32() { need(4); var v = dv.getInt32(p); p += 4; return v; }
+    function ustr() { var n = u32(); if (n > 1024) throw new Error("This brush file is damaged"); var s = ""; for (var i = 0; i < n; i++) { var c = u16(); if (c) s += String.fromCharCode(c); } return s; }
+    function pixels(w, h, depth, comp) {
+      if (w < 1 || h < 1 || w > MAXS || h > MAXS) throw new Error("A brush in this file is too large (" + w + " × " + h + ")");
+      var bpp = depth === 16 ? 2 : 1, rowBytes = w * bpp, data = new Uint8Array(w * h), row = new Uint8Array(rowBytes), y, x;
+      if (!comp) {
+        for (y = 0; y < h; y++) { need(rowBytes); for (x = 0; x < w; x++) data[y * w + x] = u8[p + x * bpp]; p += rowBytes; }
+        return data;
+      }
+      var lens = []; for (y = 0; y < h; y++) lens.push(u16());
+      for (y = 0; y < h; y++) {        // PackBits
+        var end = p + lens[y], k = 0; need(lens[y]);
+        while (p < end && k < rowBytes) {
+          var n = dv.getInt8(p); p++;
+          if (n >= 0) { var cnt = n + 1; need(cnt); for (var i = 0; i < cnt && k < rowBytes; i++) row[k++] = u8[p + i]; p += cnt; }
+          else if (n !== -128) { var rep = 1 - n, v = u8r(); for (var j = 0; j < rep && k < rowBytes; j++) row[k++] = v; }
+        }
+        p = end;
+        for (x = 0; x < w; x++) data[y * w + x] = row[x * bpp];
+      }
+      return data;
+    }
+    var ver = u16();
+    if (ver === 1 || ver === 2) {
+      var count = u16(); if (count > 500) throw new Error("Too many brushes in this file");
+      for (var b = 0; b < count; b++) {
+        var type = u16(), size = u32(), next = p + size; need(size);
+        if (type === 2) {
+          u32(); var spacing = u16(), name = ver === 2 ? ustr() : "Brush " + (b + 1);
+          u8r(); p += 8; need(0);
+          var top = i32(), left = i32(), bottom = i32(), right = i32(), depth = u16(), comp = u8r();
+          out.push({ name: name || "Brush " + (b + 1), w: right - left, h: bottom - top, data: pixels(right - left, bottom - top, depth, comp), spacing: spacing });
+        }
+        p = next;
+      }
+      return out;
+    }
+    if (ver >= 6 && ver <= 10) {
+      var sub = u16();
+      while (p + 12 <= u8.length) {
+        var sig = String.fromCharCode(u8[p], u8[p + 1], u8[p + 2], u8[p + 3]), key = String.fromCharCode(u8[p + 4], u8[p + 5], u8[p + 6], u8[p + 7]); p += 8;
+        var len = u32();
+        if (sig !== "8BIM") throw new Error("This brush file is damaged");
+        if (key !== "samp") { need(len); p += len; continue; }
+        var stop = p + len; need(len);
+        while (p < stop - 4 && out.length < 500) {
+          var bl = u32(), bend = bl; while (bend % 4) bend++;
+          var nb = p + bend; need(bend);
+          p += sub === 1 ? 47 : 301;
+          var t = i32(), l = i32(), bo = i32(), r = i32(), dp = u16(), cp = u8r();
+          out.push({ name: "Brush " + (out.length + 1), w: r - l, h: bo - t, data: pixels(r - l, bo - t, dp, cp), spacing: 25 });
+          p = nb;
+        }
+        break;
+      }
+      if (!out.length) throw new Error("No sampled brushes found in this file");
+      return out;
+    }
+    throw new Error("Not a supported .abr brush file (version " + ver + ")");
+  };
+
   // ---------- fill a hole from its surroundings (multi-scale PatchMatch + voting) ----------
   // img: {data RGBA, width, height}; hole: Uint8Array (>0 = fill; the value blends the result in);
   // opts: {patch (odd, 7), avoid: Uint8Array of pixels never to copy from, seed, quality 1..3}.
@@ -332,7 +403,7 @@
 
   // ---------- generic dispatcher (the worker calls this) ----------
   PPX.ping = function () { return true; };
-  PPX.ALLOWED = ["ping", "inpaint", "gradRender"];
+  PPX.ALLOWED = ["ping", "inpaint", "gradRender", "readAbr"];
   PPX.call = function (fn, args) {
     if (PPX.ALLOWED.indexOf(fn) < 0 || typeof PPX[fn] !== "function") throw new Error("Not allowed: " + fn);
     return PPX[fn].apply(null, args || []);

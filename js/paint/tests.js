@@ -184,3 +184,40 @@
     Object.keys(o).forEach(function (k) { delete o[k]; }); Object.assign(o, keep);
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, ED = PE.ed, PP = PE.paint, PPX = window.PPX;
+  // a tiny .abr (version 2) with a raw 3x2 tip and a PackBits 4x1 tip
+  function abrV2() {
+    var b = [];
+    function u16(v) { b.push(v >> 8 & 255, v & 255); } function u32(v) { b.push(v >>> 24 & 255, v >>> 16 & 255, v >>> 8 & 255, v & 255); } function u8(v) { b.push(v & 255); }
+    function name(s) { u32(s.length + 1); for (var i = 0; i < s.length; i++) u16(s.charCodeAt(i)); u16(0); }
+    function brush(nm, w, hh, comp, data) {
+      var start = b.length; u16(2); u32(0); var at = b.length; u32(0); u16(30); name(nm); u8(1); for (var i = 0; i < 4; i++) u16(0); u32(0); u32(0); u32(hh); u32(w); u16(8); u8(comp);
+      data.forEach(u8); var size = b.length - at; b[at - 4] = size >>> 24 & 255; b[at - 3] = size >>> 16 & 255; b[at - 2] = size >>> 8 & 255; b[at - 1] = size & 255; void start;
+    }
+    u16(2); u16(2);
+    brush("Dots", 3, 2, 0, [0, 128, 255, 255, 128, 0]);
+    brush("Run", 4, 1, 1, [0, 2, 0xFD, 200]);     // row of 2 bytes: repeat 200 four times
+    return new Uint8Array(b);
+  }
+  PP.test("brush presets and .abr", async function (ok) {
+    var list = PPX.readAbr(abrV2());
+    ok(list.length === 2 && list[0].name === "Dots" && list[0].w === 3 && list[0].h === 2 && list[0].data.join() === "0,128,255,255,128,0" && list[0].spacing === 30, "abr v2 raw tip");
+    ok(list[1].w === 4 && list[1].data.join() === "200,200,200,200", "abr PackBits tip");
+    var bad = abrV2().slice(0, 40), threw = false; try { PPX.readAbr(bad); } catch (e) { threw = true; } ok(threw, "rejects a truncated file");
+    threw = false; try { PPX.readAbr(new Uint8Array([0, 3, 0, 0])); } catch (e) { threw = true; } ok(threw, "rejects unknown versions");
+    // a sampled tip paints its shape
+    var s = PP.scratch(60, 30), o = ED.o.brush; s.d.fg = "#000000";
+    var g = new Uint8Array(20 * 20); for (var y = 0; y < 20; y++) for (var x = 0; x < 20; x++) g[y * 20 + x] = x < 10 ? 255 : 0;
+    PP.tipFromGray("t:test", "Half", 20, 20, g);
+    Object.assign(o, { tip: "t:test", size: 20, op: 1, flow: 1, angle: 0, round: 100 });
+    PP.drive("brush", [{ x: 30, y: 15 }]);
+    ok(PP.px(s.L.canvas, 24, 15)[0] < 30 && PP.px(s.L.canvas, 36, 15)[0] > 225, "sampled tip keeps its shape");
+    ED.undo(); o.angle = 180; PP.drive("brush", [{ x: 30, y: 15 }]);
+    ok(PP.px(s.L.canvas, 36, 15)[0] < 30 && PP.px(s.L.canvas, 24, 15)[0] > 225, "tip angle rotates it");
+    o.tip = ""; o.angle = 0; delete PE.paint.tips["t:test"];
+    var pr = PP.presets().filter(function (p) { return p.id === "p:spatter"; })[0]; PP.applyPreset("brush", pr);
+    ok(o.tip === "t:spatter" && o.scatter === 60 && o.preset === "p:spatter", "applying a preset sets tip and dynamics");
+  });
+})();
