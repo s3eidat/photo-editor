@@ -193,6 +193,7 @@
   // opts.over[id] = {canvas,x,y,m?} replaces a layer's pixels; opts.maskOver[id] = {canvas,x,y}; opts.hide = id; opts.only = [ids]
   function drawLayers(ctx, doc, opts) {
     opts = opts || {};
+    if (PE.drawHook && PE.drawHook(ctx, doc, opts)) return;   // lane:selection (groups, blend modes, styles, adjustment layers)
     doc.layers.forEach(function (L) {
       if (!L.visible || opts.hide === L.id || (opts.only && opts.only.indexOf(L.id) < 0)) return;
       var s = (opts.over && opts.over[L.id]) || surface(L, doc), mask = L.mask && L.maskOn ? ((opts.maskOver && opts.maskOver[L.id]) || L.mask) : null;
@@ -301,8 +302,10 @@
 
   // ---------- history: meta snapshots (refs + props) and pixel tiles ----------
   function snapLayer(L) {
-    return { ref: L, p: { kind: L.kind, name: L.name, visible: L.visible, locked: L.locked, opacity: L.opacity, blend: L.blend, x: L.x, y: L.y, canvas: L.canvas,
+    var s = { ref: L, p: { kind: L.kind, name: L.name, visible: L.visible, locked: L.locked, opacity: L.opacity, blend: L.blend, x: L.x, y: L.y, canvas: L.canvas,
       mask: L.mask ? { canvas: L.mask.canvas, x: L.mask.x, y: L.mask.y } : null, maskOn: L.maskOn, text: clone(L.text), shape: clone(L.shape) } };
+    if (PE.snapExt) PE.snapExt(L, s.p);   // lane:selection
+    return s;
   }
   function snap(doc) { return { w: doc.w, h: doc.h, sel: doc.sel, active: doc.active, name: doc.name, layers: doc.layers.map(snapLayer) }; }
   function restore(doc, s) {
@@ -311,6 +314,7 @@
       var L = it.ref, p = it.p;
       L.kind = p.kind; L.name = p.name; L.visible = p.visible; L.locked = p.locked; L.opacity = p.opacity; L.blend = p.blend; L.x = p.x; L.y = p.y; L.canvas = p.canvas;
       L.mask = p.mask ? { canvas: p.mask.canvas, x: p.mask.x, y: p.mask.y } : null; L.maskOn = p.maskOn; L.text = clone(p.text); L.shape = clone(p.shape);
+      if (PE.restoreExt) PE.restoreExt(L, p);   // lane:selection
       return L;
     });
   }
@@ -495,13 +499,14 @@
     if (d.layers.length > LIM.layers) throw new Error("The project has more than " + LIM.layers + " layers");
     var ids = {};
     var layers = d.layers.map(function (raw, i) {
-      var l = clean(raw), kind = ["raster", "text", "shape"].indexOf(l.kind) >= 0 ? l.kind : null;
+      var l = clean(raw), kind = ["raster", "text", "shape"].concat(PE.kindsExt || []).indexOf(l.kind) >= 0 ? l.kind : null;   // lane:selection (kindsExt)
       if (!kind) throw new Error("Layer " + (i + 1) + " has an unknown type");
       var out = { kind: kind, name: str(l.name, 100, "Layer").replace(/[\u0000-\u001f]/g, " ") || "Layer", visible: l.visible !== false, locked: l.locked === true,
         opacity: num(l.opacity, 0, 1, 1), blend: BLENDS.indexOf(l.blend) >= 0 ? l.blend : "normal", x: Math.round(num(l.x, -LIM.layerSide, LIM.layerSide, 0)), y: Math.round(num(l.y, -LIM.layerSide, LIM.layerSide, 0)), maskOn: l.maskOn !== false };
       if (kind === "raster") { if (typeof l.src !== "string" || !/^layers\/\d{1,3}\.png$/.test(l.src) || ids[l.src]) throw new Error("Layer " + (i + 1) + " has a bad image reference"); ids[l.src] = 1; out.src = l.src; }
       if (kind === "text") out.text = cleanText(l.text);
       if (kind === "shape") out.shape = cleanShape(l.shape);
+      if (PE.parseExt) PE.parseExt(l, out, i, ids);   // lane:selection
       if (l.mask != null) {
         var m = clean(l.mask);
         if (typeof m.src !== "string" || !/^masks\/\d{1,3}\.png$/.test(m.src) || ids[m.src]) throw new Error("Layer " + (i + 1) + " has a bad mask reference");
@@ -521,6 +526,7 @@
       if (L.text) l.text = clone(L.text);
       if (L.shape) l.shape = clone(L.shape);
       if (L.mask) { l.mask = { src: "masks/" + i + ".png", x: L.mask.x, y: L.mask.y }; jobs.push(pngOf(L.mask.canvas).then(function (e) { files.push({ name: l.mask.src, data: e.bytes, crc: e.crc }); })); }
+      if (PE.saveExt) PE.saveExt(L, l, i, jobs, files);   // lane:selection
       meta.layers.push(l);
     });
     return Promise.all(jobs).then(function () {
@@ -551,6 +557,7 @@
         var jobs = [];
         if (l.src) jobs.push(img(l.src).then(function (c) { L.canvas = c; }));
         if (l.mask) jobs.push(img(l.mask.src).then(function (c) { L.mask = { canvas: c, x: l.mask.x, y: l.mask.y }; }));
+        if (PE.openExt) PE.openExt(l, L, img, jobs);   // lane:selection
         return Promise.all(jobs).then(function () { return L; });
       })).then(function (layers) {
         doc.layers = layers; doc.active = layers[meta.active].id;

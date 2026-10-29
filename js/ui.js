@@ -844,6 +844,7 @@
     if (floatState) { if (k === "Escape") { e.preventDefault(); closeFloat(false); } else if (k === "Enter" && !typing) { e.preventDefault(); closeFloat(true); } return; }
     if (typing) return;
     if (openMenu && k === "Escape") { closeMenus(); return; }
+    if ((ED.ui.keys || []).some(function (f) { return f(e); })) return;   // lane:selection (lanes add key handlers to ED.ui.keys)
     function go(fn) { e.preventDefault(); fn(); }
     if (c) {
       if (lk === "z") return go(function () { if (e.shiftKey) ED.redo(); else ED.undo(); });

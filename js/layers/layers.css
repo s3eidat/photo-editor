@@ -1,0 +1,3 @@
+/* Selection lane styles (layers panel additions, selection tools). Colours from the kit variables. */
+.pe-lfill { margin-top: -2px; }
+.pe-lfill input:disabled { opacity: .4; }
