@@ -83,3 +83,30 @@
     var threw = false; try { PP.readAco(new Uint8Array([0, 9, 0, 1])); } catch (e) { threw = true; } ok(threw, "rejects a non-palette");
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, ED = PE.ed, PP = PE.paint, PPX = window.PPX;
+  function stripes(W, H) {
+    var d = new Uint8ClampedArray(W * H * 4);
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) { var i = (y * W + x) * 4, s = (x % 8) < 4 ? 210 : 50; d[i] = s; d[i + 1] = 90; d[i + 2] = 255 - s; d[i + 3] = 255; }
+    return d;
+  }
+  PP.test("fill from surroundings", async function (ok) {
+    var W = 64, H = 48, d = stripes(W, H), truth = new Uint8ClampedArray(d), hole = new Uint8Array(W * H);
+    for (var y = 18; y < 30; y++) for (var x = 26; x < 38; x++) { hole[y * W + x] = 255; d[(y * W + x) * 4] = 255; d[(y * W + x) * 4 + 1] = 0; }
+    var r = PPX.inpaint({ data: d, width: W, height: H }, hole, {}), err = 0, n = 0;
+    for (var p = 0; p < W * H; p++) if (hole[p]) { err += Math.abs(r.data[p * 4] - truth[p * 4]) + Math.abs(r.data[p * 4 + 1] - truth[p * 4 + 1]); n += 2; }
+    ok(err / n < 4, "stripes continue through the hole (mean error " + (err / n).toFixed(1) + ")");
+    ok(r.data[0] === truth[0] && r.data[(5 * W + 5) * 4 + 2] === truth[(5 * W + 5) * 4 + 2], "pixels outside the hole stay");
+    var r2 = await PP.work("inpaint", [{ data: d, width: W, height: H }, hole, {}]), same = true;
+    for (p = 0; p < r.data.length; p++) if (r.data[p] !== r2.data[p]) { same = false; break; }
+    ok(same, "worker gives the same result" + (PP.workerAlive() ? "" : " (fallback)"));
+    // end to end: Edit › Fill with surroundings on a scratch document, undoable
+    var s = PP.scratch(W, H), c = PE.cx2(s.L.canvas); c.putImageData(new ImageData(new Uint8ClampedArray(d), W, H), 0, 0); PE.touch(s.L.canvas);
+    s.d.sel = PE.makeSel(s.d, PIX.rectMask(W, H, 25, 17, 14, 14));
+    var done = await PP.fillSurroundings({ expand: 0, adapt: true, quality: 2, newLayer: false });
+    var px = PP.px(s.L.canvas, 31, 23);
+    ok(done && px[1] < 120 && ED.hist.pos === 1, "fills the selection (green was 0, now " + px[1] + ")");
+    ED.undo(); ok(PP.px(s.L.canvas, 31, 23)[1] === 0, "undo fill");
+  });
+})();

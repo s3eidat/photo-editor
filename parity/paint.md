@@ -19,3 +19,4 @@ Known-answer checks: `js/paint/tests.js` (run by `S3_SELFTEST` after the core ch
 | Brush settings dialog (F5) | done | live preview stroke drawn by the engine |
 | Full colour picker | done | field + slider on any of H, S, B, R, G, B, L, a, b; HSB / RGB / Lab / CMYK / hex fields, only web colours, new vs current; opens from the tool bar's colour chips |
 | Swatches panel | done | Paint panel › Swatches: recent colours, click / Ctrl+click / Alt+click, add, import .aco (RGB, HSB, CMYK, Lab, grey) and .gpl, export .gpl / .aco |
+| Fill with surroundings | done | Edit › Fill with surroundings… (Shift+Alt+Backspace): multi-scale PatchMatch + voting in a worker (`pworker.js`), expand, quality, edge colour blending, output to a new layer; big holes are solved at a lower resolution |
