@@ -70,6 +70,21 @@
     ok(sc([255, 0, 0], { reds: [100, 0, 0, 0] }, "absolute").join() === "0,0,0" && sc([255, 0, 0], { reds: [100, 0, 0, 0] }, "relative").join() === "255,0,0", "selective colour: cyan in reds, absolute vs relative");
     ok(sc([255, 0, 0], { reds: [0, 0, -100, 0] }, "absolute").join() === "255,0,255" && sc([0, 0, 255], { reds: [100, 100, 100, 100] }, "absolute").join() === "0,0,255", "selective colour only touches its range");
     var scw = sc([255, 255, 255], { whites: [0, 0, 0, 50] }, "absolute"); ok(scw.join() === "128,128,128" || scw.join() === "127,127,127", "selective colour: black in whites");
+
+    // develop: defaults are a no-op; exposure +1 stop doubles linear light; saturation -100 is grey; WB warms
+    var dvp = []; for (i = 0; i < 64; i++) dvp.push([i * 4, 255 - i * 3, (i * 37) % 256]);
+    var dv0 = run(dvp, "develop", PIX.A.devDefaults(), null, 8, 8), dmax = 0;
+    for (i = 0; i < 64; i++) { var g0 = get(dv0, i); for (var c = 0; c < 3; c++) dmax = Math.max(dmax, Math.abs(g0[c] - dvp[i][c])); }
+    ok(dmax <= 1, "develop at defaults changes nothing (max diff " + dmax + ")");
+    var de = get(run([[128, 128, 128]], "develop", Object.assign(PIX.A.devDefaults(), { exposure: 1 })), 0);
+    ok(near(de[0], 175, 1.5) && de[0] === de[2], "develop exposure +1 stop (" + de + ")");
+    var dsat = get(run([[200, 80, 40]], "develop", Object.assign(PIX.A.devDefaults(), { saturation: -100 })), 0);
+    ok(dsat[0] === dsat[1] && dsat[1] === dsat[2], "develop saturation -100 is grey");
+    var dwb = get(run([[128, 128, 128]], "develop", Object.assign(PIX.A.devDefaults(), { temp: 50 })), 0);
+    ok(dwb[0] > 128 && dwb[2] < 128, "develop temperature warms");
+    var dmix = get(run([[40, 88, 232]], "develop", Object.assign(PIX.A.devDefaults(), { hslS: [0, 0, 0, 0, 0, -100, 0, 0] })), 0), dmix2 = get(run([[220, 40, 40]], "develop", Object.assign(PIX.A.devDefaults(), { hslS: [0, 0, 0, 0, 0, -100, 0, 0] })), 0);
+    ok(Math.max.apply(null, dmix) - Math.min.apply(null, dmix) < 8 && dmix2[0] > 200, "develop colour mixer: blue band only");
+    ok(PIX.A.bandWeights(15, new Float32Array(8))[0] === 0.5 && PIX.A.bandWeights(225, new Float32Array(8))[5] === 1, "colour mixer hue bands");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };

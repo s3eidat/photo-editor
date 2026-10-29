@@ -54,6 +54,7 @@
     var aS = clamp(num(p.sAmt, 35), 0, 100) / 100, tS = 0.02 + clamp(num(p.sTone, 50), 0, 100) / 100 * 0.98, rS = clamp(num(p.sRad, 30), 0, 500);
     var aH = clamp(num(p.hAmt, 0), 0, 100) / 100, tH = 0.02 + clamp(num(p.hTone, 50), 0, 100) / 100 * 0.98, rH = clamp(num(p.hRad, 30), 0, 500);
     var col = clamp(num(p.color, 20), -100, 100) / 100, mid = clamp(num(p.mid, 0), -100, 100) / 100;
+    var S = clamp(num(p._scale, 1), 0.01, 1); rS = Math.max(rS ? 1 : 0, Math.round(rS * S)); rH = Math.max(rH ? 1 : 0, Math.round(rH * S));
     var L = A.lumPlane(img, 1 / 255), Bs = aS ? A.guided(L, L, w, h, rS, 0.01) : null;     // edge-aware: no halos along strong edges
     var Bh = aH ? (Bs && rH === rS ? Bs : A.guided(L, L, w, h, rH, 0.01)) : null, ce = 0.5 + col / 2;
     for (var q = 0, i = 0; q < n; q++, i += 4) {

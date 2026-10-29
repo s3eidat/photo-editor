@@ -11,7 +11,7 @@
 
   // ---------- registering adjustments (shown in the floating live-preview panel) ----------
   AUI.adj = function (op, spec) { ED.ADJ[op] = spec; return spec; };
-  AUI.open = function (op) { ED.ui.openAdjust(op); };
+  AUI.open = function (op) { return AUI.openLive(op); };
   // One-click ops (no dialog): run in the worker, one history step.
   var QUICK_LABELS = {};
   AUI.quick = function (op, label, p) {
@@ -91,23 +91,28 @@
 
   // ---------- this lane's own floating panels (same look as the adjustment panel, for non-worker previews) ----------
   var panel = null;
-  AUI.panel = function (title, build, onOk, onCancel) {
+  // opts: {preview: fn(on) adds a Preview checkbox, reset: fn adds a Reset button}
+  AUI.panel = function (title, build, onOk, onCancel, opts) {
     if (ED.ui.floatState()) ED.ui.closeFloat(false);
     AUI.closePanel(false);
-    var box = $("#float"), body = h("div", { "class": "pe-fbody" });
+    opts = opts || {};
+    var box = $("#float"), body = h("div", { "class": "pe-fbody" }), busy = h("span", { "class": "faint pe-fbusy" });
     box.textContent = ""; box.hidden = false; ED.modal = true; ED.cancelModes();
-    box.appendChild(h("div", { "class": "row between pe-fhead" }, [h("b", { text: title }), h("span", { "class": "faint pe-fbusy" })]));
+    box.appendChild(h("div", { "class": "row between pe-fhead" }, [h("b", { text: title }), busy]));
     box.appendChild(body);
     var K = kit();
-    box.appendChild(h("div", { "class": "row pe-ffoot" }, [h("span", { "class": "grow" }), K.btn("Cancel", function () { AUI.closePanel(false); }, "ghost"), K.btn("OK", function () { AUI.closePanel(true); }, "primary")]));
-    panel = { onOk: onOk, onCancel: onCancel };
+    box.appendChild(h("div", { "class": "row pe-ffoot" }, [opts.preview ? K.check("Preview", true, opts.preview) : null, h("span", { "class": "grow" }),
+      opts.reset ? K.btn("Reset", opts.reset, "ghost") : null, K.btn("Cancel", function () { AUI.closePanel(false); }, "ghost"), K.btn("OK", function () { AUI.closePanel(true); }, "primary")]));
+    panel = { onOk: onOk, onCancel: onCancel, busy: busy, body: body };
     AUI.panelKeys = function (e) {
       if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); AUI.closePanel(false); return; }
-      if (e.key === "Enter" && !(e.target && (e.target.tagName === "BUTTON" || e.target.tagName === "SELECT"))) { e.preventDefault(); e.stopPropagation(); AUI.closePanel(true); return; }
+      if (e.key === "Enter" && !ED.isTyping(e) && !(e.target && e.target.tagName === "BUTTON")) { e.preventDefault(); e.stopPropagation(); AUI.closePanel(true); return; }
       if (!ED.isTyping(e) && e.key !== "Tab") e.stopPropagation();     // no tool shortcuts while the panel is open
     };
     build(body);
+    return panel;
   };
+  AUI.panelOpen = function () { return !!panel; };
   AUI.closePanel = function (ok) {
     var pn = panel; if (!pn) return;
     panel = null; AUI.panelKeys = null; ED.modal = false;
@@ -115,6 +120,101 @@
     try { if (ok) pn.onOk(); else if (pn.onCancel) pn.onCancel(); } finally { ED.render(); }
   };
   document.addEventListener("click", function (e) { if (panel && e.target.closest && e.target.closest("#menus")) AUI.closePanel(false); }, true);
+
+  // ---------- reduced-size previews ----------
+  // Big layers are previewed at about screen resolution (at least ~1.5 MP), so sliders stay responsive.
+  function proxyScale(w, hh) {
+    var n = w * hh, z = ED.zoom * Math.min(2, window.devicePixelRatio || 1);
+    if (n <= 3e6 || z >= 1) return 1;
+    return Math.min(1, Math.max(z * 1.25, Math.sqrt(1.5e6 / n)));
+  }
+  AUI.proxyScale = proxyScale;
+  AUI.downImg = function (img, w, hh) {
+    var a = PE.mk(img.width, img.height); a.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(img.data), img.width, img.height), 0, 0);
+    var b = PE.mk(w, hh), x = b.getContext("2d"); x.imageSmoothingQuality = "high"; x.drawImage(a, 0, 0, w, hh);
+    var d = x.getImageData(0, 0, w, hh); return { data: d.data, width: w, height: hh };
+  };
+  AUI.downPlane = function (m, W, H, w, hh) {      // area average of a 0..255 plane
+    var o = new Uint8Array(w * hh);
+    for (var y = 0; y < hh; y++) {
+      var y0 = Math.floor(y * H / hh), y1 = Math.max(y0 + 1, Math.floor((y + 1) * H / hh));
+      for (var x = 0; x < w; x++) {
+        var x0 = Math.floor(x * W / w), x1 = Math.max(x0 + 1, Math.floor((x + 1) * W / w)), s = 0;
+        for (var yy = y0; yy < y1; yy++) for (var xx = x0; xx < x1; xx++) s += m[yy * W + xx];
+        o[y * w + x] = Math.round(s / ((y1 - y0) * (x1 - x0)));
+      }
+    }
+    return o;
+  };
+
+  // ---------- live-preview panel for this lane's ops ----------
+  // Same spec format as the editor's own panel (t, c sliders, chk checkboxes, ui(el, st)), but the preview is worked
+  // out on a reduced copy for big layers and drawn scaled by the GPU; OK renders the exact full-size result in the
+  // worker. Ops see p._scale (preview scale) so pixel radii look the same in the preview.
+  AUI.openLive = function (op) {
+    var spec = ED.ADJ[op], K = kit(); if (!spec) return;
+    if (ED.ui.floatState()) ED.ui.closeFloat(false);
+    AUI.closePanel(false);
+    var t = K.adjTarget(); if (!t) return;
+    var L = t.L, W = t.r.w, H = t.r.h, s = spec.proxy === false ? 1 : proxyScale(W, H), w = Math.max(1, Math.round(W * s)), hh = Math.max(1, Math.round(H * s));
+    s = w / W;
+    var src = s < 1 ? AUI.downImg(t.img, w, hh) : t.img, ssel = t.sel && s < 1 ? AUI.downPlane(t.sel, W, H, w, hh) : t.sel;
+    var p = {}, key = PE.uid("k"), small = PE.mk(w, hh), sctx = small.getContext("2d"), full = s < 1 ? PE.mk(W, H) : null, selC = null;
+    (spec.c || []).forEach(function (c) { p[c.k] = c.def; });
+    (spec.chk || []).forEach(function (c) { p[c[0]] = !!c[2]; });
+    if (s < 1 && t.sel) {          // selection as an alpha mask, to keep the outside crisp
+      selC = PE.mk(W, H); var sx = selC.getContext("2d"), sd = sx.createImageData(W, H);
+      for (var i = 0, q = 0; q < t.sel.length; q++, i += 4) sd.data[i + 3] = t.sel[q];
+      sx.putImageData(sd, 0, 0);
+    }
+    var st = { op: op, t: t, p: p, key: key, busy: false, again: false, shown: null, previewOn: true, scale: s, live: true, src: src };
+    function show() {
+      if (!st.previewOn || !st.shown) { delete ED.live.over[L.id]; ED.render(); return; }
+      var c = small;
+      if (full) {
+        var x = full.getContext("2d");
+        x.save(); x.globalCompositeOperation = "copy"; x.imageSmoothingQuality = "high"; x.drawImage(small, 0, 0, W, H);
+        if (selC) { x.globalCompositeOperation = "destination-in"; x.drawImage(selC, 0, 0); x.globalCompositeOperation = "destination-over"; x.drawImage(L.canvas, 0, 0); }
+        x.restore(); c = full;
+      }
+      ED.live.over[L.id] = { canvas: PE.touch(c), x: t.r.x, y: t.r.y }; ED.render();
+    }
+    function run() {
+      if (st.closed) return;
+      if (st.busy) { st.again = true; return; }
+      st.busy = true; st.again = false; if (st.pn) st.pn.busy.textContent = "Updating…";
+      var params = JSON.parse(JSON.stringify(p)), sig = JSON.stringify(params);
+      params._scale = s;
+      PE.workAdjust(key, op, params).then(function (res) {
+        if (st.closed) return;
+        sctx.putImageData(new ImageData(new Uint8ClampedArray(res.data), w, hh), 0, 0);
+        st.shown = sig; show();
+      }).catch(function (e) { S3.toast(e.message, "error"); }).then(function () {
+        st.busy = false; if (st.pn) st.pn.busy.textContent = "";
+        if (st.again && !st.closed) run();
+      });
+    }
+    st.schedule = S3.debounce(run, w * hh > 2e6 ? 120 : 40); st.run = run;
+    st.pn = AUI.panel(spec.t, function (el) {
+      (spec.c || []).forEach(function (c) { el.appendChild(K.range(c.label, c.def, c.min, c.max, c.step, function (v) { p[c.k] = v; st.schedule(); }, c.fmt)); });
+      (spec.chk || []).forEach(function (c) { el.appendChild(K.check(c[1], !!c[2], function (v) { p[c[0]] = v; st.schedule(); })); });
+      if (spec.ui) spec.ui(el, st);
+      if (t.sel) el.appendChild(h("p", { "class": "faint pe-p", text: "Applies inside the selection only." }));
+      if (s < 1) el.appendChild(h("p", { "class": "faint pe-p", text: "Preview at " + Math.round(s * 100) + "% size for speed; OK applies it at full size." }));
+    }, function () {
+      st.closed = true; delete ED.live.over[L.id];
+      var params = JSON.parse(JSON.stringify(p));
+      if (s === 1 && st.shown === JSON.stringify(params) && !st.busy) { var c = small; ED.meta(spec.t, function () { L.canvas = PE.touch(c); }); return; }
+      params._scale = 1;
+      ED.working(PE.work("adjust", [t.img, op, params, t.sel]), spec.t + "…").then(function (res) { K.commitAdjusted(t, res, spec.t); }).catch(function (e) { S3.toast(e.message, "error"); });
+    }, function () { st.closed = true; delete ED.live.over[L.id]; }, {
+      preview: function (v) { st.previewOn = v; show(); },
+      reset: function () { AUI.closePanel(false); AUI.openLive(op); }
+    });
+    AUI.liveState = st;
+    PE.workLoad(key, src, ssel).then(run);
+    return st;
+  };
 
   // ---------- fade the last adjustment or filter ----------
   // Every adjustment / filter commit is recorded (which layer, its pixels before and after, the selection then);
@@ -186,7 +286,7 @@
   // ---------- shadows / highlights ----------
   function sl(k, label, min, max, step, def, fmt) { return { k: k, label: label, min: min, max: max, step: step, def: def, fmt: fmt }; }
   AUI.sl = sl;
-  AUI.adj("shadowsHighlights", { t: "Shadows / highlights", c: [sl("sAmt", "Shadows: amount", 0, 100, 1, 35, pc), sl("sTone", "Shadows: tonal width", 0, 100, 1, 50, pc), sl("sRad", "Shadows: radius", 0, 500, 1, 30, pxf),
+  AUI.adj("shadowsHighlights", { t: "Shadows / highlights", proxy: true, c: [sl("sAmt", "Shadows: amount", 0, 100, 1, 35, pc), sl("sTone", "Shadows: tonal width", 0, 100, 1, 50, pc), sl("sRad", "Shadows: radius", 0, 500, 1, 30, pxf),
     sl("hAmt", "Highlights: amount", 0, 100, 1, 0, pc), sl("hTone", "Highlights: tonal width", 0, 100, 1, 50, pc), sl("hRad", "Highlights: radius", 0, 500, 1, 30, pxf),
     sl("color", "Colour", -100, 100, 1, 20), sl("mid", "Midtone contrast", -100, 100, 1, 0)] });
   AUI.addMenu("Image", [["Shadows / highlights…", "", function () { AUI.open("shadowsHighlights"); }, has]], "Auto tone");
