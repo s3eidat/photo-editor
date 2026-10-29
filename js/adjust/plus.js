@@ -25,7 +25,7 @@
   AUI.adj("levelsPlus", { t: "Levels", ui: function (el, st) {
     var p = st.p, ch = "rgb", rs = [], histBox = h("div"), algo = "color";
     ["rgb", "r", "g", "b"].forEach(function (c) { p[c] = [0, 1, 255, 0, 255]; });
-    function hist() { histBox.textContent = ""; histBox.appendChild(K().histCanvas(st.src, ch === "rgb" ? "l" : ch, 256, 70)); }
+    function hist() { histBox.textContent = ""; histBox.appendChild(K().histCanvas((st.src || st.t.img), ch === "rgb" ? "l" : ch, 256, 70)); }
     function sync() { rs.forEach(function (r, i) { r._set(p[ch][r._i]); }); }
     el.appendChild(K().select("", LV_PRESETS.map(function (x) { return [x[0], x[1]]; }), "", function (v) {
       var pr = LV_PRESETS.filter(function (x) { return x[0] === v; })[0]; if (!pr || !pr[2]) return;
@@ -57,7 +57,7 @@
       pickBtn("Grey point", "Click something that should be neutral grey", function (pt) { var c = sample(st, pt); if (c) setPoint("grey", c); }),
       pickBtn("White point", "Click something that should be white", function (pt) { var c = sample(st, pt); if (c) setPoint("white", c); })]));
     el.appendChild(h("div", { "class": "row pe-arow" }, [K().select("Auto", [["color", "Colour (neutral midtones)"], ["tone", "Each channel"], ["contrast", "All channels together"]], algo, function (v) { algo = v; }),
-      K().btn("Auto", function () { var o = A.levelsAuto(st.src, null, algo, 0.1); ["rgb", "r", "g", "b"].forEach(function (c) { p[c] = o[c]; }); sync(); st.schedule(); }, "ghost")]));
+      K().btn("Auto", function () { var o = A.levelsAuto((st.src || st.t.img), null, algo, 0.1); ["rgb", "r", "g", "b"].forEach(function (c) { p[c] = o[c]; }); sync(); st.schedule(); }, "ghost")]));
     hist();
   } });
 
@@ -74,7 +74,7 @@
       ["rgb", "r", "g", "b"].forEach(function (c) { p[c] = JSON.parse(JSON.stringify(pr[2][c] || [[0, 0], [255, 255]])); }); draw(); st.schedule();
     }));
     el.appendChild(box);
-    function draw() { box.textContent = ""; ed = AUI.curveEditor(box, p, function () { st.schedule(); }, st.src); }
+    function draw() { box.textContent = ""; ed = AUI.curveEditor(box, p, function () { st.schedule(); }, (st.src || st.t.img)); }
     function setPts(kind, c) {
       ["r", "g", "b"].forEach(function (k, i) {
         var v = Math.round(c[i]), pts = p[k].filter(function (q) { return kind === "black" ? q[0] > v : kind === "white" ? q[0] < v : Math.abs(q[0] - v) > 3; });
@@ -137,7 +137,7 @@
     BWK.forEach(function (k) { p[k] = PIX.BW_DEFAULT[k]; }); p.tint = false; p.tintHue = 35; p.tintSat = 25;
     function set(o) { BWK.forEach(function (k) { if (o[k] != null) { p[k] = o[k]; rs[k]._set(o[k]); } }); st.schedule(); }
     el.appendChild(h("div", { "class": "row pe-arow" }, [K().select("", BW_PRESETS.map(function (x) { return [x[0], x[1]]; }), "", function (v) { var pr = BW_PRESETS.filter(function (x) { return x[0] === v; })[0]; if (pr && pr[2]) set(pr[2]); }),
-      K().btn("Auto", function () { set(A.bwAuto(st.src, null)); }, "ghost", null, "Weights that keep the image's colours apart in grey")]));
+      K().btn("Auto", function () { set(A.bwAuto((st.src || st.t.img), null)); }, "ghost", null, "Weights that keep the image's colours apart in grey")]));
     BWK.forEach(function (k) { rs[k] = K().range(k.charAt(0).toUpperCase() + k.slice(1), p[k], -200, 300, 1, function (v) { p[k] = v; st.schedule(); }, AUI.pc); el.appendChild(rs[k]); });
     el.appendChild(K().check("Tint", false, function (v) { p.tint = v; st.schedule(); }));
     el.appendChild(K().range("Tint hue", 35, 0, 360, 1, function (v) { p.tintHue = v; st.schedule(); }, AUI.deg));
@@ -148,7 +148,7 @@
   AUI.adj("brightnessPlus", { t: "Brightness / Contrast", c: [AUI.sl("b", "Brightness", -150, 150, 1, 0), AUI.sl("c", "Contrast", -50, 100, 1, 0)], chk: [["legacy", "Use the classic (linear) maths", false]],
     ui: function (el, st) {
       el.appendChild(K().btn("Auto", function () {
-        var Hh = A.hists(st.src, null).l, tot = 0, acc = 0, med = 128, i; for (i = 0; i < 256; i++) tot += Hh[i];
+        var Hh = A.hists((st.src || st.t.img), null).l, tot = 0, acc = 0, med = 128, i; for (i = 0; i < 256; i++) tot += Hh[i];
         for (i = 0; i < 256; i++) { acc += Hh[i]; if (acc >= tot / 2) { med = i; break; } }
         var lo = A.clipLo(Hh, 0.005), hi = A.clipHi(Hh, 0.005);
         st.p.b = Math.round(A.clamp((118 - med) * 1.1, -100, 100)); st.p.c = Math.round(A.clamp((210 - (hi - lo)) / 2.5, -30, 60)); st.p.legacy = false;

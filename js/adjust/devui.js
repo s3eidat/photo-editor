@@ -89,7 +89,7 @@
           }, wbB);
         }, "ghost", null, "Click something that should be neutral grey or white");
         wbB.setAttribute("aria-pressed", "false"); wbB.classList.add("pe-apick");
-        var autoB = K.btn("Auto", function () { Object.assign(p, PIX.A.devAuto(st.src, null)); build(); st.schedule(); }, "ghost", null, "Suggested exposure, contrast, highlights, shadows, whites and blacks");
+        var autoB = K.btn("Auto", function () { Object.assign(p, PIX.A.devAuto((st.src || st.t.img), null)); build(); st.schedule(); }, "ghost", null, "Suggested exposure, contrast, highlights, shadows, whites and blacks");
         b.appendChild(h("div", { "class": "row pe-arow" }, [wbB, autoB]));
         b.appendChild(group("White balance")); rng(b, "Temperature", "temp", -100, 100, 1); rng(b, "Tint", "tint", -100, 100, 1);
         b.appendChild(group("Tone")); rng(b, "Exposure", "exposure", -5, 5, 0.05, function (v) { return (v > 0 ? "+" : "") + v.toFixed(2) + " EV"; });
@@ -101,7 +101,7 @@
         b.appendChild(group("Regions"));
         [["Highlights", "tcHigh"], ["Lights", "tcLight"], ["Darks", "tcDark"], ["Shadows", "tcShadow"]].forEach(function (a) { rng(b, a[0], a[1], -100, 100, 1); });
         b.appendChild(group("Point curve"));
-        AUI.curveEditor(b, p.curve, function () { st.schedule(); }, st.src);
+        AUI.curveEditor(b, p.curve, function () { st.schedule(); }, (st.src || st.t.img));
       });
       sec("mixer", "Colour mixer", function (b) {
         var which = st.devMix || "hslH", box = h("div", { "class": "stack pe-asecin" });
