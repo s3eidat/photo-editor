@@ -51,3 +51,12 @@ Worker jobs lock the canvas and are dropped if the document changed; layer growt
 | Paint library backup | done | Edit › Export / Import paint library: one .s3paint file (zip + JSON + PNG) with your presets and their tips, patterns, gradients and swatches; every field and image is checked and clamped on import |
 | Import .pat patterns | done | Patterns › Import takes images or .pat files (grey, indexed, RGB; raw or PackBits; 16-bit read as 8); parsed in the worker with length checks and a 120 MP budget |
 | Import .grd gradients | done | Gradients › Import .grd: version 5 descriptor files; custom (RGB / HSB / grey / CMYK / Lab stops, foreground / background stops, midpoints, opacity stops) and noise gradients; older version 3 files are refused with a message |
+
+## Merging with the other lanes
+Shared-file hook lines (all marked `lane:paint`):
+- `index.html`: `<link rel="stylesheet" href="js/paint/paint.css">` in the head; the `js/paint/*.js` script tags after `js/ui.js`, before `app.js` (keep this order inside the block).
+- `js/ui.js`: `ED.uiTOOLS = TOOLS; ED.uiCYCLE = CYCLE;`, `if (ED.paintOpts) items = ED.paintOpts(t, items) || items;` in `buildOpts`, `ED.uiMENUS = MENUS; ED.uiSHORTCUTS = SHORTCUTS;`, `ED.ui.kit = {…}` after `ED.ui = {…}`.
+- `js/editor.js`: `(ED.ovlHooks || []).forEach(…)` at the end of `paintOvl`, `if (ED.cursorHook) …` at the top of `cursorFor`.
+- `app.js`: untouched (the paint checks wrap `S3_SELFTEST`).
+
+A trial merge of all five lane branches (2026-10-29) only conflicted on these hook lines next to other lanes' hook lines; keeping both sides gives a page with no console errors and `S3_SELFTEST()` true. The selection lane's locked transparency (`lockA`) works with the paint tools (enforced at `PE.editPixels` / `PE.tileEntry`, previewed source-atop). Paint tool keys B, E, S, J, O, R, Y don't collide with the other lanes' keys (vector uses P, A).
