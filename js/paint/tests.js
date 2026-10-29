@@ -319,3 +319,20 @@
     o.noise = false;
   });
 })();
+(function () {
+  "use strict";
+  var PE = window.PE, ED = PE.ed, PP = PE.paint;
+  PP.test("history brush: transparency and masks", function (ok) {
+    var s = PP.scratch(60, 30, "#ffffff"); PE.cx2(s.L.canvas).clearRect(0, 0, 30, 30); PE.touch(s.L.canvas);       // left half transparent at the start
+    s.d.fg = "#00ff00"; Object.assign(ED.o.brush, PP.BDEF, { size: 60, hard: 1, op: 1, flow: 1, sizeC: "off" }); PP.drive("brush", [{ x: 30, y: 15 }]);
+    PP.historySource(0); Object.assign(ED.o.hbrush, PP.BDEF, { size: 8, hard: 1, op: 1, flow: 1, sizeC: "off" });
+    PP.drive("hbrush", [{ x: 10, y: 15 }]);
+    ok(PP.px(s.L.canvas, 10, 15)[3] === 0, "paints transparency back");
+    s.L.mask = PE.whiteMask(s.d); ED.meta("mask", function () {}); ED.maskEdit = true; s.d.fg = "#000000";
+    PP.drive("brush", [{ x: 45, y: 15 }]);
+    ok(PP.px(s.L.mask.canvas, 45, 15)[3] === 0, "mask painted black");
+    PP.historySource(ED.hist.pos - 1); PP.drive("hbrush", [{ x: 45, y: 15 }]);
+    ok(PP.px(s.L.mask.canvas, 45, 15)[3] === 255, "history brush restores the mask");
+    ED.maskEdit = false;
+  });
+})();

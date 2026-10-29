@@ -37,7 +37,7 @@ Known-answer checks: `js/paint/tests.js` (run by `S3_SELFTEST` after the core ch
 | Move with fill (content-aware-style move) | done | J group; move / extend; the hole is filled from the surroundings (never from the drop area), the object is healed into its new place, the selection follows; one undo step |
 | Patterns panel | done | Paint panel › Patterns: 12 built-in tiles drawn in code, define from selection (Edit › Define pattern…), import an image, Alt+click deletes; Edit › Fill with pattern… (scale, opacity, blend mode) |
 | Pattern stamp | done | S group with the clone stamp; aligned / not aligned, scale; full brush dynamics |
-| History brush | done | Y; source = opening state or any step (options bar, or Alt+click a History row; the source row is marked); eraser gets "Erase to history"; layer pixels only (not masks), painting back transparency is not done |
+| History brush | done | Y; source = opening state or any step (options bar, or Alt+click a History row; the source row is marked); eraser gets "Erase to history"; works on layers and masks and paints transparency back |
 | Colour replacement | done | B group; modes colour / hue / saturation / luminosity; sampling continuous / once / background colour; contiguous / discontiguous; tolerance |
 | Mixer brush | done | B group; reservoir (foreground or Alt+click the canvas), wet / load / mix, presets (dry … very wet), load / clean after each stroke; picked-up paint travels with the brush; layer pixels only |
 | Performance on big images | done | strokes preview straight into the layer one changed rectangle at a time (no full-layer copy per frame); originals read lazily in 128 px tiles for undo; stroke buffers pooled. 4000 × 3000: stroke start 1–5 ms after the first, retouch tools ~15 ms |

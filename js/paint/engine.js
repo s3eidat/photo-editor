@@ -283,7 +283,7 @@
     }
     dc.globalCompositeOperation = "source-in";
     var fill = st.spec.fill;
-    if (fill === "clone" || fill === "history") drawSource(dc, st, ix, iy);
+    if (fill === "clone") drawSource(dc, st, ix, iy);
     else if (fill === "pattern" && st.pat) { st.pat.setTransform(new DOMMatrix([st.patK, 0, 0, st.patK, -(ix + st.ox - st.patX), -(iy + st.oy - st.patY)])); dc.fillStyle = st.pat; dc.fillRect(0, 0, s, s); }
     else { dc.fillStyle = PP.rgba(col, 1); dc.fillRect(0, 0, s, s); }
     if (st.tex && st.o.texEach) { dc.globalCompositeOperation = "destination-out"; dc.globalAlpha = st.tex.depth; st.tex.pat.setTransform(new DOMMatrix([st.tex.k, 0, 0, st.tex.k, -(ix + st.ox), -(iy + st.oy)])); dc.fillStyle = st.tex.pat; dc.fillRect(0, 0, s, s); dc.globalAlpha = 1; }
@@ -300,7 +300,7 @@
   }
   function stamp(st, x, y, d, ang, rnd, flip, col, a) {
     var c = st.bctx, b;
-    if (!st.tip && !st.pencil && !(st.tex && st.o.texEach) && (st.spec.fill === "color" || st.spec.fill === "erase")) {
+    if (!st.tip && !st.pencil && !(st.tex && st.o.texEach) && (st.spec.fill === "color" || st.spec.fill === "erase" || st.spec.fill === "history")) {
       var r = Math.max(0.5, d / 2);
       c.save(); c.globalAlpha = a; c.translate(x, y); if (ang) c.rotate(ang * RAD); if (rnd < 1) c.scale(1, rnd);
       ED.tipFill(c, 0, 0, r, st.o.hard, PE.toHex(col[0], col[1], col[2])); c.restore();
@@ -376,7 +376,20 @@
     x.putImageData(d, 0, 0); return c;
   }
   // On a mask, sourced fills (clone, pattern) move each pixel towards the source's grey: m' = m (1 - a) + g a.
-  function maskSourced(st) { return st.mask && (st.spec.fill === "clone" || st.spec.fill === "pattern" || st.spec.fill === "history"); }
+  function maskSourced(st) { return st.mask && (st.spec.fill === "clone" || st.spec.fill === "pattern"); }
+  // History fill: the stroke's coverage moves each pixel from what it is towards the source state, colour and
+  // transparency alike (premultiplied), on layers and masks.
+  function historyRect(st, R) {
+    var I = strokeImage(st, R), t = PE.mk(R.w, R.h), tx = PE.cx2(t); tx.drawImage(I.img, I.sx || 0, I.sy || 0, R.w, R.h, 0, 0, R.w, R.h);
+    var b = tx.getImageData(0, 0, R.w, R.h).data, sc = PE.mk(R.w, R.h), sx = PE.cx2(sc); drawSource(sx, st, R.x, R.y);
+    var s = sx.getImageData(0, 0, R.w, R.h).data, o = st.orig.data, out = new ImageData(R.w, R.h), od = out.data, op = PE.clamp(st.o.op, 0, 1), W = st.w;
+    for (var y = 0; y < R.h; y++) for (var x = 0; x < R.w; x++) {
+      var j = (y * R.w + x) * 4, q = ((y + R.y) * W + x + R.x) * 4, a = b[j + 3] / 255 * op, oa = o[q + 3] / 255, sa = s[j + 3] / 255, ra = oa + (sa - oa) * a;
+      for (var c = 0; c < 3; c++) od[j + c] = ra > 0 ? (o[q + c] * oa + (s[j + c] * sa - o[q + c] * oa) * a) / ra : 0;
+      od[j + 3] = ra * 255;
+    }
+    st.cx.putImageData(out, R.x, R.y);
+  }
   function maskSourceRect(st, R) {
     var I = strokeImage(st, R), t = PE.mk(R.w, R.h), tx = PE.cx2(t); tx.drawImage(I.img, I.sx || 0, I.sy || 0, R.w, R.h, 0, 0, R.w, R.h);
     var b = tx.getImageData(0, 0, R.w, R.h).data, o = st.orig.data, out = new ImageData(R.w, R.h), od = out.data, op = PE.clamp(st.o.op, 0, 1), W = st.w;
@@ -444,6 +457,7 @@
     var R = clipR(st, st.dirty); st.dirty = null; if (!R) return;
     ensureTiles(st, R);
     if (maskSourced(st)) { maskSourceRect(st, R); PE.touch(st.cv); return; }
+    if (st.spec.fill === "history") { historyRect(st, R); PE.touch(st.cv); return; }
     st.cx.putImageData(st.orig, 0, 0, R.x, R.y, R.w, R.h);
     applyStroke(st.cx, st, R); PE.touch(st.cv);
   }

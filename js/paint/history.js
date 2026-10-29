@@ -28,7 +28,6 @@
     return out;
   };
   function begin(st) {
-    if (st.mask) { S3.toast("The history brush paints layer pixels: click the layer thumbnail (not the mask) first", "error"); return false; }
     var n = srcIndex(), s = PP.stateOf(st.L, st.mask, n);
     if (!s) { S3.toast("This layer did not exist at the history brush's source step. Pick another step.", "error"); return false; }
     st.src = s.canvas; st.srcOff = { x: st.ox - s.x, y: st.oy - s.y };
