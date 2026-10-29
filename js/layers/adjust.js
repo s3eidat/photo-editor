@@ -60,8 +60,15 @@
   }
 
   // ---------- rendering ----------
+  // Masks made white over the whole document (and not painted since) change nothing: skip reading them.
+  var WHITE = new WeakMap(), white0 = PE.whiteMask;
+  PE.whiteMask = function (doc) { var m = white0.apply(this, arguments); WHITE.set(m.canvas, PE.ver(m.canvas)); return m; };
+  function opaque(mask, doc) {
+    return WHITE.get(mask.canvas) === PE.ver(mask.canvas) && mask.x <= 0 && mask.y <= 0 && mask.x + mask.canvas.width >= doc.w && mask.y + mask.canvas.height >= doc.h;
+  }
   function weights(R, L, reg) {      // mask x opacity at device resolution, or null when it is all 255
     var mask = L.mask && L.maskOn ? (R.opts.maskOver && R.opts.maskOver[L.id]) || L.mask : null, op = PE.clamp(L.opacity, 0, 1), n = reg.w * reg.h;
+    if (mask && opaque(mask, R.doc)) mask = null;
     if (!mask && op >= 1) return null;
     var w = new Uint8Array(n);
     if (!mask) { w.fill(Math.round(op * 255)); return w; }

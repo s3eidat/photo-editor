@@ -39,7 +39,7 @@
 
   // ---------- canvases ----------
   // Canvases read back with getImageData are created CPU-backed (willReadFrequently): GPU readback is very slow.
-  var POOL = {};
+  var POOL = {}, BIG = 4e6;
   function pooled(key, w, h, gpu) {
     var c = POOL[key + (gpu ? "@g" : "")];
     if (!c) { c = POOL[key + (gpu ? "@g" : "")] = PE.mk(w, h); if (!gpu) c.getContext("2d", { willReadFrequently: true }); }
@@ -102,6 +102,7 @@
     R.pfx = nesting ? "n" + nesting + "-" : "";
     nesting++;
     try { run1(R, ctx, list); } finally { nesting--; }
+    if (!nesting && R.region.w * R.region.h > BIG) Object.keys(POOL).forEach(function (k) { var c = POOL[k]; if (c.width * c.height > BIG) { c.width = 1; c.height = 1; } });   // export-size buffers: give the memory back
   }
   function run1(R, ctx, list) {
     ctx.save();
@@ -132,7 +133,7 @@
     var k = -1, i;
     for (i = 0; i < list.length; i++) if (needsPixels(list[i], R) || (list[i + 1] && list[i + 1].clip)) k = i;
     while (k >= 0 && k + 1 < list.length && list[k + 1].clip) k++;
-    if (k < 0 || list !== R.tree.roots || R.pfx) { renderList(R, root, list); return; }
+    if (k < 0 || list !== R.tree.roots || R.pfx || R.region.w * R.region.h > BIG) { renderList(R, root, list); return; }   // (exports: no cache)
     var M = R.M, rg = R.region, key = [M.a, M.b, M.c, M.d, M.e, M.f, rg.x, rg.y, rg.w, rg.h, R.doc.w, R.doc.h, R.smooth].join(",") + "#" + list.slice(0, k + 1).map(function (L) { return sig(L, R); }).join("\n");
     if (CACHE.key === key && CACHE.c) root.c.drawImage(CACHE.c, 0, 0);
     else {
