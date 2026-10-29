@@ -9,6 +9,11 @@
 | TIFF export | done | Own encoder (`js/files/encode.js`, in a worker): 8-bit RGB/RGBA (unassociated alpha), none / LZW / Adobe-deflate with horizontal predictor, resolution, author/copyright tags. Flattened (layered TIFF is not written). |
 | TIFF open (extra) | done | Own baseline reader: strips or tiles, none / LZW / ZIP / PackBits, predictor, 1/4/8/16-bit grey, palette, RGB(A), associated alpha; resolution kept. CMYK, JPEG-in-TIFF, planar and float TIFFs give a clear message. |
 | BMP export (extra) | done | 24-bit, or 32-bit with alpha (V4 header). |
+| Rulers | done | View › Rulers (Ctrl+R). Top and left rulers in px, in, cm, mm, pt, pc or % (click the corner square to change; uses the document resolution, 72 ppi if none), follow zoom and pan, show the pointer position. |
+| Guides | done | Drag from a ruler (Alt flips the direction, Shift snaps to ruler ticks); move with the Move tool, drag back onto the ruler to delete; View › New guide…, New guide layout… (columns, rows, gutters, margins, live preview), Clear guides, Lock guides (Ctrl+Alt+;), show/hide (Ctrl+;). Undoable, saved in projects and PSD files, read from PSD files. |
+| Grid | done | View › Grid (Ctrl+'), Guides & grid settings… (spacing in any unit, subdivisions, grid and guide colours). |
+| Snapping | done | View › Snap (Ctrl+Shift+;) and Snap to guides / grid / layers / document edges. Moving a layer or selected pixels snaps its edges and centre; marquee, crop, shape, gradient, text placement and transform handles snap the pointer; dragged guides snap to the grid and layer edges. Hold Ctrl while dragging to skip snapping. |
+| Smart guides | done | View › Smart guides: while moving, magenta lines show when the layer's edges or centre line up with another layer or the canvas centre (and it snaps there). |
 
 Not supported (by the vendored parser, ag-psd 31.0.3): CMYK, Lab, multichannel and duotone colour modes (a clear message asks to convert to RGB first), PSB large-document files. Layer styles and adjustment layers are reported as left out until the selection/adjust lanes add them, then they get mapped.
 
@@ -16,6 +21,8 @@ Not supported (by the vendored parser, ag-psd 31.0.3): CMYK, Lab, multichannel a
 All marked `// lane:files` (or `<!-- lane:files -->`); where the selection lane already added the same hook the line is identical, so merges are clean.
 - `index.html`: `js/files/files.css` stylesheet, script tags for `js/files/*` (and later `js/workspace/*`), before `app.js`; `.psd` in the open dialog's accept list (other extensions are added at run time).
 - `js/ui.js`: `ED.ui.openExt(files, asLayers)` called from `openFiles` (extra file formats); `ED.ui.exportExt(selOnly)` at the top of `exportDialog` (the Export-as dialog replaces the old one); same `ED.ui.MENUS` / `ED.ui.w` / `ED.ui.keys` line as the selection lane.
+- `js/editor.js`: `ED.ovlExt` (overlay painters), `ED.downExt` (pointer-down before tools: guides…), `ED.snapPt` (pointer snapping), `ED.snapMove` (move snapping), `ED.cursorExt`.
+- `js/core.js`: `PE.docSaveExt` / `PE.docOpenExt` (document-level fields such as guides in `project.json`, validated on open).
 - Self-test: `PE.files.tests` (array of `async (ok, near, px, solid) => {}`) run after `S3_SELFTEST` by wrapping it; no change to `app.js`.
 
 ## Third-party code

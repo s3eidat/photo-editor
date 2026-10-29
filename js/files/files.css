@@ -23,3 +23,13 @@
   .fx-exp { grid-template-columns: 1fr; }
   .fx-prev { height: 240px; }
 }
+
+/* rulers */
+.ws-ruler, .ws-corner { position: absolute; z-index: 1; display: block; }
+.pe-stage canvas.ws-ruler { pointer-events: auto; }
+.ws-ruler[hidden], .ws-corner[hidden] { display: none; }
+.ws-rx { left: 20px; right: 0; top: 0; height: 20px; width: calc(100% - 20px); cursor: s-resize; }
+.ws-ry { top: 20px; bottom: 0; left: 0; width: 20px; height: calc(100% - 20px); cursor: e-resize; }
+.ws-corner { left: 0; top: 0; width: 20px; height: 20px; padding: 0; border: 0; border-right: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong);
+  background: var(--surface-2); color: var(--text-3); font: 600 8.5px var(--mono); cursor: pointer; overflow: hidden; }
+.ws-corner:hover { color: var(--accent); }

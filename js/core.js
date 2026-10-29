@@ -523,6 +523,7 @@
       if (L.mask) { l.mask = { src: "masks/" + i + ".png", x: L.mask.x, y: L.mask.y }; jobs.push(pngOf(L.mask.canvas).then(function (e) { files.push({ name: l.mask.src, data: e.bytes, crc: e.crc }); })); }
       meta.layers.push(l);
     });
+    if (PE.docSaveExt) PE.docSaveExt(doc, meta);   // lane:files (guides, resolution, notes… in project.json)
     return Promise.all(jobs).then(function () {
       files.sort(function (a, b) { return a.name < b.name ? -1 : 1; });
       return [{ name: "project.json", data: JSON.stringify(meta) }].concat(files);
@@ -537,6 +538,7 @@
     return zipRead(u8, byName["project.json"], 4e6).then(function (jb) {
       var meta = parseProjectJson(new TextDecoder().decode(jb)), doc = newDoc(meta.w, meta.h, meta.name);
       doc.fg = meta.fg; doc.bg = meta.bg;
+      if (PE.docOpenExt) PE.docOpenExt(new TextDecoder().decode(jb), doc);   // lane:files (validated there)
       function img(src) {
         var e = byName[src]; if (!e) throw new Error("The project is missing " + src);
         return zipRead(u8, e, 400e6).then(function (b) {
