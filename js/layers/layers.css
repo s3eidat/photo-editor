@@ -75,3 +75,7 @@
 .pe-lfilter .pe-lfk { flex: 0 1 110px; min-width: 0; height: 30px; font-size: 12.5px; }
 #lFilter.on { color: var(--accent); }
 .pe-menu.pe-ctx { position: fixed; z-index: 80; min-width: 220px; right: auto; max-height: calc(100vh - 16px); }
+.pe-fxpre { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.pe-fxpre .select { flex: 1 1 140px; min-width: 0; }
+.pe-fxpre .input { flex: 1 1 100%; }
+.pe-fxpre .input[hidden] { display: none; }

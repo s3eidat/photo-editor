@@ -147,6 +147,43 @@
   SX.styled = styled;
   SX.prepExt.push(function (R, L, P, o) { return o.noFx || !SX.fxOn(L) ? P : styled(L, P, !!(R.opts.over && R.opts.over[L.id] && !R.opts.over[L.id].m)); });
 
+  // ---------- presets: drawn here, plus the user's own (kept in this browser) ----------
+  var PRESETS = [
+    ["Soft shadow", { dropShadow: { on: true, op: 0.35, dist: 6, size: 18 } }],
+    ["Hard shadow", { dropShadow: { on: true, op: 0.8, dist: 6, size: 0 } }],
+    ["Outline", { stroke: { on: true, size: 4, pos: "outside", color: "#000000" } }],
+    ["Sticker", { stroke: { on: true, size: 10, pos: "outside", color: "#ffffff" }, dropShadow: { on: true, op: 0.35, dist: 4, size: 12 } }],
+    ["Neon glow", { outerGlow: { on: true, color: "#39ff88", op: 0.9, size: 22, spread: 10 }, innerGlow: { on: true, color: "#ffffff", op: 0.8, size: 4 } }],
+    ["Embossed", { bevel: { on: true, style: "inner", size: 6, soften: 2, depth: 150 }, dropShadow: { on: true, op: 0.4, dist: 3, size: 6 } }],
+    ["Letterpress", { innerShadow: { on: true, op: 0.6, dist: 2, size: 2 }, dropShadow: { on: true, color: "#ffffff", blend: "screen", op: 0.5, dist: 1, size: 0 } }],
+    ["Gold", { gradOverlay: { on: true, from: "#a8730f", to: "#ffe08a", angle: 90 }, bevel: { on: true, style: "inner", size: 4, soften: 1 }, stroke: { on: true, size: 2, pos: "outside", color: "#5a3a06" } }]
+  ];
+  function userPresets() { var v = S3.store("pe-style-presets"); return Array.isArray(v) ? v.filter(function (p) { return p && typeof p.name === "string" && p.fx && typeof p.fx === "object"; }).slice(0, 40) : []; }
+  function presetFx(fx) { var o = { on: true }; ORDER.forEach(function (k) { if (fx[k]) o[k] = Object.assign({}, DEF[k], cleanEffect(k, fx[k]) || {}, { on: fx[k].on !== false }); }); return o; }
+  SX.stylePresets = function () { return PRESETS.map(function (p) { return p[0]; }).concat(userPresets().map(function (p) { return p.name; })); };
+  SX.applyStylePreset = function (L, name) {
+    var b = PRESETS.filter(function (p) { return p[0] === name; })[0], u = userPresets().filter(function (p) { return p.name === name; })[0], fx = b ? b[1] : u ? u.fx : null;
+    if (!fx) return false; L.fx = presetFx(fx); return true;
+  };
+  function presetRow(L, refresh) {
+    var w = ED.ui.w, mine = userPresets(), sel = h("select", { "class": "select", "aria-label": "Style preset" });
+    sel.appendChild(h("option", { value: "", text: "Presets…" }));
+    var g1 = h("optgroup", { label: "Built in" }); PRESETS.forEach(function (p) { g1.appendChild(h("option", { value: "b:" + p[0], text: p[0] })); }); sel.appendChild(g1);
+    if (mine.length) { var g2 = h("optgroup", { label: "Yours" }); mine.forEach(function (p) { g2.appendChild(h("option", { value: "u:" + p.name, text: p.name })); }); sel.appendChild(g2); }
+    sel.addEventListener("change", function () { if (!sel.value) return; SX.applyStylePreset(L, sel.value.slice(2)); refresh(); });
+    var name = h("input", { "class": "input", maxlength: "40", placeholder: "Preset name", "aria-label": "Preset name", dir: "auto", hidden: true });
+    function save() {
+      var n = name.value.trim(); if (!n) { name.focus(); return; }
+      var fx = PE.clone(L.fx || {}), list = userPresets().filter(function (p) { return p.name !== n; }); delete fx.on;
+      if (!ORDER.some(function (k) { return fx[k] && fx[k].on; })) { S3.toast("Turn on at least one effect first", "error"); return; }
+      list.unshift({ name: n, fx: fx }); S3.store("pe-style-presets", list.slice(0, 40)); S3.toast("Saved as a preset in this browser"); refresh();
+    }
+    name.addEventListener("keydown", function (e) { e.stopPropagation(); if (e.key === "Enter") { e.preventDefault(); save(); } if (e.key === "Escape") { e.preventDefault(); refresh(); } });
+    var saveB = w.btn("Save…", function () { if (name.hidden) { name.hidden = false; name.focus(); saveB.textContent = "Save"; } else save(); }, "ghost", null, "Save the current style as a preset");
+    var del = w.btn("Delete", function () { var v = sel.value; if (v.indexOf("u:") !== 0) { S3.toast("Pick one of your presets to delete", "error"); return; } S3.store("pe-style-presets", userPresets().filter(function (p) { return p.name !== v.slice(2); })); refresh(); }, "ghost", null, "Delete the picked preset of yours");
+    return h("div", { "class": "pe-fxpre" }, [sel, saveB, mine.length ? del : null, name]);
+  }
+
   // ---------- the style panel (floating, live) ----------
   var panel = null;
   function blendSel(label, val, onSet) { return ED.ui.w.select(label, PIX.BLEND_LIST.filter(function (m) { return NAT[m[0]]; }), val, onSet); }
@@ -209,6 +246,7 @@
     function changed() { ED.render(); }
     function build() {
       body.textContent = "";
+      body.appendChild(presetRow(L, function () { changed(); build(); }));
       body.appendChild(ED.ui.w.check("Show effects", L.fx.on !== false, function (v) { L.fx.on = v; changed(); }));
       if (SX.blendIfUI && open === "blendIf") SX.blendIfUI(body, L, changed);
       else if (SX.blendIfUI) body.appendChild(h("div", { "class": "pe-fxhead" }, [h("span", { "aria-hidden": "true", "class": "pe-fxdot" }), h("button", { type: "button", "class": "pe-fxname", text: "Blend if (brightness)" + (L.blendIf ? " ●" : ""), onclick: function () { open = "blendIf"; build(); } })]));
@@ -314,6 +352,8 @@
     ok(lo >= 0.5 && lo < 0.8 && hi <= 1 && hi > 0.9, "style noise breaks the effect up within its amount");
     var g = SX.fxGloss({ hi: Float32Array.from([1, 0, 0]), sh: Float32Array.from([0, 1, 0]) }, "coneInv");
     ok(g.hi[0] === 1 && g.hi[1] === 1 && g.sh[1] === 0, "gloss contour reshapes bevel shading");
+    var a = PE.rasterFromCanvas(SX.solid(4, 4, "#ff0000"), "a"); SX.scratch(4, 4, [a]);
+    ok(SX.applyStylePreset(a, "Sticker") && a.fx.stroke.on && a.fx.stroke.color === "#ffffff" && a.fx.dropShadow.on && a.fx.dropShadow.blend === "multiply" && !a.fx.bevel, "style presets fill in a full style");
   });
   SX.tests.push(async function (ok, near) {
     var a = new Float32Array(20 * 20); for (var y = 5; y < 15; y++) for (var x = 5; x < 15; x++) a[y * 20 + x] = 1;
