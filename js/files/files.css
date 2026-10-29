@@ -91,3 +91,20 @@
   #ws-print img { display: block; }
 }
 @media (max-width: 860px) { .fx-print { grid-template-columns: 1fr; } }
+
+/* actions + batch */
+.ws-alist { display: flex; flex-direction: column; gap: 1px; max-height: 260px; overflow-y: auto; }
+.ws-arow { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 7px; cursor: pointer; font-size: 12.5px; }
+.ws-arow:hover { background: var(--surface-2); }
+.ws-arow.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.ws-arow.rec .ws-aname::before { content: "● "; color: #e5484d; }
+.ws-aname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-acaret { width: 10px; color: var(--text-3); }
+.ws-astep { display: flex; align-items: center; gap: 6px; padding: 3px 6px 3px 22px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+.ws-astep:hover { background: var(--surface-2); }
+.ws-astep.on { background: var(--surface-3); }
+.ws-abar { display: flex; flex-wrap: wrap; gap: 2px; align-items: center; }
+.ws-abtn { min-width: 30px; padding: 0 6px; font-size: 13px; }
+.ws-rec.on { color: #e5484d; }
+.ws-astatus { font-size: 11.5px; min-height: 15px; }
+.ws-bprog { width: 100%; accent-color: var(--accent); }
