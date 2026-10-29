@@ -274,6 +274,21 @@
   }
   PP.gradientEditor = editor;
 
+  // ---------- .grd import ----------
+  PP.importGrd = function (u8) { return PP.work("readGrd", [u8]).then(function (list) { var n = 0; list.forEach(function (g) { if (PP.addGradient(g)) n++; }); return n; }); };
+  var gfile = null;
+  function pickGrd() {
+    if (!gfile) {
+      gfile = h("input", { type: "file", accept: ".grd", hidden: true }); document.body.appendChild(gfile);
+      gfile.addEventListener("change", function () {
+        var f = gfile.files[0]; gfile.value = ""; if (!f) return;
+        if (f.size > 50e6) { S3.toast("That gradient file is too large", "error"); return; }
+        ED.working(f.arrayBuffer().then(function (ab) { return PP.importGrd(new Uint8Array(ab)); }), "Reading gradients…").then(function (n) { S3.toast("Imported " + n + " gradient" + (n === 1 ? "" : "s")); }).catch(function (e) { S3.toast(e.message, "error"); });
+      });
+    }
+    gfile.click();
+  }
+
   // ---------- Gradients tab ----------
   PP.panelTab("gradients", "Gradients", function (el) {
     var grid = h("div", { "class": "pp-ggrid" });
@@ -287,6 +302,6 @@
       grid.appendChild(b);
     });
     el.appendChild(grid);
-    el.appendChild(h("div", { "class": "pp-acts" }, [K.btn("Edit…", function () { if (ED.doc) ED.setTool("gradient"); editor(); }, "ghost")]));
+    el.appendChild(h("div", { "class": "pp-acts" }, [K.btn("Edit…", function () { if (ED.doc) ED.setTool("gradient"); editor(); }, "ghost"), K.btn("Import .grd", pickGrd, "ghost", null, "Import gradients from a .grd file")]));
   });
 })();

@@ -303,6 +303,76 @@
     return out;
   };
 
+  // ---------- .grd gradient files (version 5 descriptors) ----------
+  // Returns gradients in this editor's model: {name, kind: "solid", stops, alpha} or {name, kind: "noise", ...}.
+  PPX.readDescriptor = function (u8, start) {
+    var dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), p = start || 0, items = 0;
+    function need(n) { if (n < 0 || p + n > u8.length) throw new Error("This file is damaged or truncated"); }
+    function u32() { need(4); var v = dv.getUint32(p); p += 4; return v; }
+    function str4() { need(4); var s = String.fromCharCode(u8[p], u8[p + 1], u8[p + 2], u8[p + 3]); p += 4; return s; }
+    function id() { var n = u32(); if (!n) return str4(); if (n > 512) throw new Error("This file is damaged"); need(n); var s = ""; for (var i = 0; i < n; i++) s += String.fromCharCode(u8[p + i]); p += n; return s; }
+    function ustr() { var n = u32(); if (n > 4096) throw new Error("This file is damaged"); need(n * 2); var s = ""; for (var i = 0; i < n; i++) { var c = dv.getUint16(p + i * 2); if (c) s += String.fromCharCode(c); } p += n * 2; return s; }
+    function value(type, depth) {
+      if (++items > 200000 || depth > 24) throw new Error("This file is too complex");
+      switch (type) {
+        case "Objc": case "GlbO": return desc(depth + 1);
+        case "VlLs": { var n = u32(), a = []; if (n > 100000) throw new Error("This file is damaged"); for (var i = 0; i < n; i++) a.push(value(str4(), depth + 1)); return a; }
+        case "doub": need(8); var d = dv.getFloat64(p); p += 8; return d;
+        case "UntF": { var unit = str4(); need(8); var v = dv.getFloat64(p); p += 8; return { unit: unit, v: v }; }
+        case "TEXT": return ustr();
+        case "enum": { var t = id(), e = id(); return { type: t, e: e }; }
+        case "long": need(4); var l = dv.getInt32(p); p += 4; return l;
+        case "comp": need(8); p += 8; return 0;
+        case "bool": need(1); return !!u8[p++];
+        case "type": case "GlbC": ustr(); return id();
+        case "alis": case "tdta": case "Pth ": { var len = u32(); need(len); p += len; return null; }
+        default: throw new Error("This file uses something this editor cannot read (" + type.replace(/[^\x20-\x7e]/g, "?") + ")");
+      }
+    }
+    function desc(depth) {
+      var o = { _name: ustr(), _class: id() }, n = u32();
+      if (n > 10000) throw new Error("This file is damaged");
+      for (var i = 0; i < n; i++) { var k = id(); o[k] = value(str4(), depth); }
+      return o;
+    }
+    var out = desc(0);
+    return { d: out, end: p };
+  };
+  function grdColor(c) {
+    if (!c || typeof c !== "object") return [0, 0, 0];
+    var num = function (v) { return typeof v === "number" ? v : v && typeof v.v === "number" ? v.v : 0; };
+    if (c._class === "HSBC") return PPX.hsb2rgb(num(c["H   "]), num(c.Strt), num(c.Brgh));
+    if (c._class === "Grsc") { var g = 255 * (1 - num(c["Gry "]) / 100); return [g, g, g]; }
+    if (c._class === "CMYC") return PPX.cmyk2rgb(num(c["Cyn "]), num(c.Mgnt), num(c["Ylw "]), num(c.Blck));
+    if (c._class === "LbCl") return PPX.lab2rgb(num(c.Lmnc), num(c["A   "]), num(c["B   "]));
+    return [num(c["Rd  "]), num(c["Grn "]), num(c["Bl  "])];
+  }
+  PPX.readGrd = function (u8) {
+    if (u8.length < 12 || String.fromCharCode(u8[0], u8[1], u8[2], u8[3]) !== "8BGR") throw new Error("Not a .grd gradient file");
+    var ver = (u8[4] << 8) | u8[5];
+    if (ver !== 5) throw new Error("Only version 5 .grd files can be read (this one is version " + ver + ")");
+    var r = PPX.readDescriptor(u8, 10), list = Array.isArray(r.d.GrdL) ? r.d.GrdL : [], out = [];
+    function hex(c) { return "#" + c.map(function (v) { return ("0" + c255(v).toString(16)).slice(-2); }).join(""); }
+    list.slice(0, 1000).forEach(function (item, n) {
+      var g = item && item.Grad ? item.Grad : item; if (!g || typeof g !== "object") return;
+      var name = typeof g["Nm  "] === "string" ? g["Nm  "].replace(/^\$\$\$\/[^=]*=/, "") : "Gradient " + (n + 1);
+      if (g.GrdF && g.GrdF.e === "ClNs") {
+        out.push({ name: name, kind: "noise", rough: clamp((+g.Smth || 2048) / 4096 * 100, 0, 100), seed: (+g.RndS >>> 0) || 1, restrict: !!g.VctC, transp: !!g.ShTr });
+        return;
+      }
+      var stops = (Array.isArray(g.Clrs) ? g.Clrs : []).slice(0, 64).map(function (s) {
+        var t = s && s.Type && s.Type.e, c = t === "FrgC" ? "fg" : t === "BckC" ? "bg" : hex(grdColor(s && s["Clr "]));
+        return { p: clamp((+(s && s.Lctn) || 0) / 4096, 0, 1), c: c, m: clamp((s && s.Mdpn != null ? +s.Mdpn : 50) / 100, 0, 1) };
+      });
+      var alpha = (Array.isArray(g.Trns) ? g.Trns : []).slice(0, 64).map(function (s) {
+        var o = s && s.Opct; return { p: clamp((+(s && s.Lctn) || 0) / 4096, 0, 1), a: clamp((o && typeof o.v === "number" ? o.v : 100) / 100, 0, 1), m: clamp((s && s.Mdpn != null ? +s.Mdpn : 50) / 100, 0, 1) };
+      });
+      if (stops.length) out.push({ name: name, kind: "solid", stops: stops, alpha: alpha.length ? alpha : [{ p: 0, a: 1 }, { p: 1, a: 1 }] });
+    });
+    if (!out.length) throw new Error("No gradients found in this file");
+    return out;
+  };
+
   // ---------- fill a hole from its surroundings (multi-scale PatchMatch + voting) ----------
   // img: {data RGBA, width, height}; hole: Uint8Array (>0 = fill; the value blends the result in);
   // opts: {patch (odd, 7), avoid: Uint8Array of pixels never to copy from, seed, quality 1..3}.
@@ -467,7 +537,7 @@
 
   // ---------- generic dispatcher (the worker calls this) ----------
   PPX.ping = function () { return true; };
-  PPX.ALLOWED = ["ping", "inpaint", "gradRender", "readAbr", "readPat"];
+  PPX.ALLOWED = ["ping", "inpaint", "gradRender", "readAbr", "readPat", "readGrd"];
   PPX.call = function (fn, args) {
     if (PPX.ALLOWED.indexOf(fn) < 0 || typeof PPX[fn] !== "function") throw new Error("Not allowed: " + fn);
     return PPX[fn].apply(null, args || []);

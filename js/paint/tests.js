@@ -412,3 +412,37 @@
     var threw = false; try { PPX.readPat(pat().slice(0, 50)); } catch (e) { threw = true; } ok(threw, "rejects a truncated file");
   });
 })();
+(function () {
+  "use strict";
+  var PPX = window.PPX, PP = window.PE.paint;
+  // writes a version-5 .grd: one custom gradient (RGB stop + foreground stop, two opacity stops) and one noise gradient
+  function grd() {
+    var b = [];
+    function u8(v) { b.push(v & 255); } function u16(v) { u8(v >> 8); u8(v); } function u32(v) { u8(v >>> 24); u8(v >>> 16); u8(v >>> 8); u8(v); }
+    function f64(v) { var d = new DataView(new ArrayBuffer(8)); d.setFloat64(0, v); for (var i = 0; i < 8; i++) u8(d.getUint8(i)); }
+    function s4(s) { for (var i = 0; i < 4; i++) u8(s.charCodeAt(i)); }
+    function key(s) { if (s.length === 4) { u32(0); s4(s); } else { u32(s.length); for (var i = 0; i < s.length; i++) u8(s.charCodeAt(i)); } }
+    function ustr(s) { u32(s.length + 1); for (var i = 0; i < s.length; i++) u16(s.charCodeAt(i)); u16(0); }
+    function desc(cls, items) { ustr(""); key(cls); u32(items.length); items.forEach(function (it) { key(it[0]); s4(it[1]); it[2](); }); }
+    function obj(cls, items) { return function () { desc(cls, items); }; }
+    function list(vals) { return function () { u32(vals.length); vals.forEach(function (v) { s4(v[0]); v[1](); }); }; }
+    function lng(v) { return function () { u32(v); }; }
+    function dbl(v) { return function () { f64(v); }; }
+    function en(t, e) { return function () { key(t); key(e); }; }
+    s4("8BGR"); u16(5); u32(16);
+    var custom = obj("Grdn", [["Grad", "Objc", obj("Grdn", [["Nm  ", "TEXT", function () { ustr("Sunrise"); }], ["GrdF", "enum", en("GrdF", "CstS")], ["Intr", "doub", dbl(4096)],
+      ["Clrs", "VlLs", list([["Objc", obj("Clrt", [["Clr ", "Objc", obj("RGBC", [["Rd  ", "doub", dbl(255)], ["Grn ", "doub", dbl(128)], ["Bl  ", "doub", dbl(0)]])], ["Type", "enum", en("Clry", "UsrS")], ["Lctn", "long", lng(0)], ["Mdpn", "long", lng(30)]])],
+        ["Objc", obj("Clrt", [["Type", "enum", en("Clry", "FrgC")], ["Lctn", "long", lng(4096)], ["Mdpn", "long", lng(50)]])]])],
+      ["Trns", "VlLs", list([["Objc", obj("TrnS", [["Opct", "UntF", function () { s4("#Prc"); f64(100); }], ["Lctn", "long", lng(0)], ["Mdpn", "long", lng(50)]])], ["Objc", obj("TrnS", [["Opct", "UntF", function () { s4("#Prc"); f64(25); }], ["Lctn", "long", lng(4096)], ["Mdpn", "long", lng(50)]])]])]])]]);
+    var noise = obj("Grdn", [["Grad", "Objc", obj("Grdn", [["Nm  ", "TEXT", function () { ustr("Static"); }], ["GrdF", "enum", en("GrdF", "ClNs")], ["ShTr", "bool", function () { u8(1); }], ["VctC", "bool", function () { u8(0); }], ["RndS", "long", lng(1234)], ["Smth", "long", lng(2048)]])]]);
+    desc("null", [["GrdL", "VlLs", list([["Objc", custom], ["Objc", noise]])]]);
+    return new Uint8Array(b);
+  }
+  PP.test(".grd gradients", function (ok) {
+    var g = PPX.readGrd(grd());
+    ok(g.length === 2 && g[0].name === "Sunrise" && g[0].stops[0].c === "#ff8000" && g[0].stops[1].c === "fg" && Math.abs(g[0].stops[0].m - 0.3) < 1e-9 && g[0].stops[1].p === 1, "custom gradient stops");
+    ok(Math.abs(g[0].alpha[1].a - 0.25) < 1e-9, "opacity stops");
+    ok(g[1].kind === "noise" && g[1].seed === 1234 && Math.abs(g[1].rough - 50) < 1e-9 && g[1].transp === true, "noise gradient");
+    var threw = false; try { PPX.readGrd(grd().slice(0, 60)); } catch (e) { threw = true; } ok(threw, "rejects a truncated file");
+  });
+})();
