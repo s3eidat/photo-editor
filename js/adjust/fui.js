@@ -22,6 +22,56 @@
   AUI.filter("blur", "Surface blur…", "surfaceBlur", { t: "Surface blur", c: [sl("radius", "Radius", 1, 100, 1, 5, pxf), sl("threshold", "Threshold (levels)", 2, 255, 1, 15)] });
   AUI.filter("blur", "Smart blur…", "smartBlur", { t: "Smart blur", c: [sl("radius", "Radius", 0.5, 100, 0.5, 3, pxf), sl("threshold", "Threshold", 1, 100, 1, 25)],
     sel: [["mode", "Mode", [["normal", "Normal"], ["edges", "Edges only"], ["overlay", "Overlay edges"]], "normal"]] });
+  // depth of field
+  var IRIS = [["sides", "Iris shape", [["0", "Circle"], ["3", "Triangle"], ["4", "Square"], ["5", "Pentagon"], ["6", "Hexagon"], ["7", "Heptagon"], ["8", "Octagon"]], "6"],
+    ["quality", "Quality", [["draft", "Draft"], ["good", "Good"], ["best", "Best"]], "good"]];
+  AUI.filter("blur", "Lens blur…", "lensBlur", { t: "Lens blur", mp: 8e5, c: [sl("radius", "Radius", 0, 100, 1, 15, pxf), sl("focal", "Focal distance", 0, 255, 1, 0), sl("rotation", "Iris rotation", 0, 360, 1, 0, deg),
+    sl("curve", "Blade curvature", 0, 100, 1, 0, pc), sl("hlBright", "Highlights: brightness", 0, 100, 1, 0), sl("hlThreshold", "Highlights: threshold", 0, 255, 1, 255), sl("noise", "Noise", 0, 100, 1, 0)],
+    chk: [["invert", "Invert depth", false]], sel: IRIS, ui: function (el, st) {
+      var p = st.p, K = ED.adjKit, L = st.t.L, opts = [["none", "None (even blur)"], ["luminance", "Brightness"]];
+      if (L.mask) opts.push(["mask", "Layer mask"]);
+      if (ED.doc.sel) opts.push(["selection", "Selection"]);
+      p.depthSrc = L.mask ? "mask" : ED.doc.sel ? "selection" : "none";
+      if (L.mask) {      // the mask over the layer, as a plane (reduced to at most 1500 px)
+        var k = Math.min(1, 1500 / Math.max(st.t.r.w, st.t.r.h)), mw = Math.max(1, Math.round(st.t.r.w * k)), mh = Math.max(1, Math.round(st.t.r.h * k)), c = PE.mk(mw, mh), x = c.getContext("2d");
+        x.scale(k, k); x.drawImage(L.mask.canvas, L.mask.x - st.t.r.x, L.mask.y - st.t.r.y);
+        var px = x.getImageData(0, 0, mw, mh).data, b = "";
+        for (var q = 0; q < mw * mh; q++) b += String.fromCharCode(px[q * 4 + 3]);
+        p.depth = { w: mw, h: mh, b64: btoa(b) };
+      }
+      el.insertBefore(K.select("Depth map", opts, p.depthSrc, function (v) { p.depthSrc = v; st.schedule(); }), el.firstChild);
+      el.appendChild(h("p", { "class": "faint pe-p", text: "Depth: black is near, white is far; the focal distance stays sharp." }));
+    } });
+  function placeCentre(el, st, label) {
+    var b = ED.adjKit.btn(label || "Place the centre", function () { AUI.pick(function (pt) { st.p.cx = Math.round((pt.x - st.t.r.x) / st.t.r.w * 100); st.p.cy = Math.round((pt.y - st.t.r.y) / st.t.r.h * 100); st.schedule(); }, b); }, "ghost", null, "Click the image");
+    b.setAttribute("aria-pressed", "false"); b.classList.add("pe-apick"); el.appendChild(b);
+  }
+  F.blur.push("-");
+  AUI.filter("blur", "Tilt-shift…", "tiltShift", { t: "Tilt-shift", mp: 8e5, c: [sl("blur", "Blur", 0, 200, 1, 15, pxf), sl("cy", "Focus line position", 0, 100, 1, 50, pc), sl("angle", "Angle", -90, 90, 1, 0, deg),
+    sl("focus", "Sharp band", 0, 100, 1, 12, pc), sl("transition", "Fade", 1, 100, 1, 18, pc), sl("bokeh", "Light bokeh", 0, 100, 1, 0, pc)], chk: [["symmetric", "Blur both sides", true]], sel: [IRIS[1]],
+    ui: function (el, st) { st.p.cx = 50; placeCentre(el, st, "Place the focus line"); } });
+  AUI.filter("blur", "Iris blur…", "irisBlur", { t: "Iris blur", mp: 8e5, c: [sl("blur", "Blur", 0, 200, 1, 15, pxf), sl("cx", "Centre X", 0, 100, 1, 50, pc), sl("cy", "Centre Y", 0, 100, 1, 50, pc),
+    sl("rx", "Width", 1, 150, 1, 30, pc), sl("ry", "Height", 1, 150, 1, 30, pc), sl("rotation", "Rotation", -180, 180, 1, 0, deg), sl("sharp", "Sharp area", 0, 99, 1, 50, pc), sl("bokeh", "Light bokeh", 0, 100, 1, 0, pc)], sel: [IRIS[1]],
+    ui: function (el, st) { placeCentre(el, st); } });
+  AUI.filter("blur", "Field blur…", "fieldBlur", { t: "Field blur", mp: 8e5, c: [sl("bokeh", "Light bokeh", 0, 100, 1, 0, pc)], sel: [IRIS[1]], ui: function (el, st) {
+    var p = st.p, K = ED.adjKit, box = h("div", { "class": "stack pe-asecin" });
+    p.pins = [[50, 50, 15]];
+    function draw() {
+      box.textContent = "";
+      p.pins.forEach(function (pin, i) {
+        var r = K.range("Pin " + (i + 1) + " (" + pin[0] + "%, " + pin[1] + "%) blur", pin[2], 0, 200, 1, function (v) { pin[2] = v; st.schedule(); }, pxf);
+        var del = K.btn("", function () { if (p.pins.length > 1) { p.pins.splice(i, 1); draw(); st.schedule(); } }, "ghost icon small", "i-x", "Remove pin");
+        if (p.pins.length < 2) del.disabled = true;
+        box.appendChild(h("div", { "class": "pe-astop" }, [h("span"), r, del]));
+      });
+    }
+    var add = K.btn("Add pin", function () {
+      AUI.pick(function (pt) { if (p.pins.length >= 32) return; p.pins.push([Math.round((pt.x - st.t.r.x) / st.t.r.w * 100), Math.round((pt.y - st.t.r.y) / st.t.r.h * 100), 0]); draw(); st.schedule(); }, add);
+    }, "ghost", "i-plus", "Click the image to add a pin (Shift-click adds several); set each pin's blur");
+    add.setAttribute("aria-pressed", "false"); add.classList.add("pe-apick");
+    el.insertBefore(box, el.firstChild); el.insertBefore(add, box.nextSibling); draw();
+  } });
+
   // noise
   AUI.filter("noise", "Reduce noise…", "reduceNoise", { t: "Reduce noise", c: [sl("strength", "Strength", 0, 10, 1, 6), sl("details", "Preserve details", 0, 100, 1, 60, pc), sl("color", "Reduce colour noise", 0, 100, 1, 45, pc), sl("sharpen", "Sharpen details", 0, 100, 1, 25, pc)] });
   AUI.filter("noise", "Dust & scratches…", "dustScratches", { t: "Dust & scratches", c: [sl("radius", "Radius", 1, 100, 1, 2, pxf), sl("threshold", "Threshold (levels)", 0, 255, 1, 10)] });

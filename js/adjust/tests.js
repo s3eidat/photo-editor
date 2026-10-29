@@ -181,6 +181,15 @@
     var mz = run(gray(8, 8, function () { return 255; }), "mezzotint", {}, null, 8, 8), mz0 = run(gray(8, 8, function () { return 0; }), "mezzotint", {}, null, 8, 8);
     ok(get(mz, 30)[0] === 255 && get(mz0, 30)[0] === 0, "mezzotint keeps white and black");
     var fr = run(gray(12, 12, function () { return 40; }), "fragment", {}, null, 12, 12); ok(get(fr, 70)[0] === 40, "fragment keeps a flat colour");
+
+    // lens blur / blur gallery
+    var tp = PIX.A.irisTaps(64, 6, 0, 0), tmax = 0; tp.forEach(function (t) { tmax = Math.max(tmax, Math.hypot(t[0], t[1])); }); ok(tp.length === 64 && tmax <= 1.0001, "iris taps stay inside the iris");
+    var lb = run(gray(15, 15, function (x, y) { return x === 7 && y === 7 ? 255 : 0; }), "lensBlur", { radius: 4, depthSrc: "none" }, null, 15, 15);
+    ok(get(lb, 7 * 15 + 7)[0] < 200 && get(lb, 7 * 15 + 9)[0] > 0 && get(lb, 0)[0] === 0, "lens blur spreads a point into a disc");
+    var lbs = run(gray(15, 1, function (x) { return x % 2 ? 255 : 0; }), "lensBlur", { radius: 3, depthSrc: "selection", focal: 255 }, new Uint8Array(15).fill(255), 15, 1);
+    ok(get(lbs, 7)[0] === 255 && get(lbs, 6)[0] === 0, "lens blur: in-focus depth stays sharp");
+    var ts = run(gray(9, 21, function (x, y) { return (x + y) % 2 ? 255 : 0; }), "tiltShift", { blur: 4, focus: 10, transition: 10 }, null, 9, 21);
+    var tsm = get(ts, 10 * 9 + 4)[0], tse = get(ts, 1 * 9 + 4)[0]; ok((tsm === 0 || tsm === 255) && tse > 20 && tse < 235, "tilt-shift: sharp band, blurred edges");
     var wk = await PE.work("adjust", [im([[50, 100, 20], [200, 150, 220]]), "autoTone", { clip: 0 }, null]);
     ok(wk.data[0] === 0 && wk.data[4] === 255, "extra ops run in the worker");
   };

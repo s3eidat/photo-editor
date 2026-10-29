@@ -123,8 +123,9 @@
 
   // ---------- reduced-size previews ----------
   // Big layers are previewed at about screen resolution (at least ~1.5 MP), so sliders stay responsive.
-  function proxyScale(w, hh) {
+  function proxyScale(w, hh, mp) {      // mp: preview size in pixels for very heavy ops (spec.mp)
     var n = w * hh, z = ED.zoom * Math.min(2, window.devicePixelRatio || 1);
+    if (mp) return Math.min(1, Math.sqrt(mp / n));
     if (n <= 3e6 || z >= 1) return 1;
     return Math.min(1, Math.max(z * 1.25, Math.sqrt(1.5e6 / n)));
   }
@@ -157,7 +158,7 @@
     if (ED.ui.floatState()) ED.ui.closeFloat(false);
     AUI.closePanel(false);
     var t = K.adjTarget(); if (!t) return;
-    var L = t.L, W = t.r.w, H = t.r.h, s = spec.proxy === false ? 1 : proxyScale(W, H), w = Math.max(1, Math.round(W * s)), hh = Math.max(1, Math.round(H * s));
+    var L = t.L, W = t.r.w, H = t.r.h, s = spec.proxy === false ? 1 : proxyScale(W, H, spec.mp), w = Math.max(1, Math.round(W * s)), hh = Math.max(1, Math.round(H * s));
     s = w / W;
     var src = s < 1 ? AUI.downImg(t.img, w, hh) : t.img, ssel = t.sel && s < 1 ? AUI.downPlane(t.sel, W, H, w, hh) : t.sel;
     var p = {}, key = PE.uid("k"), small = PE.mk(w, hh), sctx = small.getContext("2d"), full = s < 1 ? PE.mk(W, H) : null, selC = null;
