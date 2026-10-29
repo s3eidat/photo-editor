@@ -234,6 +234,78 @@
   } });
   AUI.more("Equalize", function () { if (ED.doc && ED.doc.sel) AUI.open("equalize"); else AUI.quick("equalize", "Equalize"); });
 
+  // ---------- gradient map ----------
+  // A small gradient editor: preset, then up to 6 colour stops with positions; drawn as a strip.
+  var GM = [["fgbg", "Foreground to background"], ["bw", "Black to white", [[0, "#000000"], [1, "#ffffff"]]], ["sepia", "Warm duotone", [[0, "#1c1009"], [0.55, "#9a6b3c"], [1, "#f6e7c8"]]],
+    ["teal", "Teal and amber", [[0, "#0b2433"], [0.45, "#2e7d86"], [1, "#f7b866"]]], ["ir", "Heat", [[0, "#000000"], [0.33, "#5b2a8f"], [0.66, "#e5485a"], [1, "#ffe76f"]]],
+    ["cyan", "Cyanotype", [[0, "#0a1a3e"], [0.5, "#3a78bb"], [1, "#eef6ff"]]], ["gold", "Gold", [[0, "#1b1104"], [0.5, "#8d5d12"], [1, "#ffe6a3"]]],
+    ["neon", "Neon night", [[0, "#0a0220"], [0.5, "#ff2d9b"], [1, "#f6f7a6"]]], ["mint", "Mint fade", [[0, "#24323a"], [1, "#d9f5e4"]]]];
+  AUI.gradStrip = function (stops, reverse) {
+    var c = h("canvas", { "class": "pe-agrad", width: "256", height: "18", "aria-hidden": "true" }), x = c.getContext("2d"), T = PIX.A.gradientTable(stops, reverse);
+    for (var i = 0; i < 256; i++) { x.fillStyle = "rgb(" + Math.round(T[i * 3]) + "," + Math.round(T[i * 3 + 1]) + "," + Math.round(T[i * 3 + 2]) + ")"; x.fillRect(i, 0, 1, 18); }
+    return c;
+  };
+  AUI.stopsEditor = function (el, getStops, onChange) {
+    var box = h("div", { "class": "pe-astops" }), K = kit();
+    function draw() {
+      box.textContent = "";
+      var stops = getStops();
+      stops.forEach(function (s, i) {
+        var c = h("input", { type: "color", "class": "pe-acolor", value: s[1], "aria-label": "Stop " + (i + 1) + " colour" });
+        c.addEventListener("input", function () { s[1] = c.value; onChange(false); });
+        var r = h("input", { type: "range", min: "0", max: "100", step: "1", value: String(Math.round(s[0] * 100)), "aria-label": "Stop " + (i + 1) + " position" });
+        r.addEventListener("input", function () { s[0] = +r.value / 100; onChange(false); });
+        var del = K.btn("", function () { if (stops.length > 2) { stops.splice(i, 1); draw(); onChange(true); } }, "ghost icon small", "i-x", "Remove stop");
+        if (stops.length <= 2) del.disabled = true;
+        box.appendChild(h("div", { "class": "pe-astop" }, [c, r, del]));
+      });
+      if (stops.length < 6) box.appendChild(K.btn("Add stop", function () {
+        var st = getStops(), T = PIX.A.gradientTable(st, false), i = 128;
+        st.push([0.5, PE.toHex(T[i * 3], T[i * 3 + 1], T[i * 3 + 2])]); st.sort(function (a, b) { return a[0] - b[0]; }); draw(); onChange(true);
+      }, "ghost", "i-plus"));
+    }
+    el.appendChild(box); draw();
+    return { redraw: draw };
+  };
+  AUI.adj("gradientMap", { t: "Gradient map", ui: function (el, st) {
+    var p = st.p, K = kit(), d = ED.doc;
+    function preset(id) { var g = GM.filter(function (x) { return x[0] === id; })[0]; return id === "fgbg" ? [[0, d.fg], [1, d.bg]] : JSON.parse(JSON.stringify(g[2])); }
+    p.stops = preset("fgbg"); p.reverse = false; p.dither = false;
+    var strip = h("div", { "class": "pe-astrip" });
+    function redrawStrip() { strip.textContent = ""; strip.appendChild(AUI.gradStrip(p.stops, p.reverse)); }
+    el.appendChild(K.select("Gradient", GM.map(function (g) { return [g[0], g[1]]; }), "fgbg", function (v) { p.stops = preset(v); ed.redraw(); redrawStrip(); st.schedule(); }));
+    el.appendChild(strip);
+    var ed = AUI.stopsEditor(el, function () { return p.stops; }, function () { redrawStrip(); st.schedule(); });
+    el.appendChild(h("div", { "class": "row pe-arow" }, [K.check("Reverse", false, function (v) { p.reverse = v; redrawStrip(); st.schedule(); }), K.check("Dither", false, function (v) { p.dither = v; st.schedule(); })]));
+    redrawStrip();
+  } });
+  AUI.more("Gradient map…", "gradientMap");
+
+  // ---------- channel mixer ----------
+  var CM = [["none", "Default (no change)", { r: [100, 0, 0, 0], g: [0, 100, 0, 0], b: [0, 0, 100, 0], mono: false }],
+    ["bwRed", "Mono through a red filter", { mono: true, gray: [80, 30, -10, 0] }], ["bwGreen", "Mono through a green filter", { mono: true, gray: [20, 70, 10, 0] }],
+    ["bwBlue", "Mono through a blue filter", { mono: true, gray: [0, 30, 70, 0] }], ["bwIr", "Mono, infrared look", { mono: true, gray: [-50, 190, -40, 0] }],
+    ["bwFlat", "Mono, equal channels", { mono: true, gray: [34, 33, 33, 0] }], ["swapRB", "Swap red and blue", { r: [0, 0, 100, 0], g: [0, 100, 0, 0], b: [100, 0, 0, 0], mono: false }],
+    ["warm", "Warmer reds", { r: [110, 10, -20, 0], g: [0, 100, 0, 0], b: [-10, 0, 100, 0], mono: false }]];
+  AUI.adj("channelMixer", { t: "Channel mixer", ui: function (el, st) {
+    var p = st.p, K = kit(), out = "r", rs = [], total = h("p", { "class": "faint pe-p mono" }), monoChk, outSeg;
+    function set(v) { p.r = v.r ? v.r.slice() : p.r || [100, 0, 0, 0]; p.g = v.g ? v.g.slice() : p.g || [0, 100, 0, 0]; p.b = v.b ? v.b.slice() : p.b || [0, 0, 100, 0]; p.gray = v.gray ? v.gray.slice() : p.gray || [40, 40, 20, 0]; p.mono = !!v.mono; }
+    set(CM[0][2]);
+    function cur() { return p.mono ? p.gray : p[out]; }
+    function sync() { var v = cur(); rs.forEach(function (r, i) { r._set(v[i]); }); total.textContent = "Total " + (v[0] + v[1] + v[2]) + "%" + (v[0] + v[1] + v[2] > 100 ? " (may clip highlights)" : ""); outSeg.style.display = p.mono ? "none" : ""; monoChk.querySelector("input").checked = p.mono; }
+    el.appendChild(K.select("Preset", CM.map(function (c) { return [c[0], c[1]]; }), "none", function (v) { set(CM.filter(function (c) { return c[0] === v; })[0][2]); sync(); st.schedule(); }));
+    outSeg = K.seg("Output", [["r", "Red"], ["g", "Green"], ["b", "Blue"]], out, function (v) { out = v; sync(); });
+    el.appendChild(outSeg);
+    [["Red", -200, 200], ["Green", -200, 200], ["Blue", -200, 200], ["Constant", -200, 200]].forEach(function (lab, i) {
+      var r = K.range(lab[0], cur()[i], lab[1], lab[2], 1, function (v) { cur()[i] = v; sync(); st.schedule(); }, pc); rs.push(r); el.appendChild(r);
+    });
+    el.appendChild(total);
+    monoChk = K.check("Monochrome", false, function (v) { p.mono = v; sync(); st.schedule(); });
+    el.appendChild(monoChk);
+    sync();
+  } });
+  AUI.more("Channel mixer…", "channelMixer");
+
   // ---------- auto tone / contrast / colour ----------
   var AUTO = [["autoTone", "Auto tone", "Ctrl+Shift+L"], ["autoContrast", "Auto contrast", "Ctrl+Alt+Shift+L"], ["autoColor", "Auto colour", "Ctrl+Shift+B"]];
   AUI.addMenu("Image", AUTO.map(function (a) { return [a[1], a[2], function () { AUI.quick(a[0], a[1]); }, has]; }).concat(["-"]), "Vibrance");

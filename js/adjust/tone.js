@@ -129,4 +129,41 @@
     return l;
   };
   A.reg("equalize", function (img, p, sel) { var l = A.lutEqualize(img, sel); return PIX.applyLuts(img, l, l, l, p.basis === "image" ? null : sel); });
+
+  // ---------- gradient map ----------
+  // stops: [[position 0..1, "#rrggbb"], ...] -> 256 colours, looked up by each pixel's luminance.
+  A.gradientTable = function (stops, reverse) {
+    var st = (Array.isArray(stops) ? stops : []).map(function (s) { return [clamp(num(s && s[0], 0), 0, 1), A.hex(s && s[1], [0, 0, 0])]; })
+      .sort(function (a, b) { return a[0] - b[0]; });
+    if (!st.length) st = [[0, [0, 0, 0]], [1, [255, 255, 255]]];
+    var t = new Float32Array(256 * 3);
+    for (var i = 0; i < 256; i++) {
+      var x = reverse ? 1 - i / 255 : i / 255, j = 0;
+      while (j < st.length - 1 && st[j + 1][0] < x) j++;
+      var a = st[j], b = st[Math.min(st.length - 1, j + 1)], k = b[0] > a[0] ? clamp((x - a[0]) / (b[0] - a[0]), 0, 1) : (x > a[0] ? 1 : 0);
+      if (x <= st[0][0]) { a = b = st[0]; k = 0; }
+      for (var c = 0; c < 3; c++) t[i * 3 + c] = a[1][c] + (b[1][c] - a[1][c]) * k;
+    }
+    return t;
+  };
+  A.reg("gradientMap", function (img, p, sel) {
+    var T = A.gradientTable(p.stops, !!p.reverse), R = p.dither ? A.rng(p.seed || 3) : null;
+    return A.perPixel(img, sel, function (r, g, b, o) {
+      var l = A.lum(r, g, b);
+      if (R) l += R() - 0.5;
+      var x = clamp(l, 0, 255), i0 = Math.floor(x), i1 = Math.min(255, i0 + 1), f = x - i0;
+      for (var c = 0; c < 3; c++) o[c] = T[i0 * 3 + c] + (T[i1 * 3 + c] - T[i0 * 3 + c]) * f;
+    });
+  });
+
+  // ---------- channel mixer ----------
+  // Each output channel = sum of input channels x percent + constant (% of full scale). Monochrome: one mix for all.
+  A.reg("channelMixer", function (img, p, sel) {
+    function row(v, d) { v = Array.isArray(v) ? v : d; return [num(v[0], d[0]) / 100, num(v[1], d[1]) / 100, num(v[2], d[2]) / 100, num(v[3], d[3]) / 100 * 255]; }
+    var mono = !!p.mono, M = mono ? row(p.gray, [40, 40, 20, 0]) : null, R = row(p.r, [100, 0, 0, 0]), Gg = row(p.g, [0, 100, 0, 0]), B = row(p.b, [0, 0, 100, 0]);
+    return A.perPixel(img, sel, function (r, g, b, o) {
+      if (mono) { var v = r * M[0] + g * M[1] + b * M[2] + M[3]; o[0] = o[1] = o[2] = v; return; }
+      o[0] = r * R[0] + g * R[1] + b * R[2] + R[3]; o[1] = r * Gg[0] + g * Gg[1] + b * Gg[2] + Gg[3]; o[2] = r * B[0] + g * B[1] + b * B[2] + B[3];
+    });
+  });
 })(typeof self !== "undefined" ? self : this);

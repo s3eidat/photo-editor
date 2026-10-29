@@ -1,0 +1,9 @@
+/* Adjust lane styles (panels for the extra adjustments and filters). Colours from the kit variables. */
+.pe-acolor { width: 44px; height: 30px; padding: 2px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); cursor: pointer; }
+.pe-agrad { display: block; width: 100%; height: 18px; border-radius: 5px; border: 1px solid var(--line); }
+.pe-astops { display: flex; flex-direction: column; gap: 6px; }
+.pe-astop { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; }
+.pe-astop input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
+.pe-arow { gap: 14px; flex-wrap: wrap; }
+.pe-asub .pe-aback span { font-weight: 700; }
+.pe-stage .pe-float canvas.pe-agrad, .pe-stage .pe-float canvas.pe-acv { position: static; pointer-events: auto; }
