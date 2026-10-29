@@ -78,6 +78,8 @@
     "t-clipmark": '<path d="M7 4v9.5a3 3 0 0 0 3 3h8"/><path d="m15 13.5 3 3-3 3"/>',
     "t-fx": '<path d="M5 19c2.5 0 3-2 3.6-5.5L10 5.8c.4-2 1.4-2.8 3-2.8"/><path d="M6.5 10h6"/><path d="m14 10 6 9M20 10l-6 9"/>',
     "t-link": '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+    "t-filter": '<path d="M4 5h16l-6.2 7.4v5.4l-3.6 1.7v-7.1z"/>',
+    "t-close": '<path d="m6.5 6.5 11 11M17.5 6.5l-11 11"/>',
     "t-adj": '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17" /><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>'
   };
   SX.addIcons(ICONS);
@@ -110,9 +112,49 @@
     var L0 = ED.layer();
     if (L0) { $("#layerOp").value = Math.round(L0.opacity * 100); $("#layerOpOut").textContent = Math.round(L0.opacity * 100) + "%"; }
     SX.syncPanel();
-    var G = SX.groupsApi, t = G.tree();
-    G.topFirst(t, true).forEach(function (r) { if (!(SX.HELPER && SX.HELPER[r.L.kind]) && r.L.kind !== "qmask" && r.L.kind !== "channel") list.appendChild(row(r.L, r.depth, L0, t)); });
+    var G = SX.groupsApi, t = G.tree(), F = SX.layerFilter, n = 0;
+    function real(L) { return !(SX.HELPER && SX.HELPER[L.kind]) && L.kind !== "qmask" && L.kind !== "channel"; }
+    syncFilter(d);
+    if (F.on && (F.q || F.kind)) {         // filtered: a flat list of the matches, groups' contents included
+      var q = F.q.toLowerCase();
+      G.topFirst(t, false).forEach(function (r) { var L = r.L; if (real(L) && (!F.kind || L.kind === F.kind) && (!q || L.name.toLowerCase().indexOf(q) >= 0)) { list.appendChild(row(L, 0, L0, t)); n++; } });
+      if (!n) list.appendChild(h("p", { "class": "faint pe-p", text: "No layers match the filter." }));
+      return;
+    }
+    G.topFirst(t, true).forEach(function (r) { if (real(r.L)) list.appendChild(row(r.L, r.depth, L0, t)); });
   }
+  // ---------- filter (name / kind) ----------
+  var KINDS = { raster: "Pixel", text: "Text", shape: "Shape", adjust: "Adjustment", fill: "Fill", smart: "Smart layer", group: "Group" };
+  SX.layerFilter = { on: false, q: "", kind: "" };
+  var fRow = null, fKind = null, fBtn = null;
+  function syncFilter(d) {
+    if (!fRow) return;
+    var F = SX.layerFilter, have = {};
+    fRow.hidden = !F.on; if (fBtn) { fBtn.setAttribute("aria-pressed", String(F.on)); fBtn.classList.toggle("on", F.on && !!(F.q || F.kind)); }
+    d.layers.forEach(function (L) { if (!(SX.HELPER && SX.HELPER[L.kind]) && L.kind !== "qmask" && L.kind !== "channel") have[L.kind] = 1; });
+    var opts = [["", "All"]].concat(Object.keys(have).map(function (k) { return [k, KINDS[k] || k.charAt(0).toUpperCase() + k.slice(1)]; }));
+    if (F.kind && !have[F.kind]) opts.push([F.kind, KINDS[F.kind] || F.kind]);
+    var sig = opts.map(function (o) { return o[0]; }).join();
+    if (fKind.dataset.sig !== sig) { fKind.textContent = ""; opts.forEach(function (o) { fKind.appendChild(h("option", { value: o[0], text: o[1] })); }); fKind.dataset.sig = sig; }
+    fKind.value = F.kind;
+  }
+  SX.toggleLayerFilter = function (on) {
+    var F = SX.layerFilter; F.on = on == null ? !F.on : !!on;
+    if (!F.on) { F.q = ""; F.kind = ""; if (fRow) fRow.querySelector("input").value = ""; }
+    render(); if (F.on && fRow) fRow.querySelector("input").focus();
+  };
+  document.addEventListener("DOMContentLoaded", function () {
+    var list = $("#layerList"), foot = $(".pe-lfoot"); if (!list || !foot) return;
+    var F = SX.layerFilter, q = h("input", { type: "search", "class": "input pe-lfq", placeholder: "Filter layers by name", "aria-label": "Filter layers by name", maxlength: "100", dir: "auto" });
+    fKind = h("select", { "class": "select pe-lfk", "aria-label": "Filter layers by kind" });
+    q.addEventListener("input", S3.debounce(function () { F.q = q.value.trim(); render(); }, 120));
+    q.addEventListener("keydown", function (e) { e.stopPropagation(); if (e.key === "Escape") SX.toggleLayerFilter(false); });
+    fKind.addEventListener("change", function () { F.kind = fKind.value; render(); });
+    fRow = h("div", { "class": "pe-lfilter", hidden: true }, [q, fKind, h("button", { type: "button", "class": "btn ghost icon small", title: "Close the filter", "aria-label": "Close the layer filter", onclick: function () { SX.toggleLayerFilter(false); } }, [svg("t-close")])]);
+    list.parentNode.insertBefore(fRow, list);
+    fBtn = h("button", { type: "button", "class": "btn ghost icon small", id: "lFilter", title: "Filter layers by name or kind", "aria-label": "Filter layers", "aria-pressed": "false", onclick: function () { SX.toggleLayerFilter(); } }, [svg("t-filter")]);
+    foot.insertBefore(fBtn, foot.firstChild);
+  });
   function meta(L) {
     var parts = [];
     if (L.kind === "group" && L.blend !== "pass") parts.push(PIX.blendLabel(L.blend));
@@ -186,6 +228,13 @@
     i.addEventListener("keydown", function (e) { e.stopPropagation(); if (e.key === "Enter") end(true); if (e.key === "Escape") end(false); });
     i.addEventListener("blur", function () { end(true); });
   }
+  SX.tests.push(async function (ok) {
+    var a = PE.rasterFromCanvas(SX.solid(2, 2, "#ff0000"), "Red sky"), b = PE.rasterFromCanvas(SX.solid(2, 2, "#00ff00"), "Green"), d = SX.scratch(2, 2, [a, b]);
+    function shown() { render(); return Array.prototype.map.call(document.querySelectorAll("#layerList .pe-lname"), function (e) { return e.textContent; }); }
+    SX.layerFilter.on = true; SX.layerFilter.q = "sky"; var one = shown();
+    SX.toggleLayerFilter(false); var all = shown();
+    ok(one.join() === "Red sky" && all.length === d.layers.length, "layer filter shows matching names only, closing shows all");
+  });
   ED.ui.layersExt = render;
   SX.renderPanel = render;
 
