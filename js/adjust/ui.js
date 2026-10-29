@@ -217,6 +217,14 @@
   } });
   AUI.more("Photo filter…", "photoFilter");
 
+  // ---------- desaturate options ----------
+  AUI.adj("desatMethod", { t: "Desaturate", c: [sl("amount", "Amount", 0, 100, 1, 100, pc)], ui: function (el, st) {
+    st.p.method = "lum601";
+    el.insertBefore(kit().select("Grey from", [["lum601", "Luminosity (Rec. 601)"], ["lum709", "Luminosity (Rec. 709)"], ["average", "Average of R, G, B"], ["lightness", "Lightness (max + min) / 2"],
+      ["max", "Brightest channel"], ["min", "Darkest channel"], ["red", "Red channel"], ["green", "Green channel"], ["blue", "Blue channel"]], "lum601", function (v) { st.p.method = v; st.schedule(); }), el.firstChild);
+  } });
+  AUI.more("Desaturate…", "desatMethod");
+
   // ---------- auto tone / contrast / colour ----------
   var AUTO = [["autoTone", "Auto tone", "Ctrl+Shift+L"], ["autoContrast", "Auto contrast", "Ctrl+Alt+Shift+L"], ["autoColor", "Auto colour", "Ctrl+Shift+B"]];
   AUI.addMenu("Image", AUTO.map(function (a) { return [a[1], a[2], function () { AUI.quick(a[0], a[1]); }, has]; }).concat(["-"]), "Vibrance");

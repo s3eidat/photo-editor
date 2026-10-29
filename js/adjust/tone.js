@@ -91,4 +91,20 @@
       o[0] = R; o[1] = Gg; o[2] = B;
     });
   });
+
+  // ---------- desaturate with a choice of grey ----------
+  var GREY = {
+    lum601: function (r, g, b) { return 0.299 * r + 0.587 * g + 0.114 * b; },
+    lum709: function (r, g, b) { return 0.2126 * r + 0.7152 * g + 0.0722 * b; },
+    average: function (r, g, b) { return (r + g + b) / 3; },
+    lightness: function (r, g, b) { return (Math.max(r, g, b) + Math.min(r, g, b)) / 2; },
+    max: function (r, g, b) { return Math.max(r, g, b); },
+    min: function (r, g, b) { return Math.min(r, g, b); },
+    red: function (r) { return r; }, green: function (r, g) { return g; }, blue: function (r, g, b) { return b; }
+  };
+  A.GREY = GREY;
+  A.reg("desatMethod", function (img, p, sel) {
+    var f = GREY[p.method] || GREY.lum601, k = clamp(num(p.amount, 100), 0, 100) / 100;
+    return A.perPixel(img, sel, function (r, g, b, o) { var v = f(r, g, b); o[0] = r + (v - r) * k; o[1] = g + (v - g) * k; o[2] = b + (v - b) * k; });
+  });
 })(typeof self !== "undefined" ? self : this);
