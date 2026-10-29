@@ -15,7 +15,7 @@
     var r = 0;
     for (var i = 0; i < doc.layers.length; i++) {
       var L = doc.layers[i];
-      if (L.clip || L.kind === "adjust" || (!NATIVE[L.blend] && L.blend !== "pass") || (SX.pixelKinds && SX.pixelKinds[L.kind])) return 2;
+      if (L.clip || L.kind === "adjust" || L.blendIf || (!NATIVE[L.blend] && L.blend !== "pass") || (SX.pixelKinds && SX.pixelKinds[L.kind])) return 2;
       if (!BASIC[L.kind] || L.parent || L.fx || L.vmask || (L.fillOp != null && L.fillOp < 1)) r = 1;
     }
     return r;
@@ -127,7 +127,7 @@
   // Top-level layers up to the last one that needs pixel reads are cached between frames (painting above an
   // adjustment layer or a JS blend mode does not redo them).
   var CACHE = { key: null, c: null };
-  function needsPixels(L, R) { return L.clip || L.kind === "adjust" || (!NATIVE[L.blend] && L.blend !== "pass") || (SX.pixelKinds && SX.pixelKinds[L.kind]) || (L.kind === "group" && (R.tree.kids[L.id] || []).some(function (k) { return needsPixels(k, R); })); }
+  function needsPixels(L, R) { return L.clip || L.kind === "adjust" || L.blendIf || (!NATIVE[L.blend] && L.blend !== "pass") || (SX.pixelKinds && SX.pixelKinds[L.kind]) || (L.kind === "group" && (R.tree.kids[L.id] || []).some(function (k) { return needsPixels(k, R); })); }
   function renderCached(R, root, list) {
     var k = -1, i;
     for (i = 0; i < list.length; i++) if (needsPixels(list[i], R) || (list[i + 1] && list[i + 1].clip)) k = i;
@@ -165,7 +165,9 @@
   function drawItem(R, tgt, L) {
     if (SX.drawExt[L.kind]) { SX.drawExt[L.kind](R, tgt, L); return; }
     var P = prep(R, L);
-    if (P) drawPrepared(R, tgt, P, L.blend, L.opacity);
+    if (!P) return;
+    if (L.blendIf && SX.blendIfDraw) { SX.blendIfDraw(R, tgt, L, P); return; }
+    drawPrepared(R, tgt, P, L.blend, L.opacity);
   }
   SX.drawItem = drawItem;
   // Layer pixels plus any style parts drawn behind (shadows, glows) and after (stroke, outer bevel), each with its own blend.

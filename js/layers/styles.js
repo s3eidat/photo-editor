@@ -168,7 +168,7 @@
     if (L.kind === "group") { S3.toast("Styles apply to pixel, text, shape and fill layers. Pick a layer inside the group.", "error"); return; }
     if (panel) closePanel(false);
     ED.cancelModes();
-    var before = PE.snap(ED.doc), orig = PE.clone(L.fx || null), stage = S3.$("#stage");
+    var before = PE.snap(ED.doc), orig = PE.clone(L.fx || null), origBif = PE.clone(L.blendIf || null), stage = S3.$("#stage");
     if (!L.fx) L.fx = { on: true };
     var box = h("div", { "class": "pe-float pe-fxpanel", role: "dialog", "aria-label": "Layer style" }), body = h("div", { "class": "pe-fbody" });
     var open = focus || ORDER.filter(function (k) { return on(L, k); })[0] || "dropShadow";
@@ -176,6 +176,8 @@
     function build() {
       body.textContent = "";
       body.appendChild(ED.ui.w.check("Show effects", L.fx.on !== false, function (v) { L.fx.on = v; changed(); }));
+      if (SX.blendIfUI && open === "blendIf") SX.blendIfUI(body, L, changed);
+      else if (SX.blendIfUI) body.appendChild(h("div", { "class": "pe-fxhead" }, [h("span", { "aria-hidden": "true", "class": "pe-fxdot" }), h("button", { type: "button", "class": "pe-fxname", text: "Blend if (brightness)" + (L.blendIf ? " ●" : ""), onclick: function () { open = "blendIf"; build(); } })]));
       ORDER.forEach(function (k) {
         var cur = L.fx[k] ? Object.assign({}, DEF[k], L.fx[k]) : Object.assign({}, DEF[k]);
         var cb = h("input", { type: "checkbox", "aria-label": NAMES[k] }); cb.checked = !!(L.fx[k] && L.fx[k].on);
@@ -194,7 +196,7 @@
     box.appendChild(body);
     box.appendChild(h("div", { "class": "row pe-ffoot" }, [w.btn("Clear", function () { L.fx = { on: true }; changed(); build(); }, "ghost"), h("span", { "class": "grow" }), w.btn("Cancel", function () { closePanel(false); }, "ghost"), w.btn("OK", function () { closePanel(true); }, "primary")]));
     stage.appendChild(box);
-    panel = { box: box, L: L, before: before, orig: orig };
+    panel = { box: box, L: L, before: before, orig: orig, origBif: origBif };
     ED.modal = true;
     build(); changed();
   };
@@ -203,8 +205,8 @@
     panel = null; ED.modal = false; p.box.remove();
     var L = p.L;
     if (L.fx && !SX.fxOn(L) && !ORDER.some(function (k) { return L.fx[k]; })) delete L.fx;
-    if (!ok) { if (p.orig) L.fx = p.orig; else delete L.fx; ED.changed(); return; }
-    if (JSON.stringify(p.orig || null) === JSON.stringify(L.fx || null)) { ED.changed(); return; }
+    if (!ok) { if (p.orig) L.fx = p.orig; else delete L.fx; if (p.origBif) L.blendIf = p.origBif; else delete L.blendIf; ED.changed(); return; }
+    if (JSON.stringify(p.orig || null) === JSON.stringify(L.fx || null) && JSON.stringify(p.origBif || null) === JSON.stringify(L.blendIf || null)) { ED.changed(); return; }
     ED.push(PE.metaEntry("Layer style", ED.doc, p.before));
   }
   SX.closeStyle = closePanel;
