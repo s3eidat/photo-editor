@@ -127,6 +127,7 @@
       c.beginPath(); c.arc(cursorPt.x, cursorPt.y, r, 0, Math.PI * 2); c.strokeStyle = "rgba(0,0,0,.8)"; c.lineWidth = 1.5; c.stroke();
       c.beginPath(); c.arc(cursorPt.x, cursorPt.y, Math.max(0.5, r - 1.5), 0, Math.PI * 2); c.strokeStyle = "rgba(255,255,255,.9)"; c.lineWidth = 1; c.stroke();
     }
+    (ED.ovlHooks || []).forEach(function (f) { try { f(c, docPath, cursorPt, dpr); } catch (e) { console.error(e); } }); // lane:paint
   }
   function cross(c, x, y) { c.beginPath(); c.moveTo(x - 8, y); c.lineTo(x + 8, y); c.moveTo(x, y - 8); c.lineTo(x, y + 8); c.stroke(); }
   function brushTool() { return ["brush", "eraser", "clone", "heal"].indexOf(ED.tool) >= 0 || !!(TOOLS[ED.tool] && TOOLS[ED.tool].brush); }   // lane:selection (.brush tools)
@@ -273,6 +274,7 @@
   }
   ED.cancelDrag = cancelDrag;
   function cursorFor(p) {
+    if (ED.cursorHook) { var hc = ED.cursorHook(p); if (hc) return hc; } // lane:paint
     if (space || ED.tool === "hand") return ED.drag && ED.drag.kind === "pan" ? "grabbing" : "grab";
     if (ED.xf) { var h = xfHit(p); return h ? (h === "move" ? "move" : h === "rot" ? "alias" : "nwse-resize") : "default"; }
     if (ED.crop) { var ch = cropHit(p); return ch ? (ch === "move" ? "move" : "crosshair") : "crosshair"; }
