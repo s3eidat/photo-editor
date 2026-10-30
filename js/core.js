@@ -536,6 +536,7 @@
       meta.layers.push(l);
     });
     if (PE.VX && PE.VX.saveDoc) PE.VX.saveDoc(doc, meta);   // lane:vector (saved paths)
+    if (PE.docSaveExt) PE.docSaveExt(doc, meta);   // lane:files (guides, resolution, notes… in project.json)
     return Promise.all(jobs).then(function () {
       files.sort(function (a, b) { return a.name < b.name ? -1 : 1; });
       return [{ name: "project.json", data: JSON.stringify(meta) }].concat(files);
@@ -551,6 +552,7 @@
       var meta = parseProjectJson(new TextDecoder().decode(jb)), doc = newDoc(meta.w, meta.h, meta.name);
       doc.fg = meta.fg; doc.bg = meta.bg;
       if (PE.VX && PE.VX.openDoc) PE.VX.openDoc(doc, new TextDecoder().decode(jb));   // lane:vector (validates its own fields)
+      if (PE.docOpenExt) PE.docOpenExt(new TextDecoder().decode(jb), doc);   // lane:files (validated there)
       function img(src) {
         var e = byName[src]; if (!e) throw new Error("The project is missing " + src);
         return zipRead(u8, e, 400e6).then(function (b) {

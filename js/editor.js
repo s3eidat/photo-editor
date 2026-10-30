@@ -128,6 +128,7 @@
       c.beginPath(); c.arc(cursorPt.x, cursorPt.y, Math.max(0.5, r - 1.5), 0, Math.PI * 2); c.strokeStyle = "rgba(255,255,255,.9)"; c.lineWidth = 1; c.stroke();
     }
     (ED.ovlHooks || []).forEach(function (f) { try { f(c, docPath, cursorPt, dpr); } catch (e) { console.error(e); } }); // lane:paint
+    (ED.ovlExt || []).forEach(function (f) { try { c.setTransform(dpr, 0, 0, dpr, 0, 0); f(c, dpr); } catch (x) { console.error(x); } });   // lane:files (guides, grid, smart guides)
   }
   function cross(c, x, y) { c.beginPath(); c.moveTo(x - 8, y); c.lineTo(x + 8, y); c.moveTo(x, y - 8); c.lineTo(x, y + 8); c.stroke(); }
   function brushTool() { return ["brush", "eraser", "clone", "heal"].indexOf(ED.tool) >= 0 || !!(TOOLS[ED.tool] && TOOLS[ED.tool].brush); }   // lane:selection (.brush tools)
@@ -231,6 +232,8 @@
     if (ids.length > 2) return;
     try { stage.setPointerCapture(e.pointerId); } catch (x) {}
     var s = local(e), p = toDoc(s.x, s.y);
+    if (ED.downExt && !space && e.button === 0 && ED.downExt(p, e, s)) return;   // lane:files (move guides, note/count/ruler tools)
+    if (ED.snapPt) p = ED.snapPt(p, e);   // lane:files (snapping)
     if (e.button === 1 || space || ED.tool === "hand") { ED.drag = { kind: "pan", sx: s.x, sy: s.y, px: ED.panX, py: ED.panY }; return; }
     if (e.button === 2) return;
     var T = TOOLS[ED.tool];
@@ -248,6 +251,7 @@
     }
     var p = toDoc(s.x, s.y);
     emit("view", { x: p.x, y: p.y });
+    if (ED.snapPt && ED.drag && ED.drag.kind !== "pan") p = ED.snapPt(p, e);   // lane:files (snapping)
     var dr = ED.drag;
     if (dr && dr.kind === "pan") { ED.fitted = null; ED.panX = dr.px + s.x - dr.sx; ED.panY = dr.py + s.y - dr.sy; render(); renderOvl(); return; }
     var T = TOOLS[ED.tool];
@@ -275,6 +279,7 @@
   ED.cancelDrag = cancelDrag;
   function cursorFor(p) {
     if (ED.cursorHook) { var hc = ED.cursorHook(p); if (hc) return hc; } // lane:paint
+    var cx0 = ED.cursorExt && !space ? ED.cursorExt(p) : null; if (cx0) return cx0;   // lane:files
     if (space || ED.tool === "hand") return ED.drag && ED.drag.kind === "pan" ? "grabbing" : "grab";
     if (ED.xf) { var h = xfHit(p); return h ? (h === "move" ? "move" : h === "rot" ? "alias" : "nwse-resize") : "default"; }
     if (ED.crop) { var ch = cropHit(p); return ch ? (ch === "move" ? "move" : "crosshair") : "crosshair"; }
@@ -570,6 +575,7 @@
     var dr = ED.drag, dx = p.x - dr.p0.x, dy = p.y - dr.p0.y;
     if (e && e.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
     dx = Math.round(dx); dy = Math.round(dy);
+    if (ED.snapMove) { var sn = ED.snapMove(dr, dx, dy, e); dx = sn.dx; dy = sn.dy; }   // lane:files (snap + smart guides)
     if (dr.kind === "float") { dr.dx = dx; dr.dy = dy; floatPreview(); renderOvl(); return; }
     shiftLayer(dr, dx, dy); render();
   }

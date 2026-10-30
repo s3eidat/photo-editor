@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="app.css">
 <link rel="stylesheet" href="js/layers/layers.css"><!-- lane:selection -->
 <link rel="stylesheet" href="js/paint/paint.css"><!-- lane:paint -->
+<link rel="stylesheet" href="js/files/files.css"><!-- lane:files -->
 <script src="kit/kit.js"></script>
 <!--s3:seo-->
 <link rel="canonical" href="https://s3eidat.github.io/photo-editor/">
@@ -165,7 +166,7 @@
       </aside>
     </div>
   </div>
-  <input type="file" id="fileOpen" accept="image/*,.s3photo" multiple hidden>
+  <input type="file" id="fileOpen" accept="image/*,.s3photo,.psd" multiple hidden>
   <input type="file" id="filePlace" accept="image/*" multiple hidden>
 </main>
 <script src="js/pix.js"></script>
@@ -230,6 +231,36 @@
 <script src="js/paint/colortab.js"></script><!-- lane:paint -->
 <script src="js/paint/library.js"></script><!-- lane:paint -->
 <script src="js/paint/tests.js"></script><!-- lane:paint -->
+<!-- lane:files -->
+<script src="js/files/files.js"></script>
+<script src="js/files/psd.js"></script>
+<script src="js/files/psd-ext.js"></script>
+<script src="js/files/encode.js"></script>
+<script src="js/files/quant.js"></script>
+<script src="js/files/export.js"></script>
+<script src="js/files/trim.js"></script>
+<script src="js/files/layers-export.js"></script>
+<script src="js/files/print.js"></script>
+<script src="js/workspace/ws.js"></script>
+<script src="js/workspace/rulers.js"></script>
+<script src="js/workspace/guides.js"></script>
+<script src="js/workspace/snap.js"></script>
+<script src="js/workspace/view.js"></script>
+<script src="js/workspace/tabs.js"></script>
+<script src="js/workspace/panels.js"></script>
+<script src="js/workspace/color.js"></script>
+<script src="js/workspace/navigator.js"></script>
+<script src="js/workspace/histogram.js"></script>
+<script src="js/workspace/info.js"></script>
+<script src="js/workspace/prefs.js"></script>
+<script src="js/workspace/keys.js"></script>
+<script src="js/workspace/actions.js"></script>
+<script src="js/workspace/batch.js"></script>
+<script src="js/workspace/modes.js"></script>
+<script src="js/workspace/proof.js"></script>
+<script src="js/workspace/measure.js"></script>
+<script src="js/workspace/dock.js"></script>
+<!-- /lane:files -->
 <script src="app.js"></script>
 <!-- lane:adjust -->
 <script src="js/adjust/amath.js"></script>
