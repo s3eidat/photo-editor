@@ -39,10 +39,8 @@ A free, local-first alternative to image editors like Photoshop, for the everyda
 ## Limits
 
 - Documents are limited to 8000 px a side and 40 megapixels (bigger images are scaled down when opened, with a message).
-- 8-bit RGB only: no CMYK, 16-bit, RAW development or colour profiles. No PSD files.
+- 8-bit RGB editing: 16/32-bit PSD and TIFF files are converted on open; CMYK and Lab PSDs and PSB files cannot be opened. Colour proofing is simulated (no ICC profiles). No RAW camera files.
 - No generative AI fill. Select subject / remove background use a small on-device model (U²-Net small, about 16 MB including the engine, downloaded once from this site, then offline); fine hair and glass need the refine tools.
-- 8-bit RGB editing: 16/32-bit PSD and TIFF files are converted on open; CMYK and Lab PSDs and PSB files cannot be opened. Colour proofing is simulated (no ICC profiles).
-- No AI features (generative fill, sky replacement, background removal), no adjustment layers or layer styles yet.
 - Fonts are the ones on your device; a project file opened on another device falls back if the font is missing.
 - Free transform on a pixel layer is applied when you press Apply (pixels are resampled once).
 - Some browsers reserve Ctrl+T, Ctrl+N and Ctrl+Shift+N; use the menu, the buttons, or the alternatives in the shortcut list.
