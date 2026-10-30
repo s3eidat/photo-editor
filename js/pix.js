@@ -306,6 +306,7 @@
   // ---------- adjustments by name (used by the worker and the dialogs) ----------
   PIX.adjust = function (img, op, p, sel) {
     p = p || {};
+    if (PIX.EXT && PIX.EXT[op]) return PIX.EXT[op](img, p, sel);   // lane:adjust (js/adjust/*.js register more ops)
     switch (op) {
       case "brightness": return PIX.applyLuts(img, PIX.lutBrightnessContrast(+p.b || 0, +p.c || 0), null, null, sel);
       case "levels": {
